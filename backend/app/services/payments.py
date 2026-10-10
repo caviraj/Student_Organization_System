@@ -19,6 +19,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.authz import has_permission
 from app.core.config import settings
 from app.core.errors import AppError
 from app.models import Order, Payment, User
@@ -159,7 +160,9 @@ def latest_payment(db: Session, order_id: UUID) -> Payment | None:
     return db.scalar(select(Payment).where(Payment.order_id == order_id).order_by(Payment.created_at.desc()))
 
 
-def record_gateway_payment(payment: Payment, gateway_payment_id: str | None, amount: int | None, status: str | None) -> None:
+def record_gateway_payment(
+    payment: Payment, gateway_payment_id: str | None, amount: int | None, status: str | None
+) -> None:
     """Append what the gateway told us about this attempt. Kept as a list, not overwritten: two
     successful payments against one order is exactly the case a refund has to be raised for."""
     if not gateway_payment_id:
@@ -204,7 +207,7 @@ def _authorise(db: Session, order_id: UUID, actor: User) -> Order:
     order = db.get(Order, order_id)
     if order is None:
         raise AppError(404, "ORDER_NOT_FOUND", "Order not found", {"order_id": str(order_id)})
-    if order.user_id != actor.id and actor.role != "admin":
+    if order.user_id != actor.id and not has_permission(db, actor, "orders.manage"):
         raise AppError(403, "FORBIDDEN", "You can only confirm your own orders")
     return order
 
@@ -278,7 +281,9 @@ def handle_webhook(db: Session, event: dict) -> dict | None:
         # Money moved, but not the money we asked for. Settling would put a wrong number in the
         # ledger, so refuse loudly instead - and the dashboard shows the non-200.
         raise AppError(
-            400, "AMOUNT_MISMATCH", "The paid amount does not match the order",
+            400,
+            "AMOUNT_MISMATCH",
+            "The paid amount does not match the order",
             {"expected": payment.amount, "received": amount},
         )
 

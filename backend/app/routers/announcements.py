@@ -9,7 +9,8 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_optional_user, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db, get_optional_user
 from app.jobs import scheduler
 from app.models import User
 from app.schemas import (
@@ -63,7 +64,7 @@ def list_announcements(
 def create_announcement(
     payload: AnnouncementCreateIn,
     background_tasks: BackgroundTasks,
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("announcements.post")),
     db: Session = Depends(get_db),
 ):
     """The post, the audience it resolves to and the delivery rows are one transaction. Email goes
@@ -98,7 +99,7 @@ def get_announcement(
 def update_announcement(
     announcement_id: UUID,
     payload: AnnouncementUpdateIn,
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("announcements.manage")),
     db: Session = Depends(get_db),
 ):
     """Any change to title, body or category requires `revision_note` (3+ characters) and stores
@@ -118,7 +119,7 @@ def list_revisions(
     announcement_id: UUID,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("announcements.manage")),
     db: Session = Depends(get_db),
 ):
     """Each row is the version that was replaced, who replaced it and why."""
@@ -143,7 +144,7 @@ def list_deliveries(
     status: Literal["queued", "sent", "failed"] | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("announcements.view_deliveries")),
     db: Session = Depends(get_db),
 ):
     """`summary` always counts the whole announcement; `items` is the filtered, paginated rows."""

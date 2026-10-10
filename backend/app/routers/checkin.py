@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core import ratelimit
+from app.core.authz import require_permission
 from app.core.config import settings
-from app.core.deps import get_db, require_role
+from app.core.deps import get_db
 from app.models import User
 from app.schemas import CheckinIn, CheckinOut
 from app.services.checkin import check_in
@@ -23,5 +24,7 @@ router = APIRouter(tags=["check-in"])
         Depends(ratelimit.limit_by_user("checkin", settings.CHECKIN_PER_MINUTE, "Too many scans; slow down"))
     ],
 )
-def checkin(payload: CheckinIn, staff: User = Depends(require_role("volunteer")), db: Session = Depends(get_db)):
+def checkin(
+    payload: CheckinIn, staff: User = Depends(require_permission("tickets.checkin")), db: Session = Depends(get_db)
+):
     return check_in(db, staff, payload.event_id, payload.code)

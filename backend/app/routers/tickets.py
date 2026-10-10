@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core import ratelimit
+from app.core.authz import has_permission
 from app.core.config import settings
 from app.core.db import as_utc
 from app.core.deps import get_current_user, get_db
@@ -93,6 +94,6 @@ def get_ticket(
     ticket = db.get(Ticket, ticket_id)
     if ticket is None:
         raise AppError(404, "TICKET_NOT_FOUND", "No ticket with that id", {"ticket_id": str(ticket_id)})
-    if ticket.user_id != user.id and user.role not in ("organizer", "treasurer", "admin"):
+    if ticket.user_id != user.id and not has_permission(db, user, "attendees.view"):
         raise AppError(403, "FORBIDDEN", "This is not your ticket")
     return ticket_service.ticket_view(ticket)

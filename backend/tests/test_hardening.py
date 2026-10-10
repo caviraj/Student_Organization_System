@@ -51,6 +51,7 @@ PUBLIC_ALLOWLIST = {
 # must answer 403 - not 401, not 404 - so the frontend can tell "log in again" from "not your call".
 MEMBER_ALLOWED = {
     ("/api/v1/auth/me", "GET"),
+    ("/api/v1/auth/permissions", "GET"),
     ("/api/v1/members/me/card", "GET"),
     ("/api/v1/memberships/checkout", "POST"),
     ("/api/v1/memberships/me", "GET"),

@@ -35,7 +35,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
@@ -45,6 +45,7 @@ from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models import Event, Fundraiser, Membership, MembershipPlan, Task, TicketType, User
+from tests.authz_golden import truncate_all
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -66,27 +67,30 @@ TestingSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=Tru
 
 def _migrate() -> None:
     """Build the test schema with the real migrations. ALEMBIC_DATABASE_URL is what stops a test
-    run from ever touching the database Alembic would otherwise choose."""
+    run from ever touching the database Alembic would otherwise choose.
+
+    Then `sync_catalog`, because the migration that seeds the permission catalog only runs once and
+    a test database already at `head` never re-runs it. This is the same call `scripts/seed.py` and
+    every deploy make, so the harness loads the catalog the way the app does; `tests/test_rbac.py`
+    is what checks the result against `app/core/permissions.py`.
+    """
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     os.environ["ALEMBIC_DATABASE_URL"] = TEST_URL
     command.upgrade(config, "head")
 
+    from app.services.rbac import sync_catalog
+
+    with TestingSession() as session:
+        sync_catalog(session)
+        session.commit()
+
 
 def _truncate_all(target_engine) -> None:
-    """Discovered, not hard-coded, so a new Phase's tables are cleaned without editing this."""
-    with target_engine.begin() as conn:
-        names = (
-            conn.execute(
-                text("select tablename from pg_tables where schemaname = 'public' and tablename <> 'alembic_version'")
-            )
-            .scalars()
-            .all()
-        )
-        if names:
-            conn.execute(
-                text("TRUNCATE TABLE " + ", ".join(f'"{name}"' for name in names) + " RESTART IDENTITY CASCADE")
-            )
+    """One implementation, shared with the golden harness: two copies would drift, and the seeded
+    RBAC reference tables (`REFERENCE_TABLES`) are exactly the kind of thing a second copy forgets.
+    """
+    truncate_all(target_engine)
 
 
 @pytest.fixture(scope="session")

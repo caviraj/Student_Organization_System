@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_optional_user, require_role
+from app.core.authz import has_permission, require_permission
+from app.core.deps import get_db, get_optional_user
 from app.core.errors import AppError
 from app.models import Event, TicketType, User
 from app.schemas import (
@@ -42,8 +43,8 @@ def list_events(
     if include_drafts:
         if user is None:
             raise AppError(401, "UNAUTHORIZED", "Sign in to include drafts")
-        if user.role not in ("organizer", "treasurer", "admin"):
-            raise AppError(403, "FORBIDDEN", "Requires role: organizer or above", {"your_role": user.role})
+        if not has_permission(db, user, "events.view_drafts"):
+            raise AppError(403, "FORBIDDEN", "Requires permission: events.view_drafts", {"your_role": user.role})
     else:
         filters.append(Event.status == "published")
     if upcoming:
@@ -73,7 +74,7 @@ def get_event(
     db: Session = Depends(get_db),
 ):
     event = event_service.get_event(db, event_id)
-    is_staff = user is not None and user.role in ("organizer", "treasurer", "admin")
+    is_staff = user is not None and has_permission(db, user, "events.view_drafts")
     if event.status != "published" and not is_staff:
         raise AppError(404, "EVENT_NOT_FOUND", "No event with that id", {"event_id": str(event_id)})
     return event_service.event_detail(db, event, user)
@@ -82,7 +83,7 @@ def get_event(
 @router.post("", response_model=EventDetail, status_code=201, summary="Create an event (organizer+)")
 def create_event(
     payload: EventCreateIn,
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("events.manage_all")),
     db: Session = Depends(get_db),
 ):
     return event_service.event_detail(db, event_service.create_event(db, user, payload), user)
@@ -92,7 +93,7 @@ def create_event(
 def update_event(
     event_id: UUID,
     payload: EventUpdateIn,
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("events.manage_all")),
     db: Session = Depends(get_db),
 ):
     event = event_service.get_event(db, event_id)
@@ -108,7 +109,7 @@ def update_event(
 def create_ticket_type(
     event_id: UUID,
     payload: TicketTypeCreateIn,
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("events.manage_all")),
     db: Session = Depends(get_db),
 ):
     event = event_service.get_event(db, event_id)
@@ -122,7 +123,7 @@ def create_ticket_type(
 def update_ticket_type(
     ticket_type_id: UUID,
     payload: TicketTypeUpdateIn,
-    user: User = Depends(require_role("organizer")),
+    user: User = Depends(require_permission("events.manage_all")),
     db: Session = Depends(get_db),
 ):
     ticket_type = db.get(TicketType, ticket_type_id)
@@ -135,7 +136,9 @@ def update_ticket_type(
 
 
 @router.get("/{event_id}/report", response_model=EventReportOut, summary="Sales and attendance report (organizer+)")
-def event_report(event_id: UUID, _: User = Depends(require_role("organizer")), db: Session = Depends(get_db)):
+def event_report(
+    event_id: UUID, _: User = Depends(require_permission("event_reports.view")), db: Session = Depends(get_db)
+):
     return reports.event_report(db, event_id)
 
 
@@ -146,7 +149,7 @@ def event_attendees(
     q: str | None = Query(default=None, description="Search name, email or ticket code"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role("organizer")),
+    _: User = Depends(require_permission("attendees.view")),
     db: Session = Depends(get_db),
 ):
     return reports.event_attendees(db, event_id, status=status, q=q, page=page, page_size=page_size)

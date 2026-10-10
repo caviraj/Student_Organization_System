@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy import Select, and_, func, or_, select, true
 from sqlalchemy.orm import Session
 
-from app.core.deps import ROLE_RANK
+from app.core.authz import has_permission
 from app.core.errors import AppError
 from app.models import (
     Announcement,
@@ -44,7 +44,7 @@ def visibility_clause(db: Session, user: User | None):
     """
     if user is None:
         return Announcement.audience == "all"
-    if ROLE_RANK.get(user.role, 0) >= ROLE_RANK["organizer"]:
+    if has_permission(db, user, "announcements.view_all"):
         return true()
 
     audiences = ["all"]

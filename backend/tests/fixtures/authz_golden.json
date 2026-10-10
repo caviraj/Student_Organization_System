@@ -75,6 +75,38 @@
       "treasurer": "deny",
       "volunteer": "deny"
     },
+    "GET /api/v1/admin/permissions": {
+      "_admin_status": "200",
+      "_anonymous_status": "401",
+      "_guest_status": "403",
+      "_member_status": "403",
+      "_organizer_status": "403",
+      "_treasurer_status": "403",
+      "_volunteer_status": "403",
+      "admin": "allow",
+      "anonymous": "deny",
+      "guest": "deny",
+      "member": "deny",
+      "organizer": "deny",
+      "treasurer": "deny",
+      "volunteer": "deny"
+    },
+    "GET /api/v1/admin/rbac/matrix": {
+      "_admin_status": "200",
+      "_anonymous_status": "401",
+      "_guest_status": "403",
+      "_member_status": "403",
+      "_organizer_status": "403",
+      "_treasurer_status": "403",
+      "_volunteer_status": "403",
+      "admin": "allow",
+      "anonymous": "deny",
+      "guest": "deny",
+      "member": "deny",
+      "organizer": "deny",
+      "treasurer": "deny",
+      "volunteer": "deny"
+    },
     "GET /api/v1/announcements": {
       "_admin_status": "200",
       "_anonymous_status": "200",
@@ -140,6 +172,22 @@
       "volunteer": "deny"
     },
     "GET /api/v1/auth/me": {
+      "_admin_status": "200",
+      "_anonymous_status": "401",
+      "_guest_status": "200",
+      "_member_status": "200",
+      "_organizer_status": "200",
+      "_treasurer_status": "200",
+      "_volunteer_status": "200",
+      "admin": "allow",
+      "anonymous": "deny",
+      "guest": "allow",
+      "member": "allow",
+      "organizer": "allow",
+      "treasurer": "allow",
+      "volunteer": "allow"
+    },
+    "GET /api/v1/auth/permissions": {
       "_admin_status": "200",
       "_anonymous_status": "401",
       "_guest_status": "200",

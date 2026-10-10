@@ -12,7 +12,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.core.errors import AppError
 from app.models import User
 from app.schemas import (
@@ -42,7 +43,7 @@ ADMIN = "admin"
 def summary(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return finance_service.summary(db, date_from, date_to)
@@ -64,7 +65,7 @@ def list_transactions(
     sort: str = Query(default="desc", pattern="^(asc|desc)$", description="`asc` also fills `running_balance`"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     items, total = finance_service.list_transactions(
@@ -90,7 +91,7 @@ def list_transactions(
 def manual_entry(
     payload: ManualEntryIn,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
-    user: User = Depends(require_role(TREASURER)),
+    user: User = Depends(require_permission("finance.manage_entries")),
     db: Session = Depends(get_db),
 ):
     expected = "in" if payload.source == "other_income" else "out"
@@ -119,7 +120,7 @@ def manual_entry(
 def reverse_transaction(
     transaction_id: UUID,
     payload: ReverseIn,
-    user: User = Depends(require_role(TREASURER)),
+    user: User = Depends(require_permission("finance.reverse")),
     db: Session = Depends(get_db),
 ):
     entry = finance_service.reverse_transaction(db, user, transaction_id, payload.reason)
@@ -130,7 +131,7 @@ def reverse_transaction(
 def by_event(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return finance_service.by_event(db, date_from, date_to)
@@ -142,7 +143,7 @@ def by_event(
 def by_fundraiser(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return finance_service.by_fundraiser(db, date_from, date_to)
@@ -154,7 +155,7 @@ def by_fundraiser(
     summary="Who is waiting to be paid (treasurer+)",
 )
 def outstanding_reimbursements(
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return finance_service.outstanding_reimbursements(db)
@@ -162,7 +163,7 @@ def outstanding_reimbursements(
 
 @router.get("/reconcile", response_model=ReconcileOut, summary="Do the books add up? (treasurer+)")
 def reconcile(
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return finance_service.reconcile(db)
@@ -172,7 +173,7 @@ def reconcile(
 def report(
     from_: date = Query(alias="from", description="First day of the period"),
     to: date = Query(description="Last day of the period, inclusive"),
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return finance_service.semester_report(db, from_, to)
@@ -180,7 +181,7 @@ def report(
 
 @periods_router.get("", response_model=list[FinancePeriodOut], summary="Closed and reopened periods (treasurer+)")
 def list_periods(
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("finance.view")),
     db: Session = Depends(get_db),
 ):
     return [finance_service.period_view(period) for period in finance_service.list_periods(db)]
@@ -189,7 +190,7 @@ def list_periods(
 @periods_router.post("", response_model=FinancePeriodOut, status_code=201, summary="Close a period (treasurer+)")
 def close_period(
     payload: ClosePeriodIn,
-    user: User = Depends(require_role(TREASURER)),
+    user: User = Depends(require_permission("finance.close_period")),
     db: Session = Depends(get_db),
 ):
     period = finance_service.close_period(db, user, payload.name, payload.start_date, payload.end_date, payload.force)
@@ -200,7 +201,7 @@ def close_period(
 def reopen_period(
     period_id: UUID,
     payload: ReopenPeriodIn,
-    user: User = Depends(require_role(ADMIN)),
+    user: User = Depends(require_permission("finance.reopen_period")),
     db: Session = Depends(get_db),
 ):
     period = finance_service.reopen_period(db, user, period_id, payload.reason)

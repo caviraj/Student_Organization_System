@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.core.errors import AppError
 from app.models import MembershipPlan, User
 from app.schemas import Page, PlanCreate, PlanOut, PlanUpdate
@@ -33,7 +34,7 @@ def list_plans(
 @router.post("", response_model=PlanOut, status_code=201, summary="Create a plan (admin)")
 def create_plan(
     payload: PlanCreate,
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("plans.manage")),
     db: Session = Depends(get_db),
 ):
     if db.scalar(select(MembershipPlan.id).where(MembershipPlan.name == payload.name)):
@@ -49,7 +50,7 @@ def create_plan(
 def update_plan(
     plan_id: UUID,
     payload: PlanUpdate,
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("plans.manage")),
     db: Session = Depends(get_db),
 ):
     plan = db.get(MembershipPlan, plan_id)

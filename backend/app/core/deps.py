@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from uuid import UUID
 
 from fastapi import Depends
@@ -65,18 +65,3 @@ def get_optional_user(
         return None
     user = db.get(User, user_id)
     return user if user is not None and user.is_active else None
-
-
-def require_role(*roles: str) -> Callable[..., User]:
-    """Dependency factory; passes anyone at or above the lowest listed role."""
-    min_rank = min(ROLE_RANK[role] for role in roles)
-
-    def dependency(user: User = Depends(get_current_user)) -> User:
-        if ROLE_RANK.get(user.role, 0) < min_rank:
-            raise AppError(403, "FORBIDDEN", f"Requires role: {' or '.join(roles)}", {"your_role": user.role})
-        return user
-
-    # scripts/contract_check.py walks the dependency tree to compare each route's real minimum role
-    # against the Role column in DESIGN.md §5. Nothing at runtime reads this.
-    dependency.required_roles = roles  # type: ignore[attr-defined]
-    return dependency

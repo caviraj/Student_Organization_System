@@ -12,8 +12,8 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.authz import has_permission
 from app.core.db import as_utc
-from app.core.deps import ROLE_RANK
 from app.core.errors import AppError
 from app.models import FUNDRAISER_STATUSES, Fundraiser, Task, Transaction, User
 from app.services import ledger
@@ -306,7 +306,7 @@ def _assert_owner(db: Session, owner_id: UUID | None, fallback: User) -> User:
     if owner_id is None or owner_id == fallback.id:
         return fallback
     owner = db.get(User, owner_id)
-    if owner is None or not owner.is_active or ROLE_RANK.get(owner.role, 0) < ROLE_RANK["organizer"]:
+    if owner is None or not owner.is_active or not has_permission(db, owner, "fundraisers.manage"):
         raise AppError(
             422,
             "INVALID_OWNER",
@@ -352,7 +352,7 @@ def create_fundraiser(db: Session, data: dict, actor: User) -> Fundraiser:
 
 def update_fundraiser(db: Session, fundraiser, data: dict, actor: User, *, force: bool = False) -> Fundraiser:
     """The owner (or an admin) edits it. Status only ever moves one step forward."""
-    if fundraiser.owner_id != actor.id and actor.role != "admin":
+    if fundraiser.owner_id != actor.id and not has_permission(db, actor, "fundraisers.manage_all"):
         raise AppError(
             403,
             "NOT_OWNER",

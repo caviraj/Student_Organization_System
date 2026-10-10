@@ -9,7 +9,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.models import User
 from app.schemas import (
     FundraiserCreateIn,
@@ -43,7 +44,7 @@ def list_fundraisers(
     q: str | None = Query(default=None, description="Search title or description"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("fundraisers.view")),
     db: Session = Depends(get_db),
 ):
     rows, total = fundraiser_service.list_fundraisers(
@@ -62,7 +63,7 @@ def list_fundraisers(
 @router.post("", response_model=FundraiserOut, status_code=201, summary="Create a fundraiser (organizer+)")
 def create_fundraiser(
     payload: FundraiserCreateIn,
-    user: User = Depends(require_role(WRITE)),
+    user: User = Depends(require_permission("fundraisers.manage")),
     db: Session = Depends(get_db),
 ):
     fundraiser = fundraiser_service.create_fundraiser(db, payload.model_dump(), user)
@@ -72,7 +73,7 @@ def create_fundraiser(
 @router.get("/{fundraiser_id}", response_model=FundraiserOut, summary="One fundraiser, with full progress (volunteer+)")
 def get_fundraiser(
     fundraiser_id: UUID,
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("fundraisers.view")),
     db: Session = Depends(get_db),
 ):
     fundraiser = fundraiser_service.get_fundraiser(db, fundraiser_id)
@@ -88,7 +89,7 @@ def update_fundraiser(
     fundraiser_id: UUID,
     payload: FundraiserUpdateIn,
     force: bool = Query(default=False, description="Close with open tasks anyway"),
-    user: User = Depends(require_role(WRITE)),
+    user: User = Depends(require_permission("fundraisers.manage")),
     db: Session = Depends(get_db),
 ):
     fundraiser = fundraiser_service.get_fundraiser(db, fundraiser_id)
@@ -105,7 +106,7 @@ def fundraiser_tasks(
     assignee_id: UUID | None = Query(default=None),
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("fundraisers.view")),
     db: Session = Depends(get_db),
 ):
     fundraiser_service.get_fundraiser(db, fundraiser_id)
@@ -131,7 +132,7 @@ def fundraiser_tasks(
 def create_task(
     fundraiser_id: UUID,
     payload: TaskCreateIn,
-    user: User = Depends(require_role(WRITE)),
+    user: User = Depends(require_permission("tasks.manage")),
     db: Session = Depends(get_db),
 ):
     task = task_service.create_task(db, {**payload.model_dump(), "fundraiser_id": fundraiser_id}, user)
@@ -145,7 +146,7 @@ def create_task(
 )
 def fundraiser_volunteers(
     fundraiser_id: UUID,
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("fundraisers.view")),
     db: Session = Depends(get_db),
 ):
     fundraiser_service.get_fundraiser(db, fundraiser_id)
@@ -162,7 +163,7 @@ def log_income(
     fundraiser_id: UUID,
     payload: IncomeCreateIn,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
-    user: User = Depends(require_role(WRITE)),
+    user: User = Depends(require_permission("income.log")),
     db: Session = Depends(get_db),
 ):
     """Adds one `in` ledger row (source=fundraiser). Send the same `Idempotency-Key` twice - a
@@ -191,7 +192,7 @@ def list_income(
     fundraiser_id: UUID,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("fundraisers.view")),
     db: Session = Depends(get_db),
 ):
     items, total = income_service.list_fundraiser_income(db, fundraiser_id, page=page, page_size=page_size)

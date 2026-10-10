@@ -5,7 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_optional_user, require_role
+from app.core.authz import has_permission, require_permission
+from app.core.deps import get_db, get_optional_user
 from app.core.errors import AppError
 from app.models import User
 from app.schemas import (
@@ -35,8 +36,13 @@ def list_products(
     user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    if include_inactive and (user is None or user.role != "admin"):
-        raise AppError(403, "FORBIDDEN", "Requires role: admin", {"your_role": user.role if user else "guest"})
+    if include_inactive and (user is None or not has_permission(db, user, "products.manage")):
+        raise AppError(
+            403,
+            "FORBIDDEN",
+            "Requires permission: products.manage",
+            {"your_role": user.role if user else "guest"},
+        )
 
     rows, total = merch_service.list_products(
         db, user, q=q, include_inactive=include_inactive, page=page, page_size=page_size
@@ -55,7 +61,7 @@ def get_product(
     user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    is_admin = user is not None and user.role == "admin"
+    is_admin = user is not None and has_permission(db, user, "products.manage")
     product = merch_service.get_product(db, product_id, include_inactive=is_admin)
     return merch_service.product_view(db, product, user, include_inactive=is_admin)
 
@@ -63,7 +69,7 @@ def get_product(
 @router.post("", response_model=ProductOut, status_code=201, summary="Create a product (admin)")
 def create_product(
     payload: ProductCreateIn,
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("products.manage")),
     db: Session = Depends(get_db),
 ):
     product = merch_service.create_product(db, payload.model_dump())
@@ -74,7 +80,7 @@ def create_product(
 def update_product(
     product_id: UUID,
     payload: ProductUpdateIn,
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("products.manage")),
     db: Session = Depends(get_db),
 ):
     product = merch_service.get_product(db, product_id, include_inactive=True)
@@ -91,7 +97,7 @@ def update_product(
 def create_variant(
     product_id: UUID,
     payload: VariantCreateIn,
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("products.manage")),
     db: Session = Depends(get_db),
 ):
     product = merch_service.get_product(db, product_id, include_inactive=True)
@@ -105,7 +111,7 @@ def create_variant(
 def update_variant(
     variant_id: UUID,
     payload: VariantUpdateIn,
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("products.manage")),
     db: Session = Depends(get_db),
 ):
     variant = merch_service.get_variant(db, variant_id)
@@ -120,7 +126,7 @@ def update_variant(
 def adjust_stock(
     variant_id: UUID,
     payload: StockAdjustIn,
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("stock.adjust")),
     db: Session = Depends(get_db),
 ):
     variant = merch_service.get_variant(db, variant_id)
@@ -139,7 +145,7 @@ def stock_movements(
     variant_id: UUID,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("stock.adjust")),
     db: Session = Depends(get_db),
 ):
     items, total = merch_service.stock_movements(db, variant_id, page=page, page_size=page_size)

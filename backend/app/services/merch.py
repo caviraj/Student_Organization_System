@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.core.authz import has_permission
 from app.core.config import settings
 from app.core.errors import AppError
 from app.models import (
@@ -625,7 +626,7 @@ def orders_view(db: Session, orders: list[Order]) -> list[dict]:
 
 def get_user_order(db: Session, order_id: UUID, user: User) -> Order:
     order = db.get(Order, order_id)
-    if order is None or (order.user_id != user.id and user.role != "admin"):
+    if order is None or (order.user_id != user.id and not has_permission(db, user, "merch_orders.manage")):
         # 404 for someone else's order: an order id is not a lookup key for other people's money.
         raise AppError(404, "ORDER_NOT_FOUND", "No order with that id", {"order_id": str(order_id)})
     return order

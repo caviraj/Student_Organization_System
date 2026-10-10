@@ -34,7 +34,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 # JSONB on Postgres, plain JSON elsewhere (SQLite in tests/dev).
 JSON_VARIANT = JSON().with_variant(JSONB(), "postgresql")
 
-ROLES = ("admin", "treasurer", "organizer", "volunteer", "member", "guest")
+ROLES = ("super_admin", "admin", "treasurer", "organizer", "volunteer", "member", "guest")
 MEMBERSHIP_STATUSES = ("pending", "active", "expired", "cancelled")
 ORDER_KINDS = ("membership", "ticket", "merch")
 ORDER_STATUSES = ("pending", "paid", "failed", "cancelled", "refunded")
@@ -80,6 +80,10 @@ EXPENSE_ACTIONS = (
 REIMBURSEMENT_METHODS = ("cash", "upi", "bank_transfer")
 FINANCE_PERIOD_STATUSES = ("closed", "reopened")
 
+# M2-P2 access control.
+SCOPE_TYPES = ("global", "event", "fundraiser", "committee")
+USER_STATUSES = ("active", "suspended", "deactivated")
+
 
 def _enum(*values: str, name: str) -> Enum:
     # native_enum=False -> portable VARCHAR, validated on bind; no PG type to migrate.
@@ -111,6 +115,15 @@ class User(TimestampMixin, Base):
     member_code: Mapped[str | None] = mapped_column(String(32), unique=True, index=True)
     email_opt_in: Mapped[bool] = mapped_column(Boolean, default=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Bumped whenever anything that affects this user's access changes (a role granted or revoked, a
+    # role's permissions edited, the account suspended). Tokens carry the value they were minted
+    # with, so a stale token is refused on the very next request instead of living out its TTL.
+    authz_version: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"), nullable=False)
+    # Read by app/core/authz.py. Not eager: only the routes that check a permission pay for the
+    # second SELECT, and inside one request the identity map means they pay for it once.
+    user_roles: Mapped[list["UserRole"]] = relationship(
+        lazy="select", back_populates="user", foreign_keys="UserRole.user_id"
+    )
 
 
 class MembershipPlan(TimestampMixin, Base):
@@ -643,3 +656,102 @@ class FinancePeriod(Base):
     reopen_reason: Mapped[str | None] = mapped_column(Text)
 
     closer: Mapped[User | None] = relationship(lazy="joined", foreign_keys=[closed_by])
+
+
+# --- M2-P2: permission-based access control (DESIGN.md §5, docs/RBAC.md) --------------------------
+class Permission(Base):
+    """The catalog, mirrored from app/core/permissions.py.
+
+    The module is what the code is checked against at import; this table is what an admin UI and the
+    generated docs read, and what `roles` is joined to. A sync test keeps the two honest.
+    """
+
+    __tablename__ = "permissions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(60), index=True)
+    is_privileged: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Role(TimestampMixin, Base):
+    """A named bundle of permissions.
+
+    `is_system` roles are seeded from app/core/permissions.py and cannot be edited or deleted - an
+    admin who could quietly drop `audit.export` from `super_admin` would defeat the audit trail.
+    Custom roles (`is_system=False`) are what the role-management API creates.
+    """
+
+    __tablename__ = "roles"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    key: Mapped[str] = mapped_column(String(60), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(Text)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_privileged: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    permissions: Mapped[list[Permission]] = relationship(secondary="role_permissions", lazy="selectin")
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
+    permission_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True)
+
+
+class UserRole(Base):
+    """A role held by a user, optionally scoped to one event/fundraiser/committee and time-boxed.
+
+    An assignment counts only while `revoked_at IS NULL` and `valid_from <= now < valid_to`. Nothing
+    deletes rows: revoking stamps `revoked_at`, so "who was treasurer in October" stays answerable.
+
+    `approval_request_id` is a plain UUID with no foreign key on purpose - these tables ship first
+    and `approval_requests` arrives with the approvals work, so a column that stays null until then
+    beats a second ALTER on a table under load.
+    """
+
+    __tablename__ = "user_roles"
+    __table_args__ = (
+        Index("ix_user_roles_user_open", "user_id", "revoked_at"),
+        Index("ix_user_roles_role_open", "role_id", "revoked_at"),
+        CheckConstraint("scope_type = 'global' OR scope_id IS NOT NULL", name="ck_user_roles_scoped_needs_id"),
+        CheckConstraint("valid_to IS NULL OR valid_to > valid_from", name="ck_user_roles_window_ordered"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id", ondelete="RESTRICT"))
+    scope_type: Mapped[str] = mapped_column(
+        _enum(*SCOPE_TYPES, name="user_role_scope"), default="global", server_default=text("'global'")
+    )
+    scope_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    granted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str | None] = mapped_column(Text)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    approval_request_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+
+    role: Mapped[Role] = relationship(lazy="joined")
+    user: Mapped[User] = relationship(back_populates="user_roles", foreign_keys=[user_id])
+
+
+class SodRule(TimestampMixin, Base):
+    """Separation of duties: two roles nobody may hold at the same time.
+
+    Seeded with auditor+treasurer and auditor+super_admin - whoever reads the books must not also be
+    whoever writes them.
+    """
+
+    __tablename__ = "sod_rules"
+    __table_args__ = (UniqueConstraint("role_a_id", "role_b_id", name="uq_sod_rules_pair"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    role_a_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id", ondelete="CASCADE"))
+    role_b_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id", ondelete="CASCADE"))
+    description: Mapped[str] = mapped_column(Text)

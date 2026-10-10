@@ -1244,3 +1244,35 @@ class ClosePeriodIn(BaseModel):
 
 class ReopenPeriodIn(BaseModel):
     reason: str = Field(min_length=10, max_length=1000, examples=["Missed the printer invoice for October"])
+
+
+# --- RBAC -------------------------------------------------------------------------
+class PermissionOut(BaseModel):
+    key: str
+    category: str
+    description: str
+    is_privileged: bool = Field(description="Granting a role that carries this needs a second approver")
+
+
+class MyPermissionsOut(BaseModel):
+    """What the caller may do, so the frontend can hide a button instead of collecting a 403."""
+
+    role: str = Field(description="The primary role on the account, from `users.role`")
+    roles: list[str] = Field(description="Every role held right now, including scoped assignments")
+    permissions: list[str]
+
+
+class RoleOut(BaseModel):
+    key: str
+    name: str
+    description: str
+    inherits: str | None = None
+    is_privileged: bool
+    permissions: list[str] = Field(description="Effective: this role's grants plus every ancestor's")
+
+
+class RoleMatrixOut(BaseModel):
+    """Roles down, permissions across. The admin UI's access-control screen, in one call."""
+
+    permissions: list[PermissionOut]
+    roles: list[RoleOut]

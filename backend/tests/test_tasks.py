@@ -357,10 +357,10 @@ def test_delete_needs_an_organizer_and_keeps_the_trail(
 
 
 # --- 6. the service-level gate ----------------------------------------------------
-def test_organizer_check_is_the_shared_rule(make_user, organizer, volunteer):
-    assert task_service.is_organizer(organizer) is True
-    assert task_service.is_organizer(volunteer) is False
-    assert task_service.is_organizer(make_user("treasurer@ssa.org", role="treasurer")) is True
+def test_organizer_check_is_the_shared_rule(db, make_user, organizer, volunteer):
+    assert task_service.is_organizer(db, organizer) is True
+    assert task_service.is_organizer(db, volunteer) is False
+    assert task_service.is_organizer(db, make_user("treasurer@ssa.org", role="treasurer")) is True
 
 
 def test_a_status_change_stamps_completed_at(db, fundraiser, make_task, organizer):

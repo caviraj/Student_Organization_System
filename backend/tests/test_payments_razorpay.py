@@ -74,9 +74,7 @@ def _captured_event(order_id: str = GATEWAY_ORDER_ID, payment_id: str = GATEWAY_
         "entity": "event",
         "event": "payment.captured",
         "payload": {
-            "payment": {
-                "entity": {"id": payment_id, "order_id": order_id, "amount": amount, "status": "captured"}
-            }
+            "payment": {"entity": {"id": payment_id, "order_id": order_id, "amount": amount, "status": "captured"}}
         },
     }
 
@@ -470,15 +468,15 @@ def test_production_refuses_a_test_key():
 
 
 def test_a_live_key_outside_production_is_a_warning():
-    problems = Settings(APP_ENV="development", PAYMENTS_PROVIDER="razorpay", RAZORPAY_KEY_ID="rzp_live_abc123").startup_problems()
+    problems = Settings(
+        APP_ENV="development", PAYMENTS_PROVIDER="razorpay", RAZORPAY_KEY_ID="rzp_live_abc123"
+    ).startup_problems()
 
     assert any("LIVE key" in problem for problem in problems)
 
 
 def test_razorpay_without_keys_names_every_missing_one():
-    problems = _production(
-        RAZORPAY_KEY_ID="", RAZORPAY_KEY_SECRET="", RAZORPAY_WEBHOOK_SECRET=""
-    ).startup_problems()
+    problems = _production(RAZORPAY_KEY_ID="", RAZORPAY_KEY_SECRET="", RAZORPAY_WEBHOOK_SECRET="").startup_problems()
 
     assert [problem for problem in problems if "razorpay but" in problem] == [
         "PAYMENTS_PROVIDER=razorpay but RAZORPAY_KEY_ID is unset",

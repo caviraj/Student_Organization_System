@@ -8,7 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.models import User
 from app.schemas import Page, TaskActivityOut, TaskMoveIn, TaskOut, TaskUpdateIn
 from app.services import tasks as task_service
@@ -31,7 +32,7 @@ def list_tasks(
     sort: str = Query(default="board", pattern="^(board|due_date)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("tasks.view")),
     db: Session = Depends(get_db),
 ):
     rows, total = task_service.list_tasks(
@@ -60,7 +61,7 @@ def my_tasks(
     status: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(require_role(READ)),
+    user: User = Depends(require_permission("tasks.view")),
     db: Session = Depends(get_db),
 ):
     rows, total = task_service.my_tasks(db, user, status=status, page=page, page_size=page_size)
@@ -73,7 +74,7 @@ def my_tasks(
 
 
 @router.get("/{task_id}", response_model=TaskOut, summary="One task (volunteer+)")
-def get_task(task_id: UUID, _: User = Depends(require_role(READ)), db: Session = Depends(get_db)):
+def get_task(task_id: UUID, _: User = Depends(require_permission("tasks.view")), db: Session = Depends(get_db)):
     return task_service.task_view(task_service.get_task(db, task_id))
 
 
@@ -81,7 +82,7 @@ def get_task(task_id: UUID, _: User = Depends(require_role(READ)), db: Session =
 def update_task(
     task_id: UUID,
     payload: TaskUpdateIn,
-    user: User = Depends(require_role(READ)),
+    user: User = Depends(require_permission("tasks.update_own")),
     db: Session = Depends(get_db),
 ):
     task = task_service.get_task(db, task_id)
@@ -96,7 +97,7 @@ def update_task(
 def move_task(
     task_id: UUID,
     payload: TaskMoveIn,
-    user: User = Depends(require_role(READ)),
+    user: User = Depends(require_permission("tasks.update_own")),
     db: Session = Depends(get_db),
 ):
     task = task_service.get_task(db, task_id)
@@ -104,7 +105,7 @@ def move_task(
 
 
 @router.delete("/{task_id}", status_code=204, summary="Delete a task (organizer+; its activity log is kept)")
-def delete_task(task_id: UUID, user: User = Depends(require_role(WRITE)), db: Session = Depends(get_db)):
+def delete_task(task_id: UUID, user: User = Depends(require_permission("tasks.manage")), db: Session = Depends(get_db)):
     task_service.delete_task(db, task_service.get_task(db, task_id), user)
 
 
@@ -115,7 +116,7 @@ def task_activity(
     task_id: UUID,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    _: User = Depends(require_role(READ)),
+    _: User = Depends(require_permission("tasks.view")),
     db: Session = Depends(get_db),
 ):
     rows, total = task_service.activity(db, task_id, page=page, page_size=page_size)

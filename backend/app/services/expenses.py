@@ -26,8 +26,8 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.authz import has_permission
 from app.core.config import settings
-from app.core.deps import ROLE_RANK
 from app.core.errors import AppError
 from app.models import EXPENSE_CATEGORIES, Event, Expense, ExpenseHistory, Fundraiser, User
 from app.services import fundraisers as fundraiser_service
@@ -43,8 +43,8 @@ EDITABLE_FIELDS = ("amount", "description", "category", "incurred_on", "event_id
 OPEN_STATUSES = ("submitted", "rejected")
 
 
-def is_treasurer(actor: User) -> bool:
-    return ROLE_RANK.get(actor.role, 0) >= ROLE_RANK["treasurer"]
+def is_treasurer(db: Session, actor: User) -> bool:
+    return has_permission(db, actor, "expenses.view_all")
 
 
 def get_expense(db: Session, expense_id: UUID) -> Expense:
@@ -54,10 +54,10 @@ def get_expense(db: Session, expense_id: UUID) -> Expense:
     return expense
 
 
-def assert_can_view(expense: Expense, actor: User) -> None:
+def assert_can_view(db: Session, expense: Expense, actor: User) -> None:
     """Your own claims, or all of them if you keep the books. An organizer running an event is not
     entitled to read what a volunteer spent out of their own pocket."""
-    if expense.claimant_id != actor.id and not is_treasurer(actor):
+    if expense.claimant_id != actor.id and not is_treasurer(db, actor):
         raise AppError(403, "FORBIDDEN", "This claim belongs to someone else", {"expense_id": str(expense.id)})
 
 
@@ -493,7 +493,7 @@ def reimburse_expense(
     """
     if expense.claimant_id == treasurer.id:
         raise AppError(409, "SELF_REVIEW", "You cannot reimburse your own claim", {"expense_id": str(expense.id)})
-    if allow_negative and ROLE_RANK.get(treasurer.role, 0) < ROLE_RANK["admin"]:
+    if allow_negative and not has_permission(db, treasurer, "finance.allow_negative"):
         raise AppError(403, "FORBIDDEN", "Only an admin can push the balance negative", {"your_role": treasurer.role})
 
     expense = _lock(db, expense.id)

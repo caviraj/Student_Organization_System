@@ -5,7 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.models import User
 from app.schemas import (
     FulfilmentUpdateIn,
@@ -31,7 +32,7 @@ def admin_orders(
     q: str | None = Query(default=None, description="Search buyer name, email or member code"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("merch_orders.manage")),
     db: Session = Depends(get_db),
 ):
     rows, total, counts = merch_service.admin_orders(
@@ -67,7 +68,7 @@ def admin_orders(
 def update_fulfilment(
     order_id: UUID,
     payload: FulfilmentUpdateIn,
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("merch_orders.manage")),
     db: Session = Depends(get_db),
 ):
     merch_service.update_fulfilment(db, order_id, payload.fulfilment_status, user)
@@ -75,5 +76,5 @@ def update_fulfilment(
 
 
 @router.get("/stock-summary", response_model=StockSummaryOut, summary="Stock, sales and demand by size (admin)")
-def stock_summary(_: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+def stock_summary(_: User = Depends(require_permission("stock.adjust")), db: Session = Depends(get_db)):
     return reports.stock_summary(db)

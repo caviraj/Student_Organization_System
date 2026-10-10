@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.core.errors import AppError
 from app.models import User
 from app.schemas import CardOut, VerifyOut
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/members", tags=["members"])
 def verify(
     code: str | None = Query(default=None, description="Member code, e.g. SSA-2026-0042"),
     q: str | None = Query(default=None, description="Name or email search"),
-    _: User = Depends(require_role("volunteer")),
+    _: User = Depends(require_permission("members.verify")),
     db: Session = Depends(get_db),
 ):
     if not code and not q:
@@ -55,7 +56,7 @@ def verify(
 
 
 @router.get("/me/card", response_model=CardOut, summary="QR member card payload")
-def my_card(user: User = Depends(require_role("member")), db: Session = Depends(get_db)):
+def my_card(user: User = Depends(require_permission("members.view")), db: Session = Depends(get_db)):
     state = verification_state(db, user)
     return {
         "full_name": user.full_name,

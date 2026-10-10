@@ -46,9 +46,11 @@ from app.models import (
     Order,
     OrderItem,
     Payment,
+    Permission,
     Product,
     ProductVariant,
     Reminder,
+    Role,
     StockMovement,
     Task,
     TaskActivity,
@@ -70,6 +72,7 @@ from app.services.checkin import check_in
 from app.services.delivery_worker import process_queued_deliveries
 from app.services.memberships import add_months, ensure_member_code
 from app.services.pricing import is_active_member
+from app.services.rbac import sync_catalog
 from app.services.reminders import run_expiry_scan
 from app.services.tickets import confirm_ticket_payment, create_ticket_checkout
 
@@ -1041,6 +1044,11 @@ def print_demo_table(db: Session) -> None:
 def main() -> None:
     db = MigrationSessionLocal()
     try:
+        # The permission catalog and the system roles, before anyone is given one. Idempotent, and
+        # the same call every deploy makes, so a database seeded by an older version heals here.
+        sync_catalog(db)
+        db.commit()
+
         staff = get_or_create_staff(db)
         plans = get_or_create_plans(db)
         members = seed_members(db, plans)
@@ -1060,6 +1068,10 @@ def main() -> None:
         print("SSA Hub - Phase 1-6 seed")
         print("-" * 58)
         print(f"  staff created          {staff} (of {len(STAFF)})")
+        print(
+            f"  permissions / roles    {db.query(Permission).count()} / {db.query(Role).count()} "
+            "(synced from app/core/permissions.py)"
+        )
         print(f"  plans                  {len(plans)}: {', '.join(p.name for p in plans)}")
         print(f"  members created        {members} (of {len(MEMBER_STATES)})")
         print(f"  demo accounts created  {demo} (of {len(DEMO_MEMBERS) + 1})")

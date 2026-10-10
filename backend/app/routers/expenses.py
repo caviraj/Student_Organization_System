@@ -15,7 +15,8 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.models import User
 from app.schemas import (
     ExpenseDetailOut,
@@ -53,7 +54,7 @@ async def create_expense(
     receipt: UploadFile | None = File(
         default=None, description="JPEG/PNG/WebP/PDF, max 5 MB. Optional here, required to approve."
     ),
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     blob = None
@@ -77,7 +78,7 @@ def my_expenses(
     status: str | None = Query(default=None, description="submitted | approved | rejected | reimbursed | withdrawn"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     rows, total = expense_service.list_expenses(db, claimant_id=user.id, status=status, page=page, page_size=page_size)
@@ -104,7 +105,7 @@ def list_expenses(
     sort: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role(TREASURER)),
+    _: User = Depends(require_permission("expenses.view_all")),
     db: Session = Depends(get_db),
 ):
     filters = {
@@ -134,11 +135,11 @@ def list_expenses(
 @router.get("/{expense_id}", response_model=ExpenseDetailOut, summary="One claim, with its history")
 def get_expense(
     expense_id: UUID,
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     expense = expense_service.get_expense(db, expense_id)
-    expense_service.assert_can_view(expense, user)
+    expense_service.assert_can_view(db, expense, user)
     return _detail(db, expense)
 
 
@@ -146,7 +147,7 @@ def get_expense(
 def update_expense(
     expense_id: UUID,
     payload: ExpensePatchIn,
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     expense = expense_service.get_expense(db, expense_id)
@@ -158,7 +159,7 @@ def update_expense(
 async def replace_receipt(
     expense_id: UUID,
     receipt: UploadFile = File(description="JPEG/PNG/WebP/PDF, max 5 MB"),
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     data = await storage.read_upload(receipt)
@@ -172,11 +173,11 @@ async def replace_receipt(
 @router.get("/{expense_id}/receipt", response_model=ExpenseReceiptOut, summary="A signed URL for the receipt")
 def get_receipt(
     expense_id: UUID,
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     expense = expense_service.get_expense(db, expense_id)
-    expense_service.assert_can_view(expense, user)
+    expense_service.assert_can_view(db, expense, user)
     # The path stays on the server: this endpoint hands out a URL, and nothing else.
     return expense_service.receipt_url(expense)
 
@@ -184,7 +185,7 @@ def get_receipt(
 @router.delete("/{expense_id}", response_model=ExpenseOut, summary="Withdraw a claim (owner, submitted only)")
 def withdraw_expense(
     expense_id: UUID,
-    user: User = Depends(require_role(CLAIM)),
+    user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
     expense = expense_service.get_expense(db, expense_id)
@@ -196,7 +197,7 @@ def withdraw_expense(
 def review_expense(
     expense_id: UUID,
     payload: ExpenseReviewIn,
-    reviewer: User = Depends(require_role(TREASURER)),
+    reviewer: User = Depends(require_permission("expenses.review")),
     db: Session = Depends(get_db),
 ):
     expense = expense_service.get_expense(db, expense_id)
@@ -208,7 +209,7 @@ def review_expense(
 def reimburse_expense(
     expense_id: UUID,
     payload: ExpenseReimburseIn,
-    treasurer: User = Depends(require_role(TREASURER)),
+    treasurer: User = Depends(require_permission("expenses.reimburse")),
     db: Session = Depends(get_db),
 ):
     expense = expense_service.get_expense(db, expense_id)

@@ -12,9 +12,10 @@ from uuid import UUID
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import ROLE_RANK
+from app.core.authz import has_permission
 from app.core.errors import AppError
-from app.models import Event, Fundraiser, Task, TaskActivity, User
+from app.core.permissions import ROLE_PERMISSIONS
+from app.models import ROLES, Event, Fundraiser, Task, TaskActivity, User
 from app.services import fundraisers as fundraiser_service
 
 MIN_TITLE = 3
@@ -25,8 +26,8 @@ BOARD_COLUMNS = ("todo", "doing", "done")
 _status_rank = case(STATUS_ORDER, value=Task.status)
 
 
-def is_organizer(actor: User) -> bool:
-    return ROLE_RANK.get(actor.role, 0) >= ROLE_RANK["organizer"]
+def is_organizer(db: Session, actor: User) -> bool:
+    return has_permission(db, actor, "tasks.manage")
 
 
 # --- helpers ----------------------------------------------------------------------------------
@@ -60,10 +61,10 @@ def _log(
     db.add(TaskActivity(task_id=task.id, actor_id=actor.id, action=action, from_value=from_value, to_value=to_value))
 
 
-def _assert_may_edit(task: Task, actor: User, *, fields: dict | None = None) -> None:
+def _assert_may_edit(db: Session, task: Task, actor: User, *, fields: dict | None = None) -> None:
     """Organizer and above edit anything. The assignee owns one thing only: the column their own
     card sits in (PRD FR-5.2) - everything else about it belongs to the organizer."""
-    if is_organizer(actor):
+    if is_organizer(db, actor):
         return
     if task.assignee_id != actor.id:
         raise AppError(
@@ -102,7 +103,7 @@ def _assert_assignee(db: Session, assignee_id: UUID | None) -> None:
     if assignee_id is None:
         return
     assignee = db.get(User, assignee_id)
-    if assignee is None or not assignee.is_active or ROLE_RANK.get(assignee.role, 0) < ROLE_RANK["volunteer"]:
+    if assignee is None or not assignee.is_active or not has_permission(db, assignee, "tasks.update_own"):
         raise AppError(
             422,
             "INVALID_ASSIGNEE",
@@ -332,7 +333,7 @@ def _apply_status(task: Task, new_status: str, actor: User, db: Session) -> bool
 
 
 def update_task(db: Session, task: Task, data: dict, actor: User) -> Task:
-    _assert_may_edit(task, actor, fields={k: v for k, v in data.items() if k != "status"} or None)
+    _assert_may_edit(db, task, actor, fields={k: v for k, v in data.items() if k != "status"} or None)
     if task.fundraiser_id is not None:
         fundraiser_service.assert_open(task.fundraiser)  # a finished board is read-only
 
@@ -368,7 +369,7 @@ def update_task(db: Session, task: Task, data: dict, actor: User) -> Task:
 def move_task(db: Session, task: Task, new_status: str, position: int | None, actor: User) -> Task:
     """Drag and drop: land in a column, at a slot. Positions are rewritten densely in both the
     column left behind and the column landed in."""
-    _assert_may_edit(task, actor)
+    _assert_may_edit(db, task, actor)
     if task.fundraiser_id is not None:
         fundraiser_service.assert_open(task.fundraiser)  # a finished board is read-only
 
@@ -391,7 +392,7 @@ def move_task(db: Session, task: Task, new_status: str, position: int | None, ac
 def delete_task(db: Session, task: Task, actor: User) -> None:
     """Organizer and above. The trail outlives the card: `task_activity.task_id` is ON DELETE SET
     NULL, so the final row carries the title and nothing else is lost (DESIGN.md §4 rule 13)."""
-    if not is_organizer(actor):
+    if not is_organizer(db, actor):
         raise AppError(403, "FORBIDDEN", "Only an organizer or above can delete a task", {"your_role": actor.role})
     board = board_filter(task)
     status = task.status
@@ -406,8 +407,17 @@ def delete_task(db: Session, task: Task, actor: User) -> None:
 
 
 def assignable_users(db: Session) -> list[User]:
-    """The assignee picker: active volunteer and above."""
-    roles = [role for role, rank in ROLE_RANK.items() if rank >= ROLE_RANK["volunteer"]]
+    """The assignee picker: anyone who may move a card of their own, by permission rather than by a
+    hard-coded ladder.
+
+    shortcut: reads the permission catalog, not the `roles` tables, so a custom role created
+    through Step 4's role API and granted `tasks.update_own` is missing from the picker until the
+    next deploy. Upgrade when the role API can create roles the catalog does not know.
+
+    Intersected with `ROLES`: `users.role` is a database enum of the ladder only, so a role like
+    `event_lead` reaches a user through an assignment and never through this column.
+    """
+    roles = [key for key, perms in ROLE_PERMISSIONS.items() if "tasks.update_own" in perms and key in ROLES]
     return list(db.scalars(select(User).where(User.is_active.is_(True), User.role.in_(roles)).order_by(User.full_name)))
 
 

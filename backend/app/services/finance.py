@@ -19,8 +19,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.authz import has_permission
 from app.core.db import as_utc
-from app.core.deps import ROLE_RANK
 from app.core.errors import AppError
 from app.models import Event, Expense, FinancePeriod, Fundraiser, Order, Transaction, User
 from app.services import fundraisers as fundraiser_service
@@ -51,10 +51,6 @@ SOURCE_TABLE_CHECKS = {
     "merch": "Merch sales",
     "expense_reimbursement": "Expense reimbursements",
 }
-
-
-def is_treasurer(actor: User) -> bool:
-    return ROLE_RANK.get(actor.role, 0) >= ROLE_RANK["treasurer"]
 
 
 def _range(date_from: date | None, date_to: date | None) -> list:
@@ -434,7 +430,7 @@ def manual_entry(db: Session, actor: User, data: dict, idempotency_key: str | No
     if replayed is not None:
         return replayed, False
 
-    if data.get("allow_negative") and ROLE_RANK.get(actor.role, 0) < ROLE_RANK["admin"]:
+    if data.get("allow_negative") and not has_permission(db, actor, "finance.allow_negative"):
         raise AppError(403, "FORBIDDEN", "Only an admin can push the balance negative", {"your_role": actor.role})
 
     if source == "other_expense" and not data.get("allow_negative"):
@@ -717,7 +713,7 @@ def close_period(
     inside the period is money that has not moved yet, so closing over it would be signing off on a
     number that is about to change. `force` lets an admin do it anyway, and says so in the response.
     """
-    if force and ROLE_RANK.get(actor.role, 0) < ROLE_RANK["admin"]:
+    if force and not has_permission(db, actor, "finance.close_period_force"):
         raise AppError(403, "FORBIDDEN", "Only an admin can force a period closed", {"your_role": actor.role})
 
     name = (name or "").strip()

@@ -27,6 +27,7 @@ from app.routers import (
     plans,
     preferences,
     products,
+    rbac,
     tasks,
     tickets,
     users,
@@ -104,6 +105,8 @@ for router in (
     expenses.router,
     finance.router,
     finance.periods_router,
+    rbac.router,
+    rbac.auth_router,
 ):
     app.include_router(router, prefix=API_PREFIX)
 

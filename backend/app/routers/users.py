@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_db
 from app.core.errors import AppError
 from app.models import User
 from app.schemas import AssignableUserOut, Page, RoleUpdateIn, UserOut
@@ -20,7 +21,7 @@ def list_users(
     status: str | None = Query(default=None, description="active | inactive"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("users.view")),
     db: Session = Depends(get_db),
 ):
     filters = []
@@ -47,7 +48,7 @@ def list_users(
     summary="Who can be handed a task: active volunteer and above (organizer+)",
 )
 def assignable(
-    _: User = Depends(require_role("organizer")),
+    _: User = Depends(require_permission("users.lookup")),
     db: Session = Depends(get_db),
 ):
     """The assignee picker. Not paginated: the club's volunteers and staff are a short list, and a
@@ -59,7 +60,7 @@ def assignable(
 def set_role(
     user_id: UUID,
     payload: RoleUpdateIn,
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("roles.assign")),
     db: Session = Depends(get_db),
 ):
     user = db.get(User, user_id)

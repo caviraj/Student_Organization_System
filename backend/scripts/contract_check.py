@@ -29,6 +29,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from app.core.authz import PERMISSION_FLOOR
 from app.core.deps import ROLE_RANK, get_current_user, get_optional_user
 from app.core.routes import iter_api_routes
 from app.main import app
@@ -97,11 +98,14 @@ def design_rows(text: str) -> tuple[list[tuple[str, str, str, str]], int]:
 def implemented_role(route) -> tuple[str | None, bool]:
     """The floor this route enforces, as one of the words in `ROLE_WORDS`.
 
-    Returns `(role, is_machine_checkable)`. `require_role(...)` marks its dependency with the roles
-    it accepts; a bare `get_current_user` means "any authenticated user"; `get_optional_user` means
-    the route is public but personalises when a token is present.
+    Returns `(role, is_machine_checkable)`. `require_permission(...)` marks its dependency with the
+    keys it accepts; each key is reduced to the lowest-ranked ladder role that holds it, which is
+    the role the DESIGN.md cell names. `require_role(...)` is still read for anything left on the
+    old dependency; a bare `get_current_user` means "any authenticated user"; `get_optional_user`
+    means the route is public but personalises when a token is present.
     """
     roles: set[str] = set()
+    floors: set[str] = set()
     authenticated = False
     optional = False
 
@@ -112,6 +116,11 @@ def implemented_role(route) -> tuple[str | None, bool]:
             declared = getattr(call, "required_roles", None)
             if declared:
                 roles.update(declared)
+            keys = getattr(call, "required_permissions", None)
+            if keys:
+                # A route reachable two ways ("manage any event" or "manage your own") is as weak as
+                # its weakest door, so the floor is the lowest one any accepted key gives.
+                floors.update(floor for key in keys if (floor := PERMISSION_FLOOR.get(key)))
             if call is get_current_user:
                 authenticated = True
             if call is get_optional_user:
@@ -120,8 +129,9 @@ def implemented_role(route) -> tuple[str | None, bool]:
             walk(sub)
 
     walk(route.dependant)
-    if roles:
-        return RANK_NAME[min(ROLE_RANK[role] for role in roles)], True
+    candidates = list(roles) + list(floors)
+    if candidates:
+        return RANK_NAME[min(ROLE_RANK[role] for role in candidates)], True
     if optional:
         return "public", True
     if authenticated:

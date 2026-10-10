@@ -167,10 +167,19 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 | POST | /auth/register | public | 201; body `{email, password, full_name, phone?, department?, year?}` → `{access_token, token_type, user}`, role=`guest` until plan paid |
 | POST | /auth/login | public | `{access_token, token_type, user}` |
 | GET | /auth/me | any | flat user fields (`id, email, full_name, phone, department, year, role, member_code, email_opt_in, is_active, created_at`) + nested `membership` = `{status, plan_name, end_date, days_left}`; `status` is `none` before the first membership |
+| GET | /auth/permissions | any | `{role, roles[], permissions[]}` — what the caller may do right now, so the UI hides a button instead of collecting a 403. `roles` is every role held, including scoped and time-boxed assignments; `permissions` is their union |
 | GET | /users | admin | search `q`, filter `role`,`status`, `page`, `page_size` |
 | PATCH | /users/{id}/role | admin | 404 `USER_NOT_FOUND` |
 | GET | /members/verify?code= or ?q= | volunteer+ | `{valid, status, name, member_code, valid_until, reason}` — `reason` explains a `false` (`Membership expired on …`, `Not a member`, …) and is `null` when valid. Also: a non-existent code answers **200** with `valid:false, reason:"No member found"` — scanning an unknown card is a normal door event, not a server error. 400 `MISSING_QUERY` when neither param is sent; 409 `AMBIGUOUS_QUERY` (with `details.member_codes`) when `q` matches several members, so staff retype the code instead of the API guessing |
 | GET | /members/me/card | member | data for QR: `{member_code, full_name, status, valid_until}` |
+
+### RBAC & Access Control
+Who may do what, readable. The permission catalog lives in `app/core/permissions.py` — it is what `require_permission` validates every route's key against at import, so a typo is a crash on boot, not a silent 403 later. The `permissions` / `roles` tables are its synced copy (the migration and `scripts/seed.py` both call `sync_catalog`), and `tests/test_rbac.py` fails if the two disagree.
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | /admin/permissions | admin | every permission key the code knows: `[{key, category, description, is_privileged}]`. `is_privileged` means granting a role that carries it goes through a second approver |
+| GET | /admin/rbac/matrix | admin | `{permissions: [...], roles: [{key, name, description, inherits, is_privileged, permissions[]}]}` — roles down, permissions across, the access-control screen in one call. A role's `permissions` are **effective**: its own grants plus every ancestor's |
 
 ### Memberships
 | GET | /plans | public | active plans only, cheapest first |

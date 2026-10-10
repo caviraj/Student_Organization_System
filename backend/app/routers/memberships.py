@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db, require_role
+from app.core.authz import require_permission
+from app.core.deps import get_current_user, get_db
 from app.core.errors import AppError
 from app.models import Membership, User
 from app.schemas import CheckoutIn, CheckoutOut, MembershipOut, Page
@@ -39,7 +40,7 @@ def list_memberships(
     expiring_within_days: int | None = Query(default=None, ge=0, le=365),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("members.manage")),
     db: Session = Depends(get_db),
 ):
     filters = []
@@ -66,7 +67,7 @@ def list_memberships(
 def renewals_due(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("members.manage")),
     db: Session = Depends(get_db),
 ):
     horizon = date.today() + timedelta(days=30)

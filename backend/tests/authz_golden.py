@@ -265,6 +265,13 @@ PARAM_SOURCES = {
 
 BODY_METHODS = ("POST", "PUT", "PATCH")
 
+# Seeded reference data, not test data. `permissions` / `roles` / `role_permissions` / `sod_rules`
+# are filled by `sync_catalog` in the migration, and every table is truncated between tests - so
+# without this exclusion the catalog exists for whichever test happened to run first and is empty
+# for all the rest. Nothing here writes them, and `tests/test_rbac.py` is what checks they match
+# app/core/permissions.py.
+REFERENCE_TABLES = ("permissions", "roles", "role_permissions", "sod_rules")
+
 
 def truncate_all(engine) -> None:
     """Tables discovered from the catalogue, not hard-coded, so a later Phase's tables are cleaned
@@ -274,8 +281,10 @@ def truncate_all(engine) -> None:
             row[0]
             for row in conn.execute(
                 text(
-                    "select tablename from pg_tables where schemaname = 'public' " "and tablename <> 'alembic_version'"
-                )
+                    "select tablename from pg_tables where schemaname = 'public' "
+                    "and tablename <> 'alembic_version' and tablename <> all(:keep)"
+                ),
+                {"keep": list(REFERENCE_TABLES)},
             )
         ]
     if names:
@@ -416,6 +425,7 @@ __all__ = [
     "INTENDED_PATH",
     "LEGACY_ROLES",
     "PASSWORD",
+    "REFERENCE_TABLES",
     "build_world",
     "collect",
     "decision",
