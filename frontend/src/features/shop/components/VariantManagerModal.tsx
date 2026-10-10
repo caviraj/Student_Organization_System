@@ -84,16 +84,20 @@ export function VariantManagerModal({
       variantId,
       stock,
       threshold,
+      currentStock,
     }: {
       variantId: string;
       stock: number;
       threshold: number;
+      currentStock: number;
     }) => {
       if (!product) throw new Error('Product not selected');
-      return shopApi.updateVariant(product.id, variantId, {
-        stock,
-        low_stock_threshold: threshold,
-      });
+      // Threshold and stock are two different endpoints: PATCH has no stock field.
+      await shopApi.updateVariant(variantId, { low_stock_threshold: threshold });
+      const delta = stock - currentStock;
+      if (delta !== 0) {
+        await shopApi.adjustVariantStock(variantId, { delta, reason: 'adjustment' });
+      }
     },
     onSuccess: (_, variables) => {
       toast.show('Variant stock updated!', 'success');
@@ -135,6 +139,7 @@ export function VariantManagerModal({
       variantId: variant.id,
       stock: parsedStock,
       threshold: parsedThreshold,
+      currentStock: variant.stock,
     });
   };
 

@@ -73,19 +73,30 @@ export const shopApi = {
     });
   },
 
+  // Contract: PATCH /variants/{variant_id} takes size/color/sku/low_stock_threshold/is_active.
+  // It has no stock field - stock only moves through stock-adjust.
   updateVariant: (
-    productId: string,
     variantId: string,
     payload: Partial<{
       size: string;
       color?: string | null;
       sku: string;
-      stock: number;
       low_stock_threshold: number;
+      is_active: boolean;
     }>
   ) => {
-    return apiClient<ProductVariant>(`/products/${productId}/variants/${variantId}`, {
+    return apiClient<ProductVariant>(`/variants/${variantId}`, {
       method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  adjustVariantStock: (
+    variantId: string,
+    payload: { delta: number; reason: 'restock' | 'adjustment'; note?: string | null }
+  ) => {
+    return apiClient<ProductVariant>(`/variants/${variantId}/stock-adjust`, {
+      method: 'POST',
       body: JSON.stringify(payload),
     });
   },

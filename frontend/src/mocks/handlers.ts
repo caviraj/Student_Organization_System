@@ -1348,7 +1348,8 @@ export const handlers = [
   }),
 
   // 35. Update Variant (Admin)
-  http.patch('*/api/v1/products/:id/variants/:variantId', async ({ params, request }) => {
+  // Contract: PATCH /variants/{variant_id}. It has no stock field - see 35b.
+  http.patch('*/api/v1/variants/:variantId', async ({ params, request }) => {
     const authHeader = request.headers.get('Authorization');
     const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
 
@@ -1364,22 +1365,10 @@ export const handlers = [
       );
     }
 
-    const { id, variantId } = params;
-    const product = productsState.find((p) => p.id === id);
-    if (!product) {
-      return HttpResponse.json(
-        {
-          error: {
-            code: 'PRODUCT_NOT_FOUND',
-            message: 'Product not found.',
-          },
-        },
-        { status: 404 }
-      );
-    }
-
-    const variant = product.variants.find((v) => v.id === variantId);
-    if (!variant) {
+    const { variantId } = params;
+    const product = productsState.find((p) => p.variants.some((v) => v.id === variantId));
+    const variant = product?.variants.find((v) => v.id === variantId);
+    if (!product || !variant) {
       return HttpResponse.json(
         {
           error: {
@@ -1392,24 +1381,62 @@ export const handlers = [
     }
 
     const body = (await request.json()) as Partial<ProductVariant>;
-    if (body.stock !== undefined) {
-      if (body.stock < 0) {
-        return HttpResponse.json(
-          {
-            error: {
-              code: 'INVALID_STOCK',
-              message: 'Stock cannot be negative.',
-            },
-          },
-          { status: 400 }
-        );
-      }
-      variant.stock = body.stock;
-    }
     if (body.size !== undefined) variant.size = body.size;
     if (body.color !== undefined) variant.color = body.color;
     if (body.sku !== undefined) variant.sku = body.sku;
     if (body.low_stock_threshold !== undefined) variant.low_stock_threshold = body.low_stock_threshold;
+    variant.updated_at = new Date().toISOString();
+    product.updated_at = new Date().toISOString();
+
+    return HttpResponse.json(variant);
+  }),
+
+  // 35b. Adjust Variant Stock (Admin)
+  // Contract: POST /variants/{variant_id}/stock-adjust, reason is "restock" | "adjustment".
+  http.post('*/api/v1/variants/:variantId/stock-adjust', async ({ params, request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required to adjust stock.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const { variantId } = params;
+    const product = productsState.find((p) => p.variants.some((v) => v.id === variantId));
+    const variant = product?.variants.find((v) => v.id === variantId);
+    if (!product || !variant) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'VARIANT_NOT_FOUND',
+            message: 'Product variant not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as { delta: number; reason: string; note?: string | null };
+    if (variant.stock + body.delta < 0) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'INVALID_STOCK',
+            message: 'Stock cannot be negative.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+    variant.stock += body.delta;
     variant.updated_at = new Date().toISOString();
     product.updated_at = new Date().toISOString();
 
