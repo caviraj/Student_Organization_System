@@ -205,7 +205,9 @@ def test_an_organizer_may_edit_everything(client, tokens, auth, fundraiser, make
 
 
 # --- 3. the activity trail --------------------------------------------------------
-def test_status_assignee_and_due_changes_each_leave_a_row(client, tokens, auth, fundraiser, make_task, organizer, volunteer):
+def test_status_assignee_and_due_changes_each_leave_a_row(
+    client, tokens, auth, fundraiser, make_task, organizer, volunteer
+):
     task = make_task(fundraiser)
 
     client.patch(f"/api/v1/tasks/{task.id}", json={"assignee_id": str(volunteer.id)}, headers=auth(tokens["organizer"]))
@@ -319,7 +321,9 @@ def test_list_filters_and_due_date_sort(client, tokens, auth, fundraiser, make_t
     assert client.get("/api/v1/tasks?q=Later", headers=auth(tokens["volunteer"])).json()["total"] == 1
 
 
-def test_my_tasks_are_only_mine_and_overdue_comes_first(client, tokens, auth, fundraiser, make_task, organizer, volunteer):
+def test_my_tasks_are_only_mine_and_overdue_comes_first(
+    client, tokens, auth, fundraiser, make_task, organizer, volunteer
+):
     make_task(fundraiser, title="Next week", assignee=volunteer, due_in_days=7)
     make_task(fundraiser, title="Yesterday", assignee=volunteer, due_in_days=-1)
     make_task(fundraiser, title="No date", assignee=volunteer)
@@ -331,7 +335,9 @@ def test_my_tasks_are_only_mine_and_overdue_comes_first(client, tokens, auth, fu
     assert response.json()["total"] == 3
 
 
-def test_delete_needs_an_organizer_and_keeps_the_trail(client, tokens, auth, db, fundraiser, make_task, organizer, volunteer):
+def test_delete_needs_an_organizer_and_keeps_the_trail(
+    client, tokens, auth, db, fundraiser, make_task, organizer, volunteer
+):
     task = make_task(fundraiser, title="Cancel the cake order")
     task_id = task.id
 

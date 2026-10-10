@@ -99,7 +99,9 @@ def create_variant(
     return merch_service.variant_view(variant)
 
 
-@variant_router.patch("/{variant_id}", response_model=VariantOut, summary="Update a variant (admin; stock moves via stock-adjust)")
+@variant_router.patch(
+    "/{variant_id}", response_model=VariantOut, summary="Update a variant (admin; stock moves via stock-adjust)"
+)
 def update_variant(
     variant_id: UUID,
     payload: VariantUpdateIn,

@@ -34,7 +34,10 @@ print(data)
 ' "$@"
 }
 
-pretty() { "$PY" -m json.tool; }
+# The register and login steps below print a whole response body, and that body is the only one in
+# any demo that carries an `access_token`. Redacting here keeps a usable bearer token out of
+# docs/demos/phase7/, which scripts/secret_scan.py scans because it is committed.
+pretty() { "$PY" -m json.tool | sed 's/"access_token": "[^"]*"/"access_token": "<redacted>"/'; }
 hr() { if [ -t 1 ]; then printf "\n\033[1m%s\033[0m\n" "$1"; else printf "\n== %s\n" "$1"; fi; }
 post() { curl -s -X POST "$BASE$1" -H 'Content-Type: application/json' "${@:2}"; }
 

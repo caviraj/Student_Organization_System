@@ -73,6 +73,34 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 | Seed script, end-to-end happy-path run, bug bash, mobile responsiveness pass, empty/loading/error states, README with screenshots, deploy (Vercel + Render + Supabase), 3-min demo script |
 **Demo Gate (Milestone 1 sign-off):** full semester story from PRD §8 works on deployed URL. **Tag `v1.0-m1`.**
 
+### Backend sign-off (Cavi) — what Phase 7 delivered
+
+Phase 7 was scoped as **hardening, end-to-end proof, demo data, docs and a frontend handoff pack** —
+no new product features, and **no deployment** (no Dockerfile, no hosting config; the Demo Gate's
+"deployed URL" is deliberately left to the frontend/deploy pass).
+
+| # | Item | Where it is proved |
+|---|---|---|
+| 1 | Clean-checkout audit: fresh venv installs and imports, `alembic upgrade head`, `pytest`, `ruff`, `black --check`, every script runs | the Phase 7 report; suite run 3× and once shuffled |
+| 2 | The contract is true: DESIGN.md §5 ↔ the running app, machine-checked | `scripts/contract_check.py` → 90/90/90, exit 0 |
+| 3 | The machine-readable contract is current | `docs/openapi.json` via `scripts/export_openapi.py` |
+| 4 | The frontend has one document to build against | `docs/API_HANDOFF.md` (incl. the "changes since the original contract" section) |
+| 5 | The whole semester story, asserted, in-process | `backend/tests/test_e2e_semester.py` |
+| 6 | The same story over real HTTP, with a PASS/FAIL table | `backend/scripts/smoke_e2e.py` |
+| 7 | One command puts the demo back to a known state | `backend/scripts/reset_demo.py --yes` |
+| 8 | Demo data covers every phase, with the states a demo needs | `backend/scripts/seed.py` (prints DEMO ACCOUNTS + KEY IDS) |
+| 9 | All six per-phase demo scripts still run | `demo_phase1.sh` … `demo_phase6.sh` |
+| 10 | Production-readiness: config validation, rate limits, lockout, password policy, uniform errors, request ids, safe logging | `backend/tests/test_hardening.py` |
+| 11 | No secret in the tree, in a response schema, or in a log line | `scripts/secret_scan.py`, `tests/test_hardening.py` |
+| 12 | The database is indexed where it is queried, and RLS is on everywhere | `alembic/versions/b7f1c9a4e2d8`, `scripts/check_db.py`, EXPLAIN in the report |
+| 13 | It is fast enough for a queue at a door | `backend/scripts/perf_check.py` (check-in p95 target < 300 ms) |
+| 14 | The next person can run, change and present it | `backend/README.md`, `docs/ARCHITECTURE.md`, `docs/DEMO_SCRIPT.md`, `docs/M2_BACKLOG.md` |
+
+**Still open on the backend side, and honestly recorded:** the deployment itself (Render + Supabase
+production project, real `SUPABASE_SERVICE_ROLE_KEY`, `APP_ENV=production`), and a real test database
+in CI rather than a developer's `TEST_DATABASE_URL`. Both are Milestone 2 operational items —
+`docs/M2_BACKLOG.md` §7.
+
 ---
 
 # MILESTONE 2 — ADVANCED (starts after `v1.0-m1`)
@@ -104,4 +132,4 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 | 4 | ☑ | ☐ | `docs/demos/phase4/` (`demo_phase4.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase4.sh` | `phase-4-done` |
 | 5 | ☑ | ☐ | `docs/demos/phase5/` (`demo_phase5.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase5.sh` | `phase-5-done` |
 | 6 | ☑ | ☐ | `docs/demos/phase6/` (`demo_phase6.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase6.sh` | `phase-6-done` |
-| 7 | ☐ | ☐ | | |
+| 7 | ☑ | ☐ | `docs/API_HANDOFF.md` · `docs/ARCHITECTURE.md` · `docs/DEMO_SCRIPT.md` · `docs/M2_BACKLOG.md` · `docs/demos/phase7/` · run `python backend/scripts/smoke_e2e.py` | `backend-m1-done` (after merge) |

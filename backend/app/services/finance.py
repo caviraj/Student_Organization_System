@@ -180,7 +180,9 @@ def _by_month(db: Session, conditions: list) -> list[dict]:
     # Postgres date_trunc; dev SQLite would need strftime, and reports are a Postgres-only feature.
     month = func.date_trunc("month", Transaction.occurred_at)
     rows = db.execute(
-        select(month.label("month"), ledger.total_in_expr().label("total_in"), ledger.total_out_expr().label("total_out"))
+        select(
+            month.label("month"), ledger.total_in_expr().label("total_in"), ledger.total_out_expr().label("total_out")
+        )
         .where(*conditions)
         .group_by(month)
         .order_by(month)
@@ -194,9 +196,7 @@ def _by_month(db: Session, conditions: list) -> list[dict]:
 def summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> dict:
     conditions = _range(date_from, date_to)
     money = ledger.totals(db, *conditions)
-    reimbursed = db.scalar(
-        select(func.count()).select_from(Expense).where(Expense.status == "reimbursed")
-    ) or 0
+    reimbursed = db.scalar(select(func.count()).select_from(Expense).where(Expense.status == "reimbursed")) or 0
     return {
         "date_from": date_from,
         "date_to": date_to,
@@ -242,7 +242,9 @@ def _transaction_conditions(
     return conditions
 
 
-def list_transactions(db: Session, *, sort: str = "desc", page: int = 1, page_size: int = 20, **filters) -> tuple[list[dict], int]:
+def list_transactions(
+    db: Session, *, sort: str = "desc", page: int = 1, page_size: int = 20, **filters
+) -> tuple[list[dict], int]:
     """The ledger table. Titles and the actor come from joins, so a page is one query, not 3N.
 
     `running_balance` is only filled when sorting oldest-first, and it is deliberately computed in
@@ -273,7 +275,9 @@ def list_transactions(db: Session, *, sort: str = "desc", page: int = 1, page_si
         ).subquery()
         statement = statement.add_columns(window.c.running_balance).outerjoin(window, window.c.id == Transaction.id)
 
-    rows = db.execute(statement.where(*conditions).order_by(*order).offset((page - 1) * page_size).limit(page_size)).all()
+    rows = db.execute(
+        statement.where(*conditions).order_by(*order).offset((page - 1) * page_size).limit(page_size)
+    ).all()
 
     items = []
     for row in rows:
@@ -293,7 +297,11 @@ def _grouped_money(db: Session, *, by: str, date_from: date | None, date_to: dat
     if by == "event":
         key, title, join = Transaction.event_id, Event.title, (Event, Transaction.event_id == Event.id)
     else:
-        key, title, join = Transaction.fundraiser_id, Fundraiser.title, (Fundraiser, Transaction.fundraiser_id == Fundraiser.id)
+        key, title, join = (
+            Transaction.fundraiser_id,
+            Fundraiser.title,
+            (Fundraiser, Transaction.fundraiser_id == Fundraiser.id),
+        )
     rows = db.execute(
         select(key, title, ledger.total_in_expr().label("total_in"), ledger.total_out_expr().label("total_out"))
         .join(join[0], join[1])
@@ -376,7 +384,10 @@ def manual_entry(db: Session, actor: User, data: dict, idempotency_key: str | No
     source = data.get("source")
     if source not in MANUAL_SOURCES:
         raise AppError(
-            422, "VALIDATION_ERROR", "A manual entry is other_income or other_expense", {"source": source, "allowed": list(MANUAL_SOURCES)}
+            422,
+            "VALIDATION_ERROR",
+            "A manual entry is other_income or other_expense",
+            {"source": source, "allowed": list(MANUAL_SOURCES)},
         )
     direction = "in" if source == "other_income" else "out"
 
@@ -387,11 +398,16 @@ def manual_entry(db: Session, actor: User, data: dict, idempotency_key: str | No
     try:
         amount = int(data.get("amount"))
     except (TypeError, ValueError):
-        raise AppError(422, "VALIDATION_ERROR", "amount must be an integer number of paise", {"amount": data.get("amount")}) from None
+        raise AppError(
+            422, "VALIDATION_ERROR", "amount must be an integer number of paise", {"amount": data.get("amount")}
+        ) from None
     if amount <= 0:
         raise AppError(422, "VALIDATION_ERROR", "amount must be greater than zero", {"amount": amount})
 
-    for key, model, code in (("event_id", Event, "EVENT_NOT_FOUND"), ("fundraiser_id", Fundraiser, "FUNDRAISER_NOT_FOUND")):
+    for key, model, code in (
+        ("event_id", Event, "EVENT_NOT_FOUND"),
+        ("fundraiser_id", Fundraiser, "FUNDRAISER_NOT_FOUND"),
+    ):
         if data.get(key) is not None and db.get(model, data[key]) is None:
             raise AppError(404, code, f"No {model.__name__.lower()} with that id", {key: str(data[key])})
 
@@ -400,7 +416,12 @@ def manual_entry(db: Session, actor: User, data: dict, idempotency_key: str | No
         occurred_at = as_utc(data["occurred_at"])
         now = datetime.now(UTC)
         if occurred_at > now:
-            raise AppError(422, "INVALID_OCCURRED_AT", "A ledger row cannot be dated in the future", {"occurred_at": occurred_at.isoformat()})
+            raise AppError(
+                422,
+                "INVALID_OCCURRED_AT",
+                "A ledger row cannot be dated in the future",
+                {"occurred_at": occurred_at.isoformat()},
+            )
         if occurred_at < now - timedelta(days=MAX_MANUAL_BACKDATE_DAYS):
             raise AppError(
                 422,
@@ -461,7 +482,9 @@ def reverse_transaction(db: Session, actor: User, transaction_id: UUID, reason: 
     """
     entry = db.get(Transaction, transaction_id)
     if entry is None:
-        raise AppError(404, "TRANSACTION_NOT_FOUND", "No ledger row with that id", {"transaction_id": str(transaction_id)})
+        raise AppError(
+            404, "TRANSACTION_NOT_FOUND", "No ledger row with that id", {"transaction_id": str(transaction_id)}
+        )
 
     reason = (reason or "").strip()
     if len(reason) < MIN_NOTE:
@@ -516,7 +539,13 @@ def reverse_transaction(db: Session, actor: User, transaction_id: UUID, reason: 
 
 def _check(name: str, ledger_total: int, source_total: int) -> dict:
     difference = ledger_total - source_total
-    return {"name": name, "ledger_total": ledger_total, "source_total": source_total, "difference": difference, "ok": difference == 0}
+    return {
+        "name": name,
+        "ledger_total": ledger_total,
+        "source_total": source_total,
+        "difference": difference,
+        "ok": difference == 0,
+    }
 
 
 def reconcile(db: Session) -> dict:
@@ -553,11 +582,14 @@ def reconcile(db: Session) -> dict:
         checks.append(_check(label, ledger_total, source_total))
 
     # A reimbursed claim with no ledger row would be money that left no trace.
-    unlinked = db.scalar(
-        select(func.count())
-        .select_from(Expense)
-        .where(Expense.status == "reimbursed", Expense.ledger_transaction_id.is_(None))
-    ) or 0
+    unlinked = (
+        db.scalar(
+            select(func.count())
+            .select_from(Expense)
+            .where(Expense.status == "reimbursed", Expense.ledger_transaction_id.is_(None))
+        )
+        or 0
+    )
     checks.append(_check("Every reimbursed claim has a ledger row", int(unlinked), 0))
 
     negative = db.scalar(select(func.count()).select_from(Transaction).where(Transaction.amount <= 0)) or 0
@@ -606,7 +638,9 @@ def semester_report(db: Session, date_from: date, date_to: date) -> dict:
     three figures below ever disagree, the report is lying and the treasurer must not sign it.
     """
     if date_from > date_to:
-        raise AppError(422, "VALIDATION_ERROR", "`from` must not be after `to`", {"from": str(date_from), "to": str(date_to)})
+        raise AppError(
+            422, "VALIDATION_ERROR", "`from` must not be after `to`", {"from": str(date_from), "to": str(date_to)}
+        )
 
     opening = ledger.totals(db, Transaction.occurred_at < datetime.combine(date_from, time.min, tzinfo=UTC))["balance"]
     money = _totals_in_range(db, date_from, date_to)
@@ -690,7 +724,12 @@ def close_period(
     if len(name) < 3:
         raise AppError(422, "VALIDATION_ERROR", "name must be at least 3 characters", {})
     if end_date >= datetime.now(UTC).date():
-        raise AppError(422, "VALIDATION_ERROR", "A period can only be closed once it is in the past", {"end_date": end_date.isoformat()})
+        raise AppError(
+            422,
+            "VALIDATION_ERROR",
+            "A period can only be closed once it is in the past",
+            {"end_date": end_date.isoformat()},
+        )
     if start_date > end_date:
         raise AppError(422, "VALIDATION_ERROR", "`start_date` must not be after `end_date`", {})
 
@@ -704,7 +743,11 @@ def close_period(
             409,
             "PERIOD_OVERLAP",
             f"'{overlap.name}' already covers part of that range",
-            {"period_name": overlap.name, "start_date": overlap.start_date.isoformat(), "end_date": overlap.end_date.isoformat()},
+            {
+                "period_name": overlap.name,
+                "start_date": overlap.start_date.isoformat(),
+                "end_date": overlap.end_date.isoformat(),
+            },
         )
 
     report = reconcile(db)
@@ -735,7 +778,12 @@ def close_period(
             {
                 "count": len(pending),
                 "claims": [
-                    {"id": str(claim.id), "status": claim.status, "amount": claim.amount, "incurred_on": claim.incurred_on.isoformat()}
+                    {
+                        "id": str(claim.id),
+                        "status": claim.status,
+                        "amount": claim.amount,
+                        "incurred_on": claim.incurred_on.isoformat(),
+                    }
                     for claim in pending
                 ],
             },
@@ -770,7 +818,9 @@ def reopen_period(db: Session, actor: User, period_id: UUID, reason: str) -> Fin
     if len(reason) < MIN_REOPEN_REASON:
         raise AppError(422, "VALIDATION_ERROR", f"reason must be at least {MIN_REOPEN_REASON} characters", {})
     if period.status != "closed":
-        raise AppError(409, "INVALID_STATE", f"'{period.name}' is {period.status}, not closed", {"status": period.status})
+        raise AppError(
+            409, "INVALID_STATE", f"'{period.name}' is {period.status}, not closed", {"status": period.status}
+        )
 
     period.status = "reopened"
     period.reopened_by = actor.id

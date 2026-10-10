@@ -142,7 +142,9 @@ def activate(db: Session, order: Order) -> Membership:
     today = date.today()
     membership = db.scalar(select(Membership).where(Membership.user_id == order.user_id))
     # Renewal runs from the old end_date so no paid days are lost (FR-1.3).
-    extends = bool(membership and membership.status == "active" and membership.end_date and membership.end_date >= today)
+    extends = bool(
+        membership and membership.status == "active" and membership.end_date and membership.end_date >= today
+    )
     if membership is None:
         membership = Membership(user_id=order.user_id, plan_id=plan.id, status="active")
         db.add(membership)
@@ -181,7 +183,9 @@ def confirm_membership_payment(db: Session, order: Order, payment: Payment, outc
 
     order_id = order.id
     claimed = db.execute(
-        update(Order).where(Order.id == order_id, Order.status == "pending").values(status="paid", updated_at=func.now())
+        update(Order)
+        .where(Order.id == order_id, Order.status == "pending")
+        .values(status="paid", updated_at=func.now())
     ).rowcount
     if not claimed:
         db.rollback()  # already settled — replay the stored result

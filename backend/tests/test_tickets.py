@@ -103,9 +103,7 @@ def test_quantity_bounds_and_authentication(client, auth, login, make_user, make
         assert response.status_code == 422, response.text
         assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
-    anonymous = client.post(
-        "/api/v1/tickets/checkout", json={"ticket_type_id": str(ticket_type.id), "quantity": 1}
-    )
+    anonymous = client.post("/api/v1/tickets/checkout", json={"ticket_type_id": str(ticket_type.id), "quantity": 1})
     assert anonymous.status_code == 401
     assert anonymous.json()["error"]["code"] == "UNAUTHORIZED"
 
@@ -136,9 +134,7 @@ def test_payment_success_issues_tickets_and_one_ledger_row(
     assert rows[0].amount == NON_MEMBER_PRICE * 3
     assert rows[0].event_id == ticket_type.event_id
 
-    replay = client.post(
-        f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": "success"}, headers=auth(token)
-    )
+    replay = client.post(f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": "success"}, headers=auth(token))
     assert replay.status_code == 200
     assert len(replay.json()["tickets"]) == 3
     db.expire_all()

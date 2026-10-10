@@ -19,13 +19,14 @@ Revises: 1c897da66198
 Create Date: 2026-10-10 11:40:02.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '275474077f1c'
-down_revision: Union[str, Sequence[str], None] = '1c897da66198'
+revision: str = "275474077f1c"
+down_revision: Union[str, Sequence[str], None] = "1c897da66198"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

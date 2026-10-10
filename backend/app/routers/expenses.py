@@ -36,7 +36,10 @@ TREASURER = "treasurer"
 
 
 def _detail(db: Session, expense) -> dict:
-    return {**expense_service.expense_view(expense), "history": [expense_service.history_view(row) for row in expense_service.history(db, expense.id)]}
+    return {
+        **expense_service.expense_view(expense),
+        "history": [expense_service.history_view(row) for row in expense_service.history(db, expense.id)],
+    }
 
 
 @router.post("", response_model=ExpenseOut, status_code=201, summary="Submit an expense claim (volunteer+)")
@@ -47,7 +50,9 @@ async def create_expense(
     incurred_on: str = Form(description="YYYY-MM-DD, today or up to 90 days back", examples=["2026-10-04"]),
     event_id: UUID | None = Form(default=None),
     fundraiser_id: UUID | None = Form(default=None),
-    receipt: UploadFile | None = File(default=None, description="JPEG/PNG/WebP/PDF, max 5 MB. Optional here, required to approve."),
+    receipt: UploadFile | None = File(
+        default=None, description="JPEG/PNG/WebP/PDF, max 5 MB. Optional here, required to approve."
+    ),
     user: User = Depends(require_role(CLAIM)),
     db: Session = Depends(get_db),
 ):

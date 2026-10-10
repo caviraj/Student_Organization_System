@@ -91,10 +91,16 @@ def _result(
 
 def counters(db: Session, event_id: UUID) -> tuple[int, int]:
     """The scanner header: how many are in, out of how many tickets exist."""
-    checked_in = db.scalar(
-        select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.status == "used")
-    ) or 0
-    sold = db.scalar(
-        select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.status.in_(("valid", "used")))
-    ) or 0
+    checked_in = (
+        db.scalar(select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.status == "used"))
+        or 0
+    )
+    sold = (
+        db.scalar(
+            select(func.count())
+            .select_from(Ticket)
+            .where(Ticket.event_id == event_id, Ticket.status.in_(("valid", "used")))
+        )
+        or 0
+    )
     return checked_in, sold

@@ -50,9 +50,7 @@ def visibility_clause(db: Session, user: User | None):
     audiences = ["all"]
     if is_active_member(db, user):
         audiences.append("members")
-    held_events = select(Ticket.event_id).where(
-        Ticket.user_id == user.id, Ticket.status.in_(("valid", "used"))
-    )
+    held_events = select(Ticket.event_id).where(Ticket.user_id == user.id, Ticket.status.in_(("valid", "used")))
     return or_(
         Announcement.audience.in_(audiences),
         and_(Announcement.audience == "event", Announcement.event_id.in_(held_events)),
@@ -63,9 +61,11 @@ def visible_to(db: Session, user: User | None, announcement_id: UUID) -> Announc
     announcement = db.get(Announcement, announcement_id)
     # A post you may not see is a 404, not a 403: the existence of a members-only post is itself
     # information (PRD FR-3.2).
-    if announcement is None or db.scalar(
-        select(Announcement.id).where(Announcement.id == announcement.id, visibility_clause(db, user))
-    ) is None:
+    if (
+        announcement is None
+        or db.scalar(select(Announcement.id).where(Announcement.id == announcement.id, visibility_clause(db, user)))
+        is None
+    ):
         raise AppError(404, "ANNOUNCEMENT_NOT_FOUND", "No such announcement")
     return announcement
 
@@ -145,17 +145,9 @@ def queue_deliveries(db: Session, announcement: Announcement, *, send_email: boo
     club is worse than no announcement."""
     resolved = resolve_recipients(db, announcement, send_email=send_email)
     for user in resolved["inapp"]:
-        db.add(
-            AnnouncementDelivery(
-                announcement_id=announcement.id, user_id=user.id, channel="inapp", status="queued"
-            )
-        )
+        db.add(AnnouncementDelivery(announcement_id=announcement.id, user_id=user.id, channel="inapp", status="queued"))
     for user in resolved["email"]:
-        db.add(
-            AnnouncementDelivery(
-                announcement_id=announcement.id, user_id=user.id, channel="email", status="queued"
-            )
-        )
+        db.add(AnnouncementDelivery(announcement_id=announcement.id, user_id=user.id, channel="email", status="queued"))
     return {
         "inapp_queued": len(resolved["inapp"]),
         "email_queued": len(resolved["email"]),
@@ -167,9 +159,7 @@ def queue_deliveries(db: Session, announcement: Announcement, *, send_email: boo
 
 
 def _assert_pin_room(db: Session) -> None:
-    pinned = db.scalar(
-        select(func.count()).select_from(Announcement).where(Announcement.is_pinned.is_(True))
-    ) or 0
+    pinned = db.scalar(select(func.count()).select_from(Announcement).where(Announcement.is_pinned.is_(True))) or 0
     if pinned >= MAX_PINNED:
         raise AppError(
             409,
@@ -185,15 +175,11 @@ def create_announcement(db: Session, author: User, data: dict) -> dict:
     event_id = data.get("event_id")
     if audience == "event":
         if event_id is None:
-            raise AppError(
-                422, "EVENT_REQUIRED", "audience=event needs an event_id", {"audience": audience}
-            )
+            raise AppError(422, "EVENT_REQUIRED", "audience=event needs an event_id", {"audience": audience})
         if db.get(Event, event_id) is None:
             raise AppError(404, "EVENT_NOT_FOUND", "No such event", {"event_id": str(event_id)})
     elif event_id is not None:
-        raise AppError(
-            422, "EVENT_NOT_ALLOWED", "event_id only applies when audience=event", {"audience": audience}
-        )
+        raise AppError(422, "EVENT_NOT_ALLOWED", "event_id only applies when audience=event", {"audience": audience})
 
     send_email = bool(data.get("send_email"))
     if data.get("is_pinned"):
@@ -235,8 +221,7 @@ def update_announcement(db: Session, editor: User, announcement_id: UUID, data: 
 
     note = (data.get("revision_note") or "").strip()
     content_changed = any(
-        field in data and data[field] != getattr(announcement, field)
-        for field in ("title", "body", "category")
+        field in data and data[field] != getattr(announcement, field) for field in ("title", "body", "category")
     )
     if content_changed:
         if len(note) < MIN_REVISION_NOTE:
@@ -279,11 +264,14 @@ def update_announcement(db: Session, editor: User, announcement_id: UUID, data: 
 
 def list_revisions(db: Session, announcement_id: UUID, *, page: int = 1, page_size: int = 20):
     """Newest first: history reads backwards from what the feed shows now."""
-    total = db.scalar(
-        select(func.count())
-        .select_from(AnnouncementRevision)
-        .where(AnnouncementRevision.announcement_id == announcement_id)
-    ) or 0
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(AnnouncementRevision)
+            .where(AnnouncementRevision.announcement_id == announcement_id)
+        )
+        or 0
+    )
     rows = db.execute(
         select(AnnouncementRevision, User.full_name)
         .outerjoin(User, User.id == AnnouncementRevision.edited_by)

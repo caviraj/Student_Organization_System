@@ -27,9 +27,10 @@ def event_report(db: Session, event_id: UUID) -> dict:
         revenue[bucket] = int(total or 0)
 
     tickets_sold = counts["member"] + counts["non_member"]
-    checked_in = db.scalar(
-        select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.status == "used")
-    ) or 0
+    checked_in = (
+        db.scalar(select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.status == "used"))
+        or 0
+    )
     seats_total = sum(t.capacity for t in types)
 
     by_type = []
@@ -64,8 +65,11 @@ def event_report(db: Session, event_id: UUID) -> dict:
         "checked_in": checked_in,
         "no_shows": tickets_sold - checked_in,
         "attendance_rate": round(checked_in * 100 / tickets_sold, 1) if tickets_sold else 0.0,
-        "revenue": {"member": revenue["member"], "non_member": revenue["non_member"],
-                    "total": revenue["member"] + revenue["non_member"]},
+        "revenue": {
+            "member": revenue["member"],
+            "non_member": revenue["non_member"],
+            "total": revenue["member"] + revenue["non_member"],
+        },
         "by_ticket_type": by_type,
     }
 

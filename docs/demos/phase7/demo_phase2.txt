@@ -1,0 +1,505 @@
+
+== 0. migrate + seed
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+SSA Hub - Phase 1-6 seed
+----------------------------------------------------------
+  staff created          0 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        0 (of 20)
+  demo accounts created  0 (of 4)
+  memberships            24 total | 17 active | 8 expiring <=30d | 7 expired
+  paid orders            155
+  succeeded payments     145
+  ledger rows (dues)     24
+  reminders              10 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 17, 'expired': 0, 'reminders_created': 0}
+  events                 4 (already seeded)
+  ticket types           5
+  tickets issued         119 | 64 checked in | 55 still valid
+  ledger rows (tickets)  109 | Rs 52,300 (5230000 paise)
+  announcements          6 (1 pinned) (already seeded) | 2 revision rows
+  deliveries             email failed 1 | email sent 56 | inapp sent 140
+  opted out of email     3 users | bouncing@fail.test always fails
+  products               3 (2 active, 1 retired) | 11 variants (already seeded)
+  merch stock            68 units | 2 out of stock | 4 low
+  merch orders           12 | paid 6, packed 4, handed_over 2
+  ledger rows (merch)    12 | Rs 11,011 (1101100 paise)
+  stock movements        24 rows | invariant SUM(delta) == stock for 11/11 variants
+  fundraisers            3 (already seeded) | planning 1, active 1, done 1
+  tasks                  12 (5 done, 3 unassigned) | 12 activity rows
+  Spring Bake Sale       raised Rs 2,000 of Rs 5,000 (40%) | 3/8 tasks done | health at_risk
+  ledger rows (fundraiser) 3 | Rs 4,500 (450000 paise)
+  expenses               7 (already seeded) | submitted 2, approved 1, rejected 1, reimbursed 2, withdrawn 1
+  claims total           Rs 9,220 (922000 paise) | 3 claimant(s) owed Rs 3,740
+  manual ledger rows     6 (1 reversal) | balance Rs 97,281 (9728100 paise) = in Rs 99,011 - out Rs 1,730
+  reconcile              OK - 7/7 checks pass
+----------------------------------------------------------
+  password for every account below: Passw0rd!
+
+  DEMO ACCOUNTS
+  --------------------------------------------------------------------------
+  email                  role       membership                         ends       
+  member@ssa.org         member     active (Standard)                  2027-04-28 (+200d)
+  expiring@ssa.org       member     active (Basic)                     2026-10-18 (+8d)
+  expired@ssa.org        member     expired (Basic)                    2026-09-10 (-30d)
+  guest@ssa.org          guest      guest - never paid, no membership  -          
+  admin@ssa.org          admin      staff - every admin screen         -          
+  treasurer@ssa.org      treasurer  staff - every admin screen         -          
+  organizer@ssa.org      organizer  staff - every admin screen         -          
+  volunteer@ssa.org      volunteer  staff - every admin screen         -          
+
+  KEY IDS (paste into a URL)
+  --------------------------------------------------------------------------
+  Spring Gala event      87fc8453-c9da-472f-b7a1-b8c6cb35cee7   (published)
+  ...VIP ticket type     ee5e271f-7b45-40f0-a4f4-aa54112aa4c6   (19/20 sold - nearly gone)
+  Spring Bake Sale       a093b183-e1dc-4f73-be00-1753d50f3290   (active)
+  Hoodie L               1aa48e27-65b8-4a74-a511-df5bd7aaba0c   stock 8 (SSA-HOOD-L)
+  Hoodie M               d594ede6-64b3-4b9a-8362-4558a22d1e41   stock 4 (SSA-HOOD-M)
+  Hoodie S               d1804108-0516-4384-9086-9b504d93d053   stock 0 (SSA-HOOD-S)
+  Hoodie XL              6e7d80c6-6e56-4963-98dd-55da19e64dc7   stock 4 (SSA-HOOD-XL)
+  Hoodie XXL             46f2ff88-f8c7-496c-9aa9-d3a6eb033074   stock 0 (SSA-HOOD-XXL)
+  overdue task           65395517-20f6-4c6c-b164-1c302ed27025   'Ask the library for a donation box' due 2026-09-20
+  pending claim          c9e6b48f-44e3-48ed-bd8e-1bb11ff18424   Rs 2,400 (equipment)
+  balance                Rs 97,281 - GET /finance/reconcile is ok
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+
+== 1. POST /auth/login  (organizer@ssa.org)
+organizer token issued
+
+== 2. POST /events  (organizer+; new events start as a draft)
+{
+    "id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+    "title": "Demo Night 1791627434",
+    "description": "One-night showcase for the Phase 2 demo.",
+    "venue": "Main Auditorium",
+    "starts_at": "2026-10-17T10:17:29.350900Z",
+    "ends_at": "2026-10-17T13:17:29.561458Z",
+    "banner_url": null,
+    "status": "draft",
+    "created_by": "e6e2f232-ee1d-4749-8483-de035483d16f",
+    "created_at": "2026-10-10T10:17:29.719820Z",
+    "seats_left": 0,
+    "ticket_types": []
+}
+
+== 3. POST /events/d7a81c14-b428-4d84-96a9-e6ba3ccc486f/ticket-types  (capacity 3, so the last seat is scarce)
+{
+    "id": "26114805-a601-4a6c-99fd-3356adcaa937",
+    "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+    "name": "General",
+    "member_price": 30000,
+    "non_member_price": 50000,
+    "capacity": 3,
+    "sold_count": 0,
+    "seats_left": 3,
+    "is_on_sale": true,
+    "price_for_you": 50000,
+    "sale_starts_at": null,
+    "sale_ends_at": null
+}
+
+== 4. PATCH /events/d7a81c14-b428-4d84-96a9-e6ba3ccc486f {status: published}  (draft -> published)
+{
+    "id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+    "title": "Demo Night 1791627434",
+    "description": "One-night showcase for the Phase 2 demo.",
+    "venue": "Main Auditorium",
+    "starts_at": "2026-10-17T10:17:29.350900Z",
+    "ends_at": "2026-10-17T13:17:29.561458Z",
+    "banner_url": null,
+    "status": "published",
+    "created_by": "e6e2f232-ee1d-4749-8483-de035483d16f",
+    "created_at": "2026-10-10T10:17:29.719820Z",
+    "seats_left": 3,
+    "ticket_types": [
+        {
+            "id": "26114805-a601-4a6c-99fd-3356adcaa937",
+            "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+            "name": "General",
+            "member_price": 30000,
+            "non_member_price": 50000,
+            "capacity": 3,
+            "sold_count": 0,
+            "seats_left": 3,
+            "is_on_sale": true,
+            "price_for_you": 50000,
+            "sale_starts_at": null,
+            "sale_ends_at": null
+        }
+    ]
+}
+
+== 5. GET /events/d7a81c14-b428-4d84-96a9-e6ba3ccc486f  (as a guest: both prices, price_for_you null, 3 seats left)
+{
+    "id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+    "title": "Demo Night 1791627434",
+    "description": "One-night showcase for the Phase 2 demo.",
+    "venue": "Main Auditorium",
+    "starts_at": "2026-10-17T10:17:29.350900Z",
+    "ends_at": "2026-10-17T13:17:29.561458Z",
+    "banner_url": null,
+    "status": "published",
+    "created_by": "e6e2f232-ee1d-4749-8483-de035483d16f",
+    "created_at": "2026-10-10T10:17:29.719820Z",
+    "seats_left": 3,
+    "ticket_types": [
+        {
+            "id": "26114805-a601-4a6c-99fd-3356adcaa937",
+            "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+            "name": "General",
+            "member_price": 30000,
+            "non_member_price": 50000,
+            "capacity": 3,
+            "sold_count": 0,
+            "seats_left": 3,
+            "is_on_sale": true,
+            "price_for_you": null,
+            "sale_starts_at": null,
+            "sale_ends_at": null
+        }
+    ]
+}
+
+== 6. POST /tickets/checkout  (a NON-member: pays 50000 paise)
+{
+    "order_id": "f7bcb479-cfdf-4380-965c-066594fb4f5e",
+    "payment_id": "81a25bcf-4fcf-4498-b5a7-fa53b6a84cfe",
+    "amount": 50000,
+    "unit_price": 50000,
+    "is_member_price": false,
+    "quantity": 1,
+    "provider": "mock",
+    "status": "pending",
+    "tickets": []
+}
+
+== 7. POST /tickets/checkout  (an ACTIVE member, member01@ssa.org: pays 30000 paise)
+{
+    "order_id": "75c9f1e0-6dbb-4201-ad13-584333b35b68",
+    "payment_id": "a5d69f65-2652-4b71-a037-42843987f14e",
+    "amount": 30000,
+    "unit_price": 30000,
+    "is_member_price": true,
+    "quantity": 1,
+    "provider": "mock",
+    "status": "pending",
+    "tickets": []
+}
+
+== 8. POST /payments/{order}/mock-confirm  x2  (each order mints its own ticket)
+{
+    "order_id": "f7bcb479-cfdf-4380-965c-066594fb4f5e",
+    "payment_id": "81a25bcf-4fcf-4498-b5a7-fa53b6a84cfe",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_a36af15114634243805d7194eeec16f4",
+    "membership": null,
+    "tickets": [
+        {
+            "id": "e0b743e0-3382-4e9b-a348-178bf165ddb4",
+            "code": "2CJM2H69PV",
+            "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+            "event_title": "Demo Night 1791627434",
+            "event_starts_at": "2026-10-17T10:17:29.350900Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "26114805-a601-4a6c-99fd-3356adcaa937",
+            "ticket_type_name": "General",
+            "status": "valid",
+            "price_paid": 50000,
+            "is_member_price": false,
+            "checked_in_at": null
+        }
+    ],
+    "merch": null
+}
+{
+    "order_id": "75c9f1e0-6dbb-4201-ad13-584333b35b68",
+    "payment_id": "a5d69f65-2652-4b71-a037-42843987f14e",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_6cc31e3af22944769bef5e4394db8c34",
+    "membership": null,
+    "tickets": [
+        {
+            "id": "2fac7236-6bf8-42b1-92ba-164dd86a804a",
+            "code": "ZBXUMEDMFS",
+            "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+            "event_title": "Demo Night 1791627434",
+            "event_starts_at": "2026-10-17T10:17:29.350900Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "26114805-a601-4a6c-99fd-3356adcaa937",
+            "ticket_type_name": "General",
+            "status": "valid",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": null
+        }
+    ],
+    "merch": null
+}
+non-member code 2CJM2H69PV (paid 50000) | member code ZBXUMEDMFS (paid 30000)
+
+== 9. GET /tickets/me  (upcoming first, with event title, venue and code)
+{
+    "items": [
+        {
+            "id": "2fac7236-6bf8-42b1-92ba-164dd86a804a",
+            "code": "ZBXUMEDMFS",
+            "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+            "event_title": "Demo Night 1791627434",
+            "event_starts_at": "2026-10-17T10:17:29.350900Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "26114805-a601-4a6c-99fd-3356adcaa937",
+            "ticket_type_name": "General",
+            "status": "valid",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": null
+        },
+        {
+            "id": "ea8f3175-5e9c-476b-8c30-7831a486ce70",
+            "code": "UFTDFKQUV2",
+            "event_id": "87fc8453-c9da-472f-b7a1-b8c6cb35cee7",
+            "event_title": "Spring Gala",
+            "event_starts_at": "2026-10-24T10:14:16.568925Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "3e5f5828-1199-4c92-9dde-7eb527f236a7",
+            "ticket_type_name": "General",
+            "status": "used",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": "2026-10-10T10:15:38.701040Z"
+        },
+        {
+            "id": "61c1ad2c-4d3d-4050-a856-9abc4b4e5e95",
+            "code": "6F5RARSEM8",
+            "event_id": "87fc8453-c9da-472f-b7a1-b8c6cb35cee7",
+            "event_title": "Spring Gala",
+            "event_starts_at": "2026-10-24T10:14:16.568925Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "3e5f5828-1199-4c92-9dde-7eb527f236a7",
+            "ticket_type_name": "General",
+            "status": "used",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": "2026-10-10T10:15:44.634287Z"
+        },
+        {
+            "id": "5b65fb8f-b0b4-4371-b97f-1e7dbd4af8fb",
+            "code": "BH6C4KPH49",
+            "event_id": "87fc8453-c9da-472f-b7a1-b8c6cb35cee7",
+            "event_title": "Spring Gala",
+            "event_starts_at": "2026-10-24T10:14:16.568925Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "3e5f5828-1199-4c92-9dde-7eb527f236a7",
+            "ticket_type_name": "General",
+            "status": "used",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": "2026-10-10T10:15:50.552406Z"
+        },
+        {
+            "id": "3f28cdae-93f8-4732-9754-3c946484f64b",
+            "code": "XFPGTX4PGP",
+            "event_id": "87fc8453-c9da-472f-b7a1-b8c6cb35cee7",
+            "event_title": "Spring Gala",
+            "event_starts_at": "2026-10-24T10:14:16.568925Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "3e5f5828-1199-4c92-9dde-7eb527f236a7",
+            "ticket_type_name": "General",
+            "status": "valid",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": null
+        },
+        {
+            "id": "a86a77e1-f541-4c60-8eed-4cfded5e8908",
+            "code": "ZQY35WEAN3",
+            "event_id": "87fc8453-c9da-472f-b7a1-b8c6cb35cee7",
+            "event_title": "Spring Gala",
+            "event_starts_at": "2026-10-24T10:14:16.568925Z",
+            "event_venue": "Main Auditorium",
+            "ticket_type_id": "ee5e271f-7b45-40f0-a4f4-aa54112aa4c6",
+            "ticket_type_name": "VIP",
+            "status": "valid",
+            "price_paid": 100000,
+            "is_member_price": true,
+            "checked_in_at": null
+        },
+        {
+            "id": "0ba63532-3e41-4628-87ae-160ae9d7078e",
+            "code": "XZQ2W8K4RF",
+            "event_id": "e650b7c2-f4de-47ab-b862-21926a4522fe",
+            "event_title": "Coding Workshop",
+            "event_starts_at": "2026-10-31T10:14:16.568925Z",
+            "event_venue": "Lab 3",
+            "ticket_type_id": "cab52b6b-7f4d-4a75-8a6f-8abf6383007f",
+            "ticket_type_name": "General",
+            "status": "valid",
+            "price_paid": 0,
+            "is_member_price": true,
+            "checked_in_at": null
+        },
+        {
+            "id": "4fb4ec1d-6458-4f03-a2fd-74f560eecb27",
+            "code": "8FYCUZAVSX",
+            "event_id": "704207ff-2ab2-4a96-9df1-e7cd1fa127d4",
+            "event_title": "Farewell 2025",
+            "event_starts_at": "2026-09-10T10:14:16.568925Z",
+            "event_venue": "Open Air Theatre",
+            "ticket_type_id": "ff4b2e56-0f16-46c6-a033-eb728499a511",
+            "ticket_type_name": "General",
+            "status": "used",
+            "price_paid": 20000,
+            "is_member_price": true,
+            "checked_in_at": "2026-10-10T10:16:08.994306Z"
+        }
+    ],
+    "total": 8,
+    "page": 1,
+    "page_size": 20
+}
+
+== 10. POST /checkin  (volunteer@ssa.org scans the member's code -> VALID)
+{
+    "result": "VALID",
+    "ticket": {
+        "id": "2fac7236-6bf8-42b1-92ba-164dd86a804a",
+        "code": "ZBXUMEDMFS",
+        "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+        "event_title": "Demo Night 1791627434",
+        "event_starts_at": "2026-10-17T10:17:29.350900Z",
+        "event_venue": "Main Auditorium",
+        "ticket_type_id": "26114805-a601-4a6c-99fd-3356adcaa937",
+        "ticket_type_name": "General",
+        "status": "used",
+        "price_paid": 30000,
+        "is_member_price": true,
+        "checked_in_at": "2026-10-10T10:17:40.520284Z"
+    },
+    "holder_name": "Aditi Rao",
+    "ticket_type": "General",
+    "checked_in_at": "2026-10-10T10:17:40.520284Z",
+    "message": "Welcome!",
+    "checked_in": 1,
+    "sold": 2
+}
+
+== 11. POST /checkin  (same code again -> ALREADY_USED, with the first scan's timestamp)
+{
+    "result": "ALREADY_USED",
+    "ticket": {
+        "id": "2fac7236-6bf8-42b1-92ba-164dd86a804a",
+        "code": "ZBXUMEDMFS",
+        "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+        "event_title": "Demo Night 1791627434",
+        "event_starts_at": "2026-10-17T10:17:29.350900Z",
+        "event_venue": "Main Auditorium",
+        "ticket_type_id": "26114805-a601-4a6c-99fd-3356adcaa937",
+        "ticket_type_name": "General",
+        "status": "used",
+        "price_paid": 30000,
+        "is_member_price": true,
+        "checked_in_at": "2026-10-10T10:17:40.520284Z"
+    },
+    "holder_name": "Aditi Rao",
+    "ticket_type": "General",
+    "checked_in_at": "2026-10-10T10:17:40.520284Z",
+    "message": "This ticket has already been scanned",
+    "checked_in": 1,
+    "sold": 2
+}
+
+== 12. POST /checkin  (junk code -> INVALID; still HTTP 200, the door needs an answer)
+{
+    "result": "INVALID",
+    "ticket": null,
+    "holder_name": null,
+    "ticket_type": null,
+    "checked_in_at": null,
+    "message": "No ticket found for that code",
+    "checked_in": 1,
+    "sold": 2
+}
+
+== 13. POST /tickets/checkout x5  (only 1 seat left -> 409 SOLD_OUT with seats_left)
+{"error":{"code":"SOLD_OUT","message":"Not enough seats left","details":{"seats_left":1,"requested":5}}}
+HTTP 409
+
+== 14. GET /events/d7a81c14-b428-4d84-96a9-e6ba3ccc486f/report  (organizer+: sales, attendance, revenue)
+{
+    "event_id": "d7a81c14-b428-4d84-96a9-e6ba3ccc486f",
+    "title": "Demo Night 1791627434",
+    "status": "published",
+    "tickets_sold": 2,
+    "seats_total": 3,
+    "seats_left": 1,
+    "checked_in": 1,
+    "no_shows": 1,
+    "attendance_rate": 50.0,
+    "revenue": {
+        "member": 30000,
+        "non_member": 50000,
+        "total": 80000
+    },
+    "by_ticket_type": [
+        {
+            "ticket_type_id": "26114805-a601-4a6c-99fd-3356adcaa937",
+            "name": "General",
+            "capacity": 3,
+            "sold": 2,
+            "seats_left": 1,
+            "checked_in": 1,
+            "revenue": 80000
+        }
+    ]
+}
+
+== 15. GET /events/d7a81c14-b428-4d84-96a9-e6ba3ccc486f/attendees  (organizer+; filter by status)
+{
+    "items": [
+        {
+            "ticket_id": "2fac7236-6bf8-42b1-92ba-164dd86a804a",
+            "code": "ZBXUMEDMFS",
+            "status": "used",
+            "holder_name": "Aditi Rao",
+            "holder_email": "member01@ssa.org",
+            "ticket_type": "General",
+            "price_paid": 30000,
+            "is_member_price": true,
+            "checked_in_at": "2026-10-10T10:17:40.520284Z"
+        }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20
+}
+
+== 16. ledger rows for this event  (ticket income lands on the ledger, DESIGN.md 4.3)
+[
+  {
+    "direction": "in",
+    "source": "tickets",
+    "amount": 50000,
+    "ref_type": "order",
+    "note": "Ticket sales - Demo Night 1791627434 (General x1)"
+  },
+  {
+    "direction": "in",
+    "source": "tickets",
+    "amount": 30000,
+    "ref_type": "order",
+    "note": "Ticket sales - Demo Night 1791627434 (General x1)"
+  }
+]
+
+== done
+One event, two prices, one seat defended, two scans, one report - and every rupee on the
+ledger. Swagger UI (tags: events, tickets, check-in): http://127.0.0.1:8000/docs

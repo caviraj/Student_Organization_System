@@ -1,0 +1,8 @@
+SSA Hub - receipt storage check
+----------------------------------------------------------------
+  STORAGE_PROVIDER   local
+  bucket             receipts
+  LOCAL_STORAGE_DIR  var/storage
+  signed URL TTL     600s
+----------------------------------------------------------------
+  OK: put, sign, delete and the private-bucket check all passed

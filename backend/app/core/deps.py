@@ -76,4 +76,7 @@ def require_role(*roles: str) -> Callable[..., User]:
             raise AppError(403, "FORBIDDEN", f"Requires role: {' or '.join(roles)}", {"your_role": user.role})
         return user
 
+    # scripts/contract_check.py walks the dependency tree to compare each route's real minimum role
+    # against the Role column in DESIGN.md §5. Nothing at runtime reads this.
+    dependency.required_roles = roles  # type: ignore[attr-defined]
     return dependency

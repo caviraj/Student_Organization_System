@@ -28,21 +28,28 @@ TIMEOUT_SECONDS = 10.0
 def ensure_bucket() -> int:
     bucket = settings.RECEIPTS_BUCKET
     if settings.STORAGE_PROVIDER != "supabase":
-        print(f"  STORAGE_PROVIDER={settings.STORAGE_PROVIDER}: receipts go to {settings.LOCAL_STORAGE_DIR}, nothing to create")
+        print(
+            f"  STORAGE_PROVIDER={settings.STORAGE_PROVIDER}: receipts go to {settings.LOCAL_STORAGE_DIR}, nothing to create"
+        )
         return 0
     if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
         print("  FAIL: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when STORAGE_PROVIDER=supabase")
         return 1
 
     base = settings.SUPABASE_URL.rstrip("/")
-    headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}", "apikey": settings.SUPABASE_SERVICE_ROLE_KEY}
+    headers = {
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+        "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+    }
 
     try:
         with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
             found = client.get(f"{base}/storage/v1/bucket/{bucket}", headers=headers)
             if found.status_code == 200:
                 if found.json().get("public"):
-                    print(f"  FAIL: bucket '{bucket}' exists and is PUBLIC - receipts must stay private (DESIGN.md §4 rule 14)")
+                    print(
+                        f"  FAIL: bucket '{bucket}' exists and is PUBLIC - receipts must stay private (DESIGN.md §4 rule 14)"
+                    )
                     return 1
                 print(f"  OK: private bucket '{bucket}' already exists")
                 return 0

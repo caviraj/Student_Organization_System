@@ -47,7 +47,12 @@ def list_tasks(
         page=page,
         page_size=page_size,
     )
-    return {"items": [task_service.task_view(task) for task in rows], "total": total, "page": page, "page_size": page_size}
+    return {
+        "items": [task_service.task_view(task) for task in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/me", response_model=Page[TaskOut], summary="My own cards, overdue first (volunteer+)")
@@ -59,7 +64,12 @@ def my_tasks(
     db: Session = Depends(get_db),
 ):
     rows, total = task_service.my_tasks(db, user, status=status, page=page, page_size=page_size)
-    return {"items": [task_service.task_view(task) for task in rows], "total": total, "page": page, "page_size": page_size}
+    return {
+        "items": [task_service.task_view(task) for task in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/{task_id}", response_model=TaskOut, summary="One task (volunteer+)")
@@ -98,7 +108,9 @@ def delete_task(task_id: UUID, user: User = Depends(require_role(WRITE)), db: Se
     task_service.delete_task(db, task_service.get_task(db, task_id), user)
 
 
-@router.get("/{task_id}/activity", response_model=Page[TaskActivityOut], summary="A task's trail, newest first (volunteer+)")
+@router.get(
+    "/{task_id}/activity", response_model=Page[TaskActivityOut], summary="A task's trail, newest first (volunteer+)"
+)
 def task_activity(
     task_id: UUID,
     page: int = Query(default=1, ge=1),
@@ -107,4 +119,9 @@ def task_activity(
     db: Session = Depends(get_db),
 ):
     rows, total = task_service.activity(db, task_id, page=page, page_size=page_size)
-    return {"items": [task_service.activity_view(row) for row in rows], "total": total, "page": page, "page_size": page_size}
+    return {
+        "items": [task_service.activity_view(row) for row in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }

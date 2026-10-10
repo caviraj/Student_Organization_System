@@ -60,7 +60,9 @@ def list_memberships(
     }
 
 
-@router.get("/renewals-due", response_model=Page[MembershipOut], summary="Active memberships ending within 30 days (admin)")
+@router.get(
+    "/renewals-due", response_model=Page[MembershipOut], summary="Active memberships ending within 30 days (admin)"
+)
 def renewals_due(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),

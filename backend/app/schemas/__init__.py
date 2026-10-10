@@ -52,7 +52,11 @@ class UserOut(ORMModel):
 
 class RegisterIn(BaseModel):
     email: EmailStr = Field(examples=["student@ssa.org"])
-    password: str = Field(min_length=8, max_length=72, examples=["Passw0rd!"])
+    # No `min_length` here on purpose: the length rule belongs to `check_password_policy`, which
+    # answers `422 WEAK_PASSWORD`. A pydantic minimum would answer `VALIDATION_ERROR` first, so the
+    # frontend would have to map two codes onto one password field. `max_length` stays because
+    # bcrypt silently ignores everything past 72 bytes.
+    password: str = Field(max_length=72, examples=["Passw0rd!"])
     full_name: str = Field(min_length=1, max_length=255, examples=["Demo Student"])
     phone: str | None = Field(default=None, max_length=32, examples=["9876543210"])
     department: str | None = Field(default=None, max_length=120, examples=["CSE"])
@@ -366,9 +370,7 @@ class AnnouncementCreateIn(BaseModel):
         examples=["3f1a2b4c-0000-4000-8000-000000000003"],
     )
     is_pinned: bool = Field(default=False, description="Pinned posts come first; at most 3 in total")
-    send_email: bool = Field(
-        default=False, description="Also email the audience. Opted-out members get in-app only."
-    )
+    send_email: bool = Field(default=False, description="Also email the audience. Opted-out members get in-app only.")
 
 
 class AnnouncementUpdateIn(BaseModel):
@@ -718,9 +720,7 @@ class VariantStockTotals(BaseModel):
 
 class StockSummaryOut(BaseModel):
     products: list[ProductStockOut] = []
-    demand_by_size: list[SizeDemandOut] = Field(
-        default=[], description="Reorder view: what each size actually moves"
-    )
+    demand_by_size: list[SizeDemandOut] = Field(default=[], description="Reorder view: what each size actually moves")
     totals: VariantStockTotals
 
 
@@ -786,9 +786,7 @@ class FundraiserProgressOut(BaseModel):
 
     tasks: FundraiserTaskCounts
     raised: int = Field(description="Integer paise, GROSS: the sum of this fundraiser's `in` ledger rows")
-    spent: int = Field(
-        default=0, description="Integer paise, reimbursed claims charged to this fundraiser (Phase 6)"
-    )
+    spent: int = Field(default=0, description="Integer paise, reimbursed claims charged to this fundraiser (Phase 6)")
     net_raised: int = Field(default=0, description="Integer paise, `raised - spent` (Phase 6)")
     goal: int = Field(description="Integer paise")
     percent_of_goal: int = Field(description="Whole percent; can exceed 100 when the goal is beaten")
@@ -862,7 +860,9 @@ class TaskUpdateIn(BaseModel):
 
 class TaskMoveIn(BaseModel):
     status: TaskStatus = Field(examples=["doing"], description="Which column the card lands in")
-    position: int | None = Field(default=None, ge=0, description="0-based slot; clamped to the column, defaults to last")
+    position: int | None = Field(
+        default=None, ge=0, description="0-based slot; clamped to the column, defaults to last"
+    )
 
 
 class TaskOut(BaseModel):

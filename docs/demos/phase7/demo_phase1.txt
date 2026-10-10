@@ -1,0 +1,332 @@
+
+== 0. migrate + seed
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+SSA Hub - Phase 1-6 seed
+----------------------------------------------------------
+  staff created          0 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        0 (of 20)
+  demo accounts created  0 (of 4)
+  memberships            23 total | 16 active | 8 expiring <=30d | 7 expired
+  paid orders            154
+  succeeded payments     144
+  ledger rows (dues)     23
+  reminders              10 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 16, 'expired': 0, 'reminders_created': 0}
+  events                 4 (already seeded)
+  ticket types           5
+  tickets issued         119 | 107 checked in | 12 still valid
+  ledger rows (tickets)  109 | Rs 52,300 (5230000 paise)
+  announcements          6 (1 pinned) (already seeded) | 2 revision rows
+  deliveries             email failed 1 | email sent 56 | inapp sent 140
+  opted out of email     3 users | bouncing@fail.test always fails
+  products               3 (2 active, 1 retired) | 11 variants (already seeded)
+  merch stock            68 units | 2 out of stock | 4 low
+  merch orders           12 | paid 6, packed 4, handed_over 2
+  ledger rows (merch)    12 | Rs 11,011 (1101100 paise)
+  stock movements        24 rows | invariant SUM(delta) == stock for 11/11 variants
+  fundraisers            3 (already seeded) | planning 1, active 1, done 1
+  tasks                  12 (5 done, 3 unassigned) | 12 activity rows
+  Spring Bake Sale       raised Rs 2,000 of Rs 5,000 (40%) | 3/8 tasks done | health at_risk
+  ledger rows (fundraiser) 3 | Rs 4,500 (450000 paise)
+  expenses               7 (already seeded) | submitted 2, approved 1, rejected 1, reimbursed 2, withdrawn 1
+  claims total           Rs 9,220 (922000 paise) | 3 claimant(s) owed Rs 3,740
+  manual ledger rows     6 (1 reversal) | balance Rs 96,381 (9638100 paise) = in Rs 98,111 - out Rs 1,730
+  reconcile              OK - 7/7 checks pass
+----------------------------------------------------------
+  password for every account below: Passw0rd!
+
+  DEMO ACCOUNTS
+  --------------------------------------------------------------------------
+  email                  role       membership                         ends       
+  member@ssa.org         member     active (Standard)                  2027-04-28 (+200d)
+  expiring@ssa.org       member     active (Basic)                     2026-10-18 (+8d)
+  expired@ssa.org        member     expired (Basic)                    2026-09-10 (-30d)
+  guest@ssa.org          guest      guest - never paid, no membership  -          
+  admin@ssa.org          admin      staff - every admin screen         -          
+  treasurer@ssa.org      treasurer  staff - every admin screen         -          
+  organizer@ssa.org      organizer  staff - every admin screen         -          
+  volunteer@ssa.org      volunteer  staff - every admin screen         -          
+
+  KEY IDS (paste into a URL)
+  --------------------------------------------------------------------------
+  Spring Gala event      1f552e3c-8374-4e90-b779-9237c863ce1e   (published)
+  ...VIP ticket type     011d77d4-ffd1-4ce3-93c7-c7b6cd1ff9fd   (19/20 sold - nearly gone)
+  Spring Bake Sale       8b2aa05f-2cd4-4903-9d0f-9e7c71bd4d05   (active)
+  Hoodie L               d7c59971-0216-47ea-a616-93891020cfaf   stock 8 (SSA-HOOD-L)
+  Hoodie M               0af37738-e5b3-4005-afb7-1ac3e28a1bf3   stock 4 (SSA-HOOD-M)
+  Hoodie S               d9bd8f8d-92b2-42ab-b300-fbf5cca53949   stock 0 (SSA-HOOD-S)
+  Hoodie XL              b95da124-5477-4f5a-819e-89a01e7a5680   stock 4 (SSA-HOOD-XL)
+  Hoodie XXL             f2d924ed-e9c7-4673-8114-9b3772b10844   stock 0 (SSA-HOOD-XXL)
+  overdue task           727e69cf-9533-4f11-8e4e-dd15641ae20e   'Ask the library for a donation box' due 2026-09-20
+  pending claim          fae2b4b4-7717-4330-a3fb-edf06b97970a   Rs 2,400 (equipment)
+  balance                Rs 96,381 - GET /finance/reconcile is ok
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+
+== 1. POST /auth/register  (demo.1791628390@ssa.org)
+{
+    "access_token": "<redacted>",
+    "token_type": "bearer",
+    "user": {
+        "id": "c8a93218-c856-4192-b20f-a88729a8d292",
+        "email": "demo.1791628390@ssa.org",
+        "full_name": "Demo Student",
+        "phone": "9876500000",
+        "department": "CSE",
+        "year": 2,
+        "role": "guest",
+        "member_code": null,
+        "email_opt_in": true,
+        "is_active": true,
+        "created_at": "2026-10-10T10:33:21.994601Z"
+    }
+}
+
+== 2. POST /auth/login
+{
+    "access_token": "<redacted>",
+    "token_type": "bearer",
+    "user": {
+        "id": "c8a93218-c856-4192-b20f-a88729a8d292",
+        "email": "demo.1791628390@ssa.org",
+        "full_name": "Demo Student",
+        "phone": "9876500000",
+        "department": "CSE",
+        "year": 2,
+        "role": "guest",
+        "member_code": null,
+        "email_opt_in": true,
+        "is_active": true,
+        "created_at": "2026-10-10T10:33:21.994601Z"
+    }
+}
+
+== 3. GET /plans  (public, active only)
+{
+    "items": [
+        {
+            "id": "9b8af521-453a-43c0-8280-544e66b8136b",
+            "name": "Basic",
+            "price": 50000,
+            "duration_months": 12,
+            "ticket_discount_pct": 10,
+            "merch_discount_pct": 5,
+            "description": "Dues + member pricing. 10% off tickets, 5% off merch.",
+            "is_active": true
+        },
+        {
+            "id": "7e0e9556-d389-4633-8fb9-4d8fba8e054f",
+            "name": "Standard",
+            "price": 90000,
+            "duration_months": 12,
+            "ticket_discount_pct": 20,
+            "merch_discount_pct": 10,
+            "description": "Most popular. 20% off tickets, 10% off merch.",
+            "is_active": true
+        },
+        {
+            "id": "7c54bc0d-1d1a-456e-b4f0-766a471932a9",
+            "name": "Premium",
+            "price": 150000,
+            "duration_months": 12,
+            "ticket_discount_pct": 30,
+            "merch_discount_pct": 15,
+            "description": "Best value. 30% off tickets, 15% off merch.",
+            "is_active": true
+        }
+    ],
+    "total": 3,
+    "page": 1,
+    "page_size": 20
+}
+
+== 4. POST /memberships/checkout  (Standard plan)
+{
+    "order_id": "37f91f11-da56-41ab-aceb-caafd287eada",
+    "payment_id": "69b73f68-9209-41d6-92cd-27af927a4385",
+    "amount": 90000,
+    "provider": "mock",
+    "status": "created"
+}
+
+== 5. POST /payments/37f91f11-da56-41ab-aceb-caafd287eada/mock-confirm  {outcome: success}
+{
+    "order_id": "37f91f11-da56-41ab-aceb-caafd287eada",
+    "payment_id": "69b73f68-9209-41d6-92cd-27af927a4385",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_33844e606fca4679abd0a9b539f30859",
+    "membership": {
+        "status": "active",
+        "plan_name": "Standard",
+        "end_date": "2027-10-10",
+        "days_left": 365
+    },
+    "tickets": null,
+    "merch": null
+}
+
+== 6. same call again -> idempotent, nothing duplicated
+{
+    "order_id": "37f91f11-da56-41ab-aceb-caafd287eada",
+    "payment_id": "69b73f68-9209-41d6-92cd-27af927a4385",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_33844e606fca4679abd0a9b539f30859",
+    "membership": {
+        "status": "active",
+        "plan_name": "Standard",
+        "end_date": "2027-10-10",
+        "days_left": 365
+    },
+    "tickets": null,
+    "merch": null
+}
+
+== 7. GET /auth/me  (role promoted guest -> member, membership active)
+{
+    "id": "c8a93218-c856-4192-b20f-a88729a8d292",
+    "email": "demo.1791628390@ssa.org",
+    "full_name": "Demo Student",
+    "phone": "9876500000",
+    "department": "CSE",
+    "year": 2,
+    "role": "member",
+    "member_code": "SSA-2026-0024",
+    "email_opt_in": true,
+    "is_active": true,
+    "created_at": "2026-10-10T10:33:21.994601Z",
+    "membership": {
+        "status": "active",
+        "plan_name": "Standard",
+        "end_date": "2027-10-10",
+        "days_left": 365
+    }
+}
+
+== 8. GET /members/me/card  (QR payload)
+{
+    "member_code": "SSA-2026-0024",
+    "full_name": "Demo Student",
+    "status": "active",
+    "valid_until": "2027-10-10"
+}
+
+== 9. POST /auth/login  (admin@ssa.org - seeded)
+admin token issued
+
+== 10. GET /members/verify?code=SSA-2026-0024  (volunteer+; admin here)
+{
+    "valid": true,
+    "status": "active",
+    "name": "Demo Student",
+    "member_code": "SSA-2026-0024",
+    "valid_until": "2027-10-10",
+    "reason": null
+}
+
+== 10b. GET /members/verify?code=SSA-2026-9999  (not a member)
+{
+    "valid": false,
+    "status": "none",
+    "name": null,
+    "member_code": null,
+    "valid_until": null,
+    "reason": "No member found"
+}
+
+== 11. GET /memberships/renewals-due  (active memberships ending within 30 days)
+{
+    "items": [
+        {
+            "id": "8abdf27f-5943-48c3-baf9-9554ed3fcd4f",
+            "user_id": "b1d828d4-cb82-42f5-8574-9fc35a12ea2d",
+            "plan_id": "7e0e9556-d389-4633-8fb9-4d8fba8e054f",
+            "plan_name": "Standard",
+            "status": "active",
+            "start_date": "2025-10-15",
+            "end_date": "2026-10-15",
+            "days_left": 5,
+            "member_code": "SSA-2026-0008",
+            "user_name": "Harini Prasad",
+            "user_email": "member08@ssa.org"
+        },
+        {
+            "id": "47f5981e-af5c-4ea3-9117-193eaa59a8f3",
+            "user_id": "a6e72452-eeb7-49e0-a76c-743b5560b539",
+            "plan_id": "9b8af521-453a-43c0-8280-544e66b8136b",
+            "plan_name": "Basic",
+            "status": "active",
+            "start_date": "2025-10-18",
+            "end_date": "2026-10-18",
+            "days_left": 8,
+            "member_code": "SSA-2026-0022",
+            "user_name": "Ela Fernandes",
+            "user_email": "expiring@ssa.org"
+        },
+        {
+            "id": "57057c43-202b-44ef-b93c-5198a19eb4f4",
+            "user_id": "dbc98bfe-7d59-4147-8fc7-607422390113",
+            "plan_id": "7c54bc0d-1d1a-456e-b4f0-766a471932a9",
+            "plan_name": "Premium",
+            "status": "active",
+            "start_date": "2025-10-20",
+            "end_date": "2026-10-20",
+            "days_left": 10,
+            "member_code": "SSA-2026-0009",
+            "user_name": "Ishaan Bose",
+            "user_email": "member09@ssa.org"
+        },
+        {
+            "id": "61d5281b-5ffb-426d-b7c5-a5dcb0ce9e03",
+            "user_id": "20353dfb-60fd-4a0c-8eb0-096431974fc1",
+            "plan_id": "9b8af521-453a-43c0-8280-544e66b8136b",
+            "plan_name": "Basic",
+            "status": "active",
+            "start_date": "2025-10-20",
+            "end_date": "2026-10-20",
+            "days_left": 10,
+            "member_code": "SSA-2026-0010",
+            "user_name": "Jaya Krishnan",
+            "user_email": "member10@ssa.org"
+        },
+        {
+            "id": "c7ecc480-02b3-48d6-9920-b23e05993608",
+            "user_id": "cdef04ee-4db4-4a33-956f-07d47494bba3",
+            "plan_id": "7e0e9556-d389-4633-8fb9-4d8fba8e054f",
+            "plan_name": "Standard",
+            "status": "active",
+            "start_date": "2025-10-20",
+            "end_date": "2026-10-20",
+            "days_left": 10,
+            "member_code": "SSA-2026-0011",
+            "user_name": "Kabir Malhotra",
+            "user_email": "member11@ssa.org"
+        }
+    ],
+    "total": 8,
+    "page": 1,
+    "page_size": 5
+}
+
+== 12. ledger row for this order  (money is traceable, DESIGN.md 4.3)
+[
+  {
+    "direction": "in",
+    "source": "dues",
+    "amount": 90000,
+    "ref_type": "order",
+    "note": "Membership dues - Standard"
+  }
+]
+
+== done
+The new member is active, has a member code, shows in the admin renewals list,
+and their dues are on the ledger. Swagger UI: http://127.0.0.1:8000/docs

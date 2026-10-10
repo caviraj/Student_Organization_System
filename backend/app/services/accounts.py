@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.security import hash_password, verify_password
+from app.core.security import check_password_policy, hash_password, verify_password
 from app.models import User
 from app.schemas import RegisterIn
 
@@ -11,6 +11,7 @@ def register_user(db: Session, payload: RegisterIn) -> User:
     email = payload.email.lower()
     if db.scalar(select(User.id).where(User.email == email)):
         raise AppError(409, "EMAIL_TAKEN", "Email is already registered", {"email": email})
+    check_password_policy(payload.password)
     user = User(
         email=email,
         password_hash=hash_password(payload.password),

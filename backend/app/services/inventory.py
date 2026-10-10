@@ -51,8 +51,15 @@ def release_seats(db: Session, ticket_type_id: UUID, qty: int) -> None:
 # --- merch stock (Phase 4) ----------------------------------------------------------------------
 
 
-def _record(db: Session, variant_id: UUID, delta: int, reason: str, user: User | None, order_id: UUID | None = None,
-            note: str | None = None) -> None:
+def _record(
+    db: Session,
+    variant_id: UUID,
+    delta: int,
+    reason: str,
+    user: User | None,
+    order_id: UUID | None = None,
+    note: str | None = None,
+) -> None:
     """One audit row per change, added to the caller's transaction - never committed here."""
     db.add(
         StockMovement(

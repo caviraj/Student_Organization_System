@@ -1,0 +1,7 @@
+SSA Hub - API contract check (docs/DESIGN.md §5 vs app.openapi())
+------------------------------------------------------------------------
+  documented  90   implemented  90   matched  90
+  per-row role rules (owner/assignee/...) not machine-checkable: 4
+  rows deferred to M2 and skipped: 1
+------------------------------------------------------------------------
+  OK: every documented route exists with the documented role, and nothing is hidden

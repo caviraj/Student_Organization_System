@@ -187,7 +187,11 @@ def test_cash_counted_on_the_day_still_arrives_within_the_week(client, tokens, a
 def test_the_cash_book_shows_who_logged_what_newest_first(client, tokens, auth, fundraiser, organizer, volunteer):
     client.post(
         f"/api/v1/fundraisers/{fundraiser.id}/income",
-        json={"amount": 120000, "note": "Pre-orders", "occurred_at": (datetime.now(UTC) - timedelta(days=2)).isoformat()},
+        json={
+            "amount": 120000,
+            "note": "Pre-orders",
+            "occurred_at": (datetime.now(UTC) - timedelta(days=2)).isoformat(),
+        },
         headers=auth(tokens["organizer"]),
     )
     client.post(
@@ -204,7 +208,12 @@ def test_the_cash_book_shows_who_logged_what_newest_first(client, tokens, auth, 
     assert all(row["logged_by"]["id"] == str(organizer.id) for row in body["items"])
 
     # The book is paginated off the same filter, so page 2 is empty rather than someone else's cash.
-    assert client.get(f"/api/v1/fundraisers/{fundraiser.id}/income?page=2", headers=auth(tokens["volunteer"])).json()["items"] == []
+    assert (
+        client.get(f"/api/v1/fundraisers/{fundraiser.id}/income?page=2", headers=auth(tokens["volunteer"])).json()[
+            "items"
+        ]
+        == []
+    )
 
 
 def test_there_is_no_way_to_edit_or_delete_an_entry(client, tokens, auth, db, fundraiser):
@@ -212,6 +221,13 @@ def test_there_is_no_way_to_edit_or_delete_an_entry(client, tokens, auth, db, fu
         f"/api/v1/fundraisers/{fundraiser.id}/income", json={"amount": 5000}, headers=auth(tokens["organizer"])
     ).json()
     headers = auth(tokens["organizer"])
-    assert client.patch(f"/api/v1/fundraisers/{fundraiser.id}/income/{entry['id']}", json={"amount": 1}, headers=headers).status_code == 404
-    assert client.delete(f"/api/v1/fundraisers/{fundraiser.id}/income/{entry['id']}", headers=headers).status_code == 404
+    assert (
+        client.patch(
+            f"/api/v1/fundraisers/{fundraiser.id}/income/{entry['id']}", json={"amount": 1}, headers=headers
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(f"/api/v1/fundraisers/{fundraiser.id}/income/{entry['id']}", headers=headers).status_code == 404
+    )
     assert income_rows(db, fundraiser.id) == 1, "a ledger you can rewrite is not a ledger"

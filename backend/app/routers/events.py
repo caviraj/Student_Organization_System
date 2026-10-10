@@ -54,11 +54,7 @@ def list_events(
 
     total = db.scalar(select(func.count()).select_from(Event).where(*filters)) or 0
     rows = db.scalars(
-        select(Event)
-        .where(*filters)
-        .order_by(Event.starts_at)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        select(Event).where(*filters).order_by(Event.starts_at).offset((page - 1) * page_size).limit(page_size)
     ).all()
 
     member = is_active_member(db, user)
@@ -120,7 +116,9 @@ def create_ticket_type(
     return event_service.ticket_type_view(ticket_type, is_member=is_active_member(db, user))
 
 
-@ticket_type_router.patch("/{ticket_type_id}", response_model=TicketTypeOut, summary="Update a ticket type (organizer+)")
+@ticket_type_router.patch(
+    "/{ticket_type_id}", response_model=TicketTypeOut, summary="Update a ticket type (organizer+)"
+)
 def update_ticket_type(
     ticket_type_id: UUID,
     payload: TicketTypeUpdateIn,
@@ -129,7 +127,9 @@ def update_ticket_type(
 ):
     ticket_type = db.get(TicketType, ticket_type_id)
     if ticket_type is None:
-        raise AppError(404, "TICKET_TYPE_NOT_FOUND", "No ticket type with that id", {"ticket_type_id": str(ticket_type_id)})
+        raise AppError(
+            404, "TICKET_TYPE_NOT_FOUND", "No ticket type with that id", {"ticket_type_id": str(ticket_type_id)}
+        )
     updated = event_service.update_ticket_type(db, ticket_type, payload)
     return event_service.ticket_type_view(updated, is_member=is_active_member(db, user))
 

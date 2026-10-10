@@ -31,9 +31,18 @@ def test_register_rejects_duplicate_email(client):
 
 
 def test_register_rejects_short_password(client):
+    """`WEAK_PASSWORD`, not `VALIDATION_ERROR`: the rule is the club's, it has its own code, and the
+    frontend shows it next to the password field. The schema deliberately carries no `min_length`,
+    so this is the service's answer and not pydantic's."""
     response = client.post("/api/v1/auth/register", json={**REGISTER, "password": "short"})
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert response.json()["error"]["code"] == "WEAK_PASSWORD"
+
+
+def test_register_rejects_a_password_without_a_digit(client):
+    response = client.post("/api/v1/auth/register", json={**REGISTER, "password": "onlyletters"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "WEAK_PASSWORD"
 
 
 def test_password_is_hashed_not_stored(client, db):
@@ -84,7 +93,11 @@ def test_me_with_garbage_token_is_401(client):
 def test_member_cannot_reach_admin_routes(client, make_user, login, auth):
     make_user("member@ssa.org", role="member")
     token = login("member@ssa.org")
-    for method, path in [("get", "/api/v1/users"), ("get", "/api/v1/memberships"), ("get", "/api/v1/memberships/renewals-due")]:
+    for method, path in [
+        ("get", "/api/v1/users"),
+        ("get", "/api/v1/memberships"),
+        ("get", "/api/v1/memberships/renewals-due"),
+    ]:
         response = getattr(client, method)(path, headers=auth(token))
         assert response.status_code == 403, f"{path} should be admin-only"
         assert response.json()["error"]["code"] == "FORBIDDEN"
@@ -111,8 +124,12 @@ def test_role_hierarchy_allows_volunteer_and_above_to_verify(client, make_user, 
     make_user("org@ssa.org", role="organizer")
     make_user("mem@ssa.org", role="member")
 
-    assert client.get("/api/v1/members/verify?code=SSA-2026-9999", headers=auth(login("vol@ssa.org"))).status_code == 200
-    assert client.get("/api/v1/members/verify?code=SSA-2026-9999", headers=auth(login("org@ssa.org"))).status_code == 200
+    assert (
+        client.get("/api/v1/members/verify?code=SSA-2026-9999", headers=auth(login("vol@ssa.org"))).status_code == 200
+    )
+    assert (
+        client.get("/api/v1/members/verify?code=SSA-2026-9999", headers=auth(login("org@ssa.org"))).status_code == 200
+    )
     denied = client.get("/api/v1/members/verify?code=SSA-2026-9999", headers=auth(login("mem@ssa.org")))
     assert denied.status_code == 403
 

@@ -15,10 +15,7 @@ def is_active_member(db: Session, user: User | None) -> bool:
         return False
     membership = current_membership(db, user)
     return bool(
-        membership
-        and membership.status == "active"
-        and membership.end_date
-        and membership.end_date >= date.today()
+        membership and membership.status == "active" and membership.end_date and membership.end_date >= date.today()
     )
 
 

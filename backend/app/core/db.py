@@ -46,7 +46,9 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 # DIRECT_URL. Same engine object when the deployment only has one URL.
 _migration_url = settings.migration_url
 migration_engine = (
-    engine if _migration_url == settings.DATABASE_URL else create_engine(_migration_url, **engine_kwargs(_migration_url))
+    engine
+    if _migration_url == settings.DATABASE_URL
+    else create_engine(_migration_url, **engine_kwargs(_migration_url))
 )
 MigrationSessionLocal = sessionmaker(bind=migration_engine, autoflush=False, expire_on_commit=False)
 

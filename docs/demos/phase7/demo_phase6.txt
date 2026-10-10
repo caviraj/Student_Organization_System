@@ -1,0 +1,337 @@
+
+== 0. migrate + seed  (Alembic + seed.py run on DIRECT_URL, the session pooler)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+SSA Hub - Phase 1-6 seed
+----------------------------------------------------------
+  staff created          0 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        0 (of 20)
+  demo accounts created  0 (of 4)
+  memberships            24 total | 17 active | 8 expiring <=30d | 7 expired
+  paid orders            158
+  succeeded payments     148
+  ledger rows (dues)     24
+  reminders              10 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 17, 'expired': 0, 'reminders_created': 0}
+  events                 5 (already seeded)
+  ticket types           6
+  tickets issued         121 | 65 checked in | 56 still valid
+  ledger rows (tickets)  111 | Rs 53,100 (5310000 paise)
+  announcements          8 (1 pinned) (already seeded) | 3 revision rows
+  deliveries             email failed 1 | email sent 83 | inapp sent 174
+  opted out of email     5 users | bouncing@fail.test always fails
+  products               4 (3 active, 1 retired) | 12 variants (already seeded)
+  merch stock            74 units | 2 out of stock | 4 low
+  merch orders           13 | paid 6, packed 4, handed_over 3
+  ledger rows (merch)    13 | Rs 11,390 (1139005 paise)
+  stock movements        27 rows | invariant SUM(delta) == stock for 12/12 variants
+  fundraisers            4 (already seeded) | planning 1, active 1, done 2
+  tasks                  17 (8 done, 3 unassigned) | 19 activity rows
+  Spring Bake Sale       raised Rs 2,000 of Rs 5,000 (40%) | 3/8 tasks done | health at_risk
+  ledger rows (fundraiser) 4 | Rs 6,000 (600000 paise)
+  expenses               7 (already seeded) | submitted 2, approved 1, rejected 1, reimbursed 2, withdrawn 1
+  claims total           Rs 9,220 (922000 paise) | 3 claimant(s) owed Rs 3,740
+  manual ledger rows     6 (1 reversal) | balance Rs 99,960 (9996005 paise) = in Rs 101,690 - out Rs 1,730
+  reconcile              OK - 7/7 checks pass
+----------------------------------------------------------
+  password for every account below: Passw0rd!
+
+  DEMO ACCOUNTS
+  --------------------------------------------------------------------------
+  email                  role       membership                         ends       
+  member@ssa.org         member     active (Standard)                  2027-04-28 (+200d)
+  expiring@ssa.org       member     active (Basic)                     2026-10-18 (+8d)
+  expired@ssa.org        member     expired (Basic)                    2026-09-10 (-30d)
+  guest@ssa.org          guest      guest - never paid, no membership  -          
+  admin@ssa.org          admin      staff - every admin screen         -          
+  treasurer@ssa.org      treasurer  staff - every admin screen         -          
+  organizer@ssa.org      organizer  staff - every admin screen         -          
+  volunteer@ssa.org      volunteer  staff - every admin screen         -          
+
+  KEY IDS (paste into a URL)
+  --------------------------------------------------------------------------
+  Spring Gala event      87fc8453-c9da-472f-b7a1-b8c6cb35cee7   (published)
+  ...VIP ticket type     ee5e271f-7b45-40f0-a4f4-aa54112aa4c6   (19/20 sold - nearly gone)
+  Spring Bake Sale       a093b183-e1dc-4f73-be00-1753d50f3290   (active)
+  Hoodie L               1aa48e27-65b8-4a74-a511-df5bd7aaba0c   stock 8 (SSA-HOOD-L)
+  Hoodie M               d594ede6-64b3-4b9a-8362-4558a22d1e41   stock 4 (SSA-HOOD-M)
+  Hoodie S               d1804108-0516-4384-9086-9b504d93d053   stock 0 (SSA-HOOD-S)
+  Hoodie XL              6e7d80c6-6e56-4963-98dd-55da19e64dc7   stock 4 (SSA-HOOD-XL)
+  Hoodie XXL             46f2ff88-f8c7-496c-9aa9-d3a6eb033074   stock 0 (SSA-HOOD-XXL)
+  overdue task           65395517-20f6-4c6c-b164-1c302ed27025   'Ask the library for a donation box' due 2026-09-20
+  pending claim          c9e6b48f-44e3-48ed-bd8e-1bb11ff18424   Rs 2,400 (equipment)
+  balance                Rs 99,960 - GET /finance/reconcile is ok
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+signed in as treasurer@ssa.org, admin@ssa.org, organizer@ssa.org, neha@ssa.org (volunteer) and member01@ssa.org
+
+== 1. reset: clear this demo's own claims, their ledger rows, its manual entries and its period
+  removed 0 claim(s), 0 manual ledger row(s), 0 period(s)
+made a 48x24 PNG, a text file with a .png name, and a 6 MB PNG in /tmp
+
+== 2. POST /expenses  (neha, multipart, NO receipt: a claim does not need one to be submitted)
+  submitted     Rs 450  printing  DEMO Auto fare to the printer          receipt=False             
+  status=submitted, has_receipt=false. Submitting is not the same as being paid.
+
+== 3. PATCH /expenses/{id}/review  (treasurer approves with no receipt attached)
+  ^ RECEIPT_REQUIRED Attach a receipt before approving this claim {"expense_id": "66f33a68-2a17-4e91-944f-00c0132a5a95"}
+    ^ 409 RECEIPT_REQUIRED. Approval is the signature on a document, and there is no document.
+
+== 4. PUT /expenses/{id}/receipt  (neha attaches a real PNG; the OLD object is deleted server-side)
+  submitted     Rs 450  printing  DEMO Auto fare to the printer          receipt=True             
+  the stored path is receipts/{claimant_id}/{expense_id}/{uuid4}.png - never the filename curl sent.
+
+== 5. GET /expenses/{id}/receipt  (a signed URL that expires; the path is never returned)
+{
+    "url": "http://local-storage.invalid/signed/87b2d5bf7ed54217ab4116e8f8fdfd6e?expires_in=600",
+    "expires_in": 600,
+    "mime": "image/png",
+    "size": 450
+}
+  expires_in=600, and the URL carries no storage path: http://local-storage.invalid/signed/3e76d330af3c48b0aa810aa57c78ad7b?expires_in=600
+  no 'receipt_path' field appears anywhere in the body - that is the rule, not an omission.
+  the bytes are in the private bucket on disk (STORAGE_PROVIDER=local in dev):
+    5 object(s) under var\storage\receipts, each named by uuid, never by the name curl sent: 8891a2f5-0ee2-4d34-bc90-b30e5bab8874.pdf, 8e910370-7ee9-4b6d-a3d3-e690beed858d.png, 453b1875-1e82-42c4-9f56-ce7c3eb0c73c.png
+  another volunteer cannot read this receipt at all:
+    rohit GET /expenses/66f33a68-2a17-4e91-944f-00c0132a5a95/receipt -> 403 (403 - the claimant sees their own, nobody else's)
+
+== 6. PATCH /expenses/{id}/review  (now it goes through)
+  approved      Rs 450  printing  DEMO Auto fare to the printer          receipt=True by Tara Iyer 
+
+== 7. PATCH /expenses/{id}  (the owner tries to edit an APPROVED claim: 409 INVALID_STATE)
+  ^ INVALID_STATE A approved claim cannot be edited {"status": "approved", "expected": ["submitted", "rejected"]}
+    ^ once a treasurer has decided, the claim is theirs to pay and nobody else's to touch.
+
+== 8. POST /expenses/{id}/reimburse  (treasurer pays Rs 450 by UPI: exactly one ledger row)
+  reimbursed     Rs 450  printing  DEMO Auto fare to the printer          receipt=True by Tara Iyer paid via upi
+  ledger_transaction_id=748e5530-ae58-461a-ab15-fb809cbb920e
+  balance before Rs 99,960 -> after Rs 99,510
+
+== 9. POST .../reimburse  again, the SAME body  (a double-click, not a double payment)
+  same ledger_transaction_id: yes
+  ledger rows paying this claim now: 1 (it stays 1)
+
+== 10. a rejection, the resubmission, and the trail both leave behind
+  reject with no note     ->   VALIDATION_ERROR
+  rejected      Rs 220  printing  DEMO Photocopies for the notice board  receipt=False by Tara Iyer 
+  neha edits the rejected claim - editing is what reopens it:
+  DEMO Photocopies for the notice board (GST bill attached)  status=submitted  history:
+      2026-10-10T10:20:04 submitted   Neha Kadam                   DEMO Photocopies for the notice board
+      2026-10-10T10:20:05 rejected    Tara Iyer                    The shop gave a GST bill - please attach that one.  note=The shop gave a GST bill - please attach that one.
+      2026-10-10T10:20:05 resubmitted Neha Kadam                   receipt replaced
+      2026-10-10T10:20:06 receipt_attached Neha Kadam                   
+      2026-10-10T10:20:06 edited      Neha Kadam                   description
+    ^ a rejected claim is not dead, it is handed back. Note the review fields are cleared.
+
+== 11. PATCH /expenses/{id}/review  (the treasurer claims Rs 300 themselves, then approves it)
+  ^ SELF_REVIEW You cannot review your own claim {"expense_id": "fcda6416-602f-42e9-8479-744fef638b6a"}
+    ^ 409 SELF_REVIEW, and it is the same for an admin: the money rule does not care about rank.
+
+== 12. the upload wall  (these are refused before any row is written)
+  text bytes with a .png name ->   INVALID_FILE_TYPE
+  6 MB png                    -> 413
+  amount above the cap        ->   VALIDATION_ERROR
+  incurred 91 days ago        ->   INVALID_INCURRED_ON
+
+== 13. GET /expenses  (the treasurer's queue: tabs, and the two totals that matter)
+  10 claim(s) | counts={'submitted': 4, 'approved': 1, 'rejected': 1, 'reimbursed': 3, 'withdrawn': 1} | submitted Rs 3,300 | approved unpaid Rs 960
+  submitted      Rs 300  travel    DEMO Treasurer's own auto fare           receipt=False
+  submitted      Rs 220  printing  DEMO Photocopies for the notice board (G receipt=True
+  reimbursed     Rs 450  printing  DEMO Auto fare to the printer            receipt=True
+  withdrawn      Rs 750  marketing Poster printing run, first draft         receipt=False
+  rejected     Rs 3,000  venue     Venue security deposit for the auditoriu receipt=False
+  submitted      Rs 380  supplies  Paint and brushes for the stall backdrop receipt=False
+  submitted    Rs 2,400  equipment XLR cable and a spare mic clip           receipt=True
+  approved       Rs 960  food      Snacks for the volunteer briefing        receipt=True
+  /expenses/me is the same list filtered to one claimant - a volunteer cannot read anothers.
+
+== 14. GET /finance/summary  (the dashboard KPIs, every number an integer of paise)
+  in Rs 101,690  out Rs 2,180  balance Rs 99,510
+      dues                   in  Rs 21,600  out       Rs 0  net  Rs 21,600
+      expense_reimbursement  in       Rs 0  out   Rs 2,180  net  Rs -2,180
+      fundraiser             in   Rs 6,000  out       Rs 0  net   Rs 6,000
+      merch                  in  Rs 11,390  out       Rs 0  net  Rs 11,390
+      other_income           in   Rs 9,600  out       Rs 0  net   Rs 9,600
+      tickets                in  Rs 53,100  out       Rs 0  net  Rs 53,100
+  waiting: 4 submitted (Rs 3,300) | 1 approved unpaid (Rs 960)
+  counts: {'transactions': 161, 'expenses_reimbursed': 3}
+
+== 15. GET /finance/transactions?sort=asc  (the ledger table, with a running balance)
+  161 row(s), oldest first - running_balance is only filled for sort=asc
+  2025-05-13T10:00:00     Rs 900      Rs 900  Membership dues - Standard   dues
+  2025-07-02T10:00:00     Rs 500    Rs 1,400  Membership dues - Basic      dues
+  2025-08-01T10:00:00   Rs 1,500    Rs 2,900  Membership dues - Premium    dues
+  2025-08-26T10:00:00     Rs 900    Rs 3,800  Membership dues - Standard   dues
+  2025-09-10T10:00:00     Rs 500    Rs 4,300  Membership dues - Basic      dues
+  2025-09-20T10:00:00     Rs 500    Rs 4,800  Membership dues - Basic      dues
+  3 entr(ies)
+  2026-10-10T10:20:01 out      Rs 450  DEMO Auto fare to the printer  expense_reimbursement  
+  2026-10-10T10:16:43 out    Rs 1,280  Leaflets for the club fair     expense_reimbursement  
+  2026-10-10T10:16:42 out      Rs 450  Auto fare to the printer and b expense_reimbursement  
+
+== 16. GET /finance/by-event and /by-fundraiser  (grouped totals, no query per row)
+  by-event:
+      Demo Night 1791627434              in     Rs 800  out       Rs 0  net     Rs 800
+      Farewell 2025                      in   Rs 1,000  out       Rs 0  net   Rs 1,000
+      Spring Gala                        in  Rs 51,300  out       Rs 0  net  Rs 51,300
+  by-fundraiser:
+      Demo Bake Sale                     in   Rs 1,500  out       Rs 0  net   Rs 1,500  goal Rs 3,000
+      Diwali Stall                       in   Rs 2,500  out       Rs 0  net   Rs 2,500  goal Rs 2,000
+      Spring Bake Sale                   in   Rs 2,000  out       Rs 0  net   Rs 2,000  goal Rs 5,000
+
+== 17. GET /finance/outstanding-reimbursements  (who is waiting, and for how long)
+  Rohit Bhatt        submitted       Rs 0  approved unpaid     Rs 960  oldest 2026-09-20
+  Om Prakash         submitted   Rs 2,400  approved unpaid       Rs 0  oldest 2026-09-28
+  Neha Kadam         submitted     Rs 600  approved unpaid       Rs 0  oldest 2026-10-02
+  Tara Iyer          submitted     Rs 300  approved unpaid       Rs 0  oldest 2026-10-10
+
+== 18. POST /finance/transactions  x2 with the SAME Idempotency-Key  (one row, not two)
+  2026-10-10T10:20:12 in     Rs 5,000  DEMO Sponsor - campus bookstore    logged by Tara Iyer
+  the same key again -> same id: yes
+  A manual entry carries a direction from its source: other_income is in, other_expense is out.
+  asking for the wrong direction ->   VALIDATION_ERROR
+
+== 19. POST /finance/transactions  (Rs 5,000 of banner printing, then a row bigger than the balance)
+  logged a banner bill: DEMO Banner printing
+  balance is Rs 103,710; trying to write an expense of Rs 104,710 as the treasurer:
+  ^ INSUFFICIENT_FUNDS The club does not have enough on hand for this payment {"balance": 10371005, "amount": 10471005}
+    ^ 409 INSUFFICIENT_FUNDS with both numbers, so the UI can say how short it is.
+  the same write as an ADMIN with allow_negative:
+  balance now Rs -1,000 - negative, and the API said so.
+  a treasurer may not reach for that flag:
+  FORBIDDEN
+
+== 20. POST /finance/transactions/{id}/reverse  (a refund lands: the row is mirrored, not edited)
+  direction=in  amount=Rs 104,710  is_reversal=True  reverses_id=1e24b42f-c42a-4e90-95d7-d9b39ffc5f3b
+  balance is back to Rs 103,710
+  reversing the mirror ->   NOT_REVERSIBLE
+  reversing the same row twice ->   ALREADY_REVERSED
+    ^ NOT_REVERSIBLE (a mirror is not an original) and ALREADY_REVERSED (the id is UNIQUE).
+  reversing a ticket sale ->   NOT_REVERSIBLE
+    ^ the books of record are not editable by hand; only other_income/other_expense reverse.
+
+== 21. GET /finance/reconcile  (the invariant: balance = SUM(in) - SUM(out), checked seven ways)
+  ok=True
+  Membership dues              ledger=   2160000 source=   2160000 difference=     0  OK
+  Ticket sales                 ledger=   5310000 source=   5310000 difference=     0  OK
+  Merch sales                  ledger=   1139005 source=   1139005 difference=     0  OK
+  Expense reimbursements       ledger=    218000 source=    218000 difference=     0  OK
+  Every reimbursed claim has a ledger row ledger=         0 source=         0 difference=     0  OK
+  Positive ledger amounts      ledger=         0 source=         0 difference=     0  OK
+  Balance is not negative      ledger=  10371005 source=  10371005 difference=     0  OK
+
+== 22. GET /finance/report  (the semester report: opening + net == closing, asserted server-side)
+  period 2026-06-12 .. 2026-10-10
+  opening Rs 18,700  +  net Rs 85,010  =  closing Rs 103,710
+  income   total Rs 87,990  by_source=dues Rs 2,900, fundraiser Rs 6,000, merch Rs 11,390, other_income Rs 14,600, tickets Rs 53,100
+  expenses total Rs 2,980  by_category=printing Rs 1,730, travel Rs 450
+  by_event=3 by_fundraiser=3 top_expenses=3 outstanding=4 reconciliation_ok=True
+
+== 23. POST /finance/periods  (freeze the books, then try to write inside the frozen window)
+  treasurer FORCING it closed ->   FORBIDDEN
+    ^ 403: forcing a signed-off number closed is an admin's call, not a treasurer's.
+  without force this is also refused while claims dated inside it are unsettled (409 PENDING_CLAIMS)
+  or the books do not reconcile (409 RECONCILIATION_FAILED) - both are the feature working.
+  closed DEMO Frozen window 2026-09-20 .. 2026-09-30  status=closed  closing_balance=Rs 27,800  by Aarav Menon
+  a manual entry dated INSIDE the closed window ->   ^ PERIOD_CLOSED 'DEMO Frozen window' is closed; nothing may be dated inside it {"period_name": "DEMO Frozen window", "start_date": "2026-09-20", "end_date": "2026-09-30"}
+    ^ 409 PERIOD_CLOSED naming the period. The past is closed; the present is still writable.
+  a write dated today still works -> 201
+  treasurer reopening it ->   FORBIDDEN
+    ^ 403: the person who froze the books cannot quietly unfreeze them.
+  reopened DEMO Frozen window  status=reopened  by admin  reason=Closed by mistake; the cheque for the venue had not been entered yet.
+  1 period(s) on record - reopened ones are kept, not deleted: DEMO Frozen window=reopened
+
+== 24. GET /fundraisers  (Phase 5 progress, now with what the board SPENT)
+  charging a claim to 'Diwali Stall':
+  submitted, receipted, approved and paid - so it is now spend against that fundraiser:
+  spent and net_raised are the Phase 6 additions. `raised` stays GROSS, so the frontend mock
+  that divides raised by goal keeps its meaning; net_raised is the honest number.
+  Diwali Stall               raised  Rs 2,500  spent    Rs 600  net  Rs 1,900  of goal  Rs 2,000  (125%)
+  Demo Bake Sale             raised  Rs 1,500  spent      Rs 0  net  Rs 1,500  of goal  Rs 3,000  (50%)
+  Spring Bake Sale           raised  Rs 2,000  spent      Rs 0  net  Rs 2,000  of goal  Rs 5,000  (40%)
+  Book Drive                 raised      Rs 0  spent      Rs 0  net      Rs 0  of goal  Rs 3,000  (0%)
+
+== 25. the ledger rows behind it all  (direct SQL, no debug endpoint: a read a DBA would do)
+  every reimbursed claim and the ONE out row that paid it:
+    Auto fare to the printer and back            Rs 450  <- ledger out  Rs 450  cash  by Tara Iyer
+    Leaflets for the club fair                   Rs 1,280  <- ledger out  Rs 1,280  upi  by Tara Iyer
+    DEMO Stall hire at the bake sale             Rs 600  <- ledger out  Rs 600  cash  by Tara Iyer
+    DEMO Auto fare to the printer                Rs 450  <- ledger out  Rs 450  upi  by Tara Iyer
+  ledger rows: 167  (2 of them reversals, each linked by reverses_id)
+    in,  not a reversal      Rs 106,740
+    out, not a reversal      Rs 109,090
+    in  reversing an out     Rs 105,510  (a refund of an earlier payment)
+    out reversing an in            Rs 0  (a cancellation of recorded income)
+    total_in  = (in  - not reversal) - (out reversing an in)  = Rs 106,740
+    total_out = (out - not reversal) - (in  reversing an out) = Rs 3,580
+    balance   = total_in - total_out                          = Rs 103,160
+  recomputed with services/ledger.py: total_in Rs 106,740  total_out Rs 3,580  balance Rs 103,160
+
+== 26. the permission wall  (guest 401, member 403, volunteer claims, treasurer decides)
+  guest POST /expenses            -> 401
+  guest GET /finance/summary      -> 401
+  member POST /expenses           -> 403
+  volunteer GET /finance/summary  -> 403
+  organizer GET /expenses         -> 403
+  volunteer GET /expenses         -> 403
+  volunteer PATCH review          -> 403
+  organizer POST /finance/transactions -> 403
+  treasurer reopen a period       -> 403
+
+== 27. script/check_db.py  (DATABASE_URL, the pooler: server, tables, RLS)
+SSA Hub - database check
+----------------------------------------------------------------
+  DATABASE_URL    aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+  DIRECT_URL      aws-0-ap-south-1.pooler.supabase.com
+  mode            transaction pooler
+  server          PostgreSQL 17.11 on aarch64-unknown-linux-gnu
+  connected as    postgres @ postgres
+  backend session real port 5432 (pooled) - no session state, no advisory locks
+
+  table                            rls
+  -------------------------------- -----
+  announcement_deliveries          on
+  announcement_revisions           on
+  announcements                    on
+  events                           on
+  expense_history                  on
+  expenses                         on
+  finance_periods                  on
+  fundraisers                      on
+  membership_plans                 on
+  memberships                      on
+  merch_orders                     on
+  order_items                      on
+  orders                           on
+  payments                         on
+  product_variants                 on
+  products                         on
+  reminders                        on
+  stock_movements                  on
+  task_activity                    on
+  tasks                            on
+  ticket_types                     on
+  tickets                          on
+  transactions                     on
+  users                            on
+----------------------------------------------------------------
+  OK: RLS enabled on all 24 public tables
+
+== 28. Swagger /docs carries the three new tags
+  tag Expenses           endpoints=10
+  tag Finance            endpoints=9
+  tag Finance Periods    endpoints=3
+  new paths: /api/v1/expenses, /api/v1/expenses/me, /api/v1/expenses/{expense_id}, /api/v1/expenses/{expense_id}/receipt, /api/v1/expenses/{expense_id}/reimburse, /api/v1/expenses/{expense_id}/review, /api/v1/finance/by-event, /api/v1/finance/by-fundraiser, /api/v1/finance/outstanding-reimbursements, /api/v1/finance/periods, /api/v1/finance/periods/{period_id}/reopen, /api/v1/finance/reconcile, /api/v1/finance/report, /api/v1/finance/summary, /api/v1/finance/transactions, /api/v1/finance/transactions/{transaction_id}/reverse
+
+== done
+One claim from a phone to the ledger: refused without a receipt, approved, paid by UPI exactly
+once, a rejection handed back and resubmitted, a self-approval blocked, the funds check, a
+reversal instead of an edit, a closed period that refuses backdated writes and that only an
+admin can reopen - and receipts in a private bucket behind expiring signed URLs.
+Swagger UI (tags: Expenses, Finance, Finance Periods): http://127.0.0.1:8000/docs
