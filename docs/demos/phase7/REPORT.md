@@ -233,7 +233,54 @@ alone rather than churned for no measured gain.
 
 ## STEP 6 — Phase gate
 
-(see the section below)
+The suite is run on `TEST_DATABASE_URL` only, three times in a row and then once in a seeded random
+order, because a suite that only passes in one order is a suite that shares state between tests.
+All four runs are in `pytest.txt`.
+
+| Run | Result |
+|---|---|
+| 1 | `322 passed, 1 warning in 578.46s` — exit 0 |
+| 2 | `322 passed, 1 warning in 588.90s` — exit 0 |
+| 3 | `322 passed, 1 warning in 568.26s` — exit 0 |
+| shuffled (`random.seed(7)`) | `322 passed, 1 warning in 563.73s` — exit 0 |
+
+The single warning is third-party on every run — an `anyio.abc.BlockingPortal` deprecation raised by
+the installed `starlette/testclient.py:45`. Nothing in `app/` or `tests/` raises a warning.
+
+**The shuffled run caught a defect in the gate itself, not in the suite.** The first attempt
+collected node ids with `--collect-only -q` and replayed them into a second pytest process. It
+reported `EXIT=4` in 0.40 s — pytest's usage error — having executed **zero** tests:
+
+```
+ERROR: not found: ...\tests\test_hardening.py::test_framework_errors_use_the_envelope
+```
+
+`tests/test_hardening.py:66` is `FAKE_ID = str(uuid4())`, a module-level constant, and
+`test_framework_errors_use_the_envelope` parametrises over it. Its node id therefore contains a uuid
+that is regenerated in every process, so an id collected in one process cannot exist in the next.
+pytest 9 refuses to collect anything when a single argument does not resolve. A gate that reports red
+because it never ran is indistinguishable, from the exit code alone, from a genuinely failing suite.
+
+The recorded run shuffles the item list **inside one session** instead (`-p` with a throwaway
+plugin), which is what "run it shuffled" actually means. Sampled collection order confirms the
+shuffle takes effect. Worth carrying forward: `--collect-only` node ids are not replayable for any
+suite containing a parametrize over a per-process value. Ordinary runs are unaffected, so the test
+was left alone rather than changed to suit a tool.
+
+---
+
+## FINISH — state at hand-off
+
+| | |
+|---|---|
+| Branch | `be/phase-7-hardening-docs` — pushed, then merged into `main` with `--no-ff` |
+| Merge commit | `5894f87` |
+| Tag | `backend-m1-done` |
+| Contract artifacts | `docs/openapi.json` (70 paths), `docs/api-types.ts` — generated, never hand-edited |
+| Test console | `frontend/api-console.html` — a no-build page for driving the API by hand |
+
+`frontend/` is otherwise empty; the React app is still the other teammate's to build from
+`docs/DESIGN.md`. The console is a testing tool committed alongside it, not a start on that work.
 
 ---
 

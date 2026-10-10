@@ -1,0 +1,52 @@
+SSA Hub -- phase 7 gate: the whole suite, three times, then once shuffled
+========================================================================
+
+  python --version   3.14.6
+  pytest --version   9.1.1
+  database           TEST_DATABASE_URL only (the guard in tests/conftest.py fails the
+                     run if that ever points at the app database)
+
+  run 1       322 passed, 1 warning in 578.46s (0:09:38)   EXIT=0
+  run 2       322 passed, 1 warning in 588.90s (0:09:48)   EXIT=0
+  run 3       322 passed, 1 warning in 568.26s (0:09:28)   EXIT=0
+  shuffled    322 passed, 1 warning in 563.73s (0:09:23)   EXIT=0
+
+  shuffled order: pytest -q -p _shuffle_plugin  (random.seed(7))
+
+
+The one warning, every run
+--------------------------
+  starlette/testclient.py:45: DeprecationWarning: The anyio.abc.BlockingPortal
+  alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+
+Third-party, from the installed starlette's TestClient. Nothing in this tree
+raises it, and no warning comes from app/ or tests/.
+
+
+How the shuffled run is done, and why not the obvious way
+---------------------------------------------------------
+The first attempt collected the node ids with `--collect-only -q` and replayed
+them into a second pytest process. It reported EXIT=4 in 0.40s -- pytest's usage
+error -- and ran zero tests. The reason is in this suite:
+
+  tests/test_hardening.py:66    FAKE_ID = str(uuid4())
+
+`test_framework_errors_use_the_envelope` parametrises over that constant, so its
+node id is
+
+  ...envelope[GET-/api/v1/events/<a fresh uuid4>/ticket-types-METHOD_NOT_ALLOWED]
+
+Different in every process. An id collected in one process therefore cannot
+exist in the next, and pytest 9 refuses to collect anything at all when one
+argument does not resolve -- so the gate looked like a red suite when in truth
+it had never executed a single test.
+
+The run above shuffles the item list inside one session instead, via a throwaway
+plugin loaded with `-p` (never imported by an ordinary run, and deleted after
+this file was written). Sampled collection order confirms it takes effect: the
+unshuffled first test is test_announcements.py::test_guard_refuses..., the
+shuffled first is test_fundraisers.py::test_write_permissions[guest-patch-...].
+
+Worth remembering beyond this phase: `--collect-only` ids are not replayable for
+any suite with a parametrize over a per-process value. Normal `pytest -q` runs
+are unaffected, so the test was left alone.

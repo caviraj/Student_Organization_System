@@ -132,4 +132,4 @@ in CI rather than a developer's `TEST_DATABASE_URL`. Both are Milestone 2 operat
 | 4 | ☑ | ☐ | `docs/demos/phase4/` (`demo_phase4.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase4.sh` | `phase-4-done` |
 | 5 | ☑ | ☐ | `docs/demos/phase5/` (`demo_phase5.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase5.sh` | `phase-5-done` |
 | 6 | ☑ | ☐ | `docs/demos/phase6/` (`demo_phase6.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase6.sh` | `phase-6-done` |
-| 7 | ☑ | ☐ | `docs/API_HANDOFF.md` · `docs/ARCHITECTURE.md` · `docs/DEMO_SCRIPT.md` · `docs/M2_BACKLOG.md` · `docs/demos/phase7/` · run `python backend/scripts/smoke_e2e.py` | `backend-m1-done` (after merge) |
+| 7 | ☑ | ☐ | `docs/API_HANDOFF.md` · `docs/ARCHITECTURE.md` · `docs/DEMO_SCRIPT.md` · `docs/M2_BACKLOG.md` · `docs/demos/phase7/` (`REPORT.md`, `pytest.txt`, `smoke_e2e.txt`, `demo_phase1..6.txt`) · run `python backend/scripts/smoke_e2e.py` | `backend-m1-done` |
