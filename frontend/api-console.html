@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSA Hub — API test console</title>
+<style>
+  :root {
+    --bg: #12141a; --panel: #1a1d26; --panel2: #222633; --line: #2e3342;
+    --fg: #e6e8ef; --dim: #9aa1b4; --accent: #6ea8fe; --ok: #4ade80;
+    --warn: #fbbf24; --bad: #f87171; --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .note { color: var(--dim); font-size: 12px; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 0; min-height: calc(100vh - 52px); }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  aside { border-right: 1px solid var(--line); padding: 14px; overflow-y: auto; }
+  section { padding: 14px 18px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 0 0 10px; }
+  label { display: block; font-size: 12px; color: var(--dim); margin: 8px 0 3px; }
+  input, select, textarea, button { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { font-family: var(--mono); font-size: 12px; resize: vertical; }
+  button { cursor: pointer; background: var(--panel2); }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #0b1020; border-color: var(--accent); font-weight: 600; }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .grid button { font-size: 12px; padding: 6px; text-align: left; }
+  #whoami { font-size: 12px; color: var(--dim); word-break: break-all; }
+  #whoami b { color: var(--fg); }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .b-ok { background: #14361f; color: var(--ok); } .b-bad { background: #3a1a1a; color: var(--bad); }
+  .b-warn { background: #3a2f10; color: var(--warn); } .b-dim { background: var(--panel2); color: var(--dim); }
+  #log { display: flex; flex-direction: column; gap: 10px; }
+  .entry { background: var(--panel); border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px; overflow: hidden; }
+  .entry.ok { border-left-color: var(--ok); } .entry.bad { border-left-color: var(--bad); }
+  .entry > summary { cursor: pointer; padding: 9px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; }
+  .entry pre { margin: 0; padding: 12px; background: #0e1015; border-top: 1px solid var(--line); overflow-x: auto; font-family: var(--mono); font-size: 12px; max-height: 460px; }
+  .m { font-weight: 700; } .m.GET { color: #7dd3fc; } .m.POST { color: var(--ok); } .m.PATCH { color: var(--warn); } .m.PUT { color: #c084fc; } .m.DELETE { color: var(--bad); }
+  .path { color: var(--fg); } .ms { color: var(--dim); margin-left: auto; }
+  #banner { display: none; margin: 0 18px; padding: 10px 14px; border-radius: 8px; background: #3a1a1a; color: #fecaca; font-size: 13px; }
+  .hint { color: var(--dim); font-size: 11px; margin-top: 6px; }
+  code { font-family: var(--mono); background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SSA Hub — API test console</h1>
+  <span class="note">Talks to the real backend. Serve this page from <code>localhost:5173</code> — the API's CORS allowlist is what lets it through.</span>
+</header>
+
+<div id="banner"></div>
+
+<main>
+  <aside>
+    <div class="panel">
+      <h2>Server</h2>
+      <label for="base">Base URL</label>
+      <input id="base" value="http://127.0.0.1:8000">
+      <div class="row" style="margin-top:8px">
+        <button id="health">Check /health</button>
+      </div>
+      <div class="hint">API prefix <code>/api/v1</code> is added for you.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Session</h2>
+      <div id="whoami">Not signed in.</div>
+      <div class="row" style="margin-top:10px">
+        <button id="me">GET /auth/me</button>
+        <button id="logout">Sign out</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Sign in</h2>
+      <label for="email">Email</label>
+      <input id="email" list="accounts" value="admin@ssa.org">
+      <datalist id="accounts">
+        <option>member@ssa.org</option><option>expiring@ssa.org</option>
+        <option>expired@ssa.org</option><option>guest@ssa.org</option>
+        <option>admin@ssa.org</option><option>treasurer@ssa.org</option>
+        <option>organizer@ssa.org</option><option>volunteer@ssa.org</option>
+        <option>neha@ssa.org</option><option>rohit@ssa.org</option>
+      </datalist>
+      <label for="password">Password</label>
+      <input id="password" type="password" value="Passw0rd!">
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="login">Log in</button>
+        <button id="register">Register new</button>
+      </div>
+      <div class="hint">Every seeded account uses <code>Passw0rd!</code></div>
+    </div>
+
+    <div class="panel">
+      <h2>Quick reads</h2>
+      <div class="grid" id="quick"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="runall">Run all reads</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Check-in (door)</h2>
+      <label for="ci-event">event_id</label>
+      <input id="ci-event" placeholder="uuid">
+      <label for="ci-code">ticket code</label>
+      <input id="ci-code" placeholder="SSA-…">
+      <button class="primary" id="ci-go" style="margin-top:10px">POST /checkin</button>
+      <div class="hint">Needs a volunteer, organizer or admin token.</div>
+    </div>
+  </aside>
+
+  <section>
+    <div class="panel">
+      <h2>Request</h2>
+      <div class="row">
+        <select id="method" style="flex:0 0 110px">
+          <option>GET</option><option>POST</option><option>PATCH</option><option>PUT</option><option>DELETE</option>
+        </select>
+        <input id="path" placeholder="/events?page_size=5" value="/events?page_size=5">
+        <button class="primary" id="send" style="flex:0 0 90px">Send</button>
+      </div>
+      <label for="body">JSON body (ignored on GET/DELETE)</label>
+      <textarea id="body" rows="4" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:8px">
+        <label style="margin:0"><input type="checkbox" id="auth" checked style="width:auto"> attach token</label>
+        <label style="margin:0"><input type="checkbox" id="idem" style="width:auto"> Idempotency-Key</label>
+      </div>
+    </div>
+
+    <h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:18px 0 8px">
+      Responses <span id="count" class="badge b-dim">0</span>
+    </h2>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const API = "/api/v1";
+  const TOKEN_KEY = "ssa.testconsole.token";
+
+  const state = { token: null, n: 0 };
+
+  // localStorage can throw or come back empty (private window, cleared data), so every access is
+  // guarded and the page is fully usable with the token held in memory only.
+  const store = {
+    get() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } },
+    set(v) { try { v ? localStorage.setItem(TOKEN_KEY, v) : localStorage.removeItem(TOKEN_KEY); } catch {} },
+  };
+
+  const base = () => $("base").value.replace(/\/+$/, "");
+  const url = (path) => path.startsWith("/api/") || path === "/health" ? base() + path : base() + API + path;
+
+  function banner(msg) {
+    const el = $("banner");
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
+
+  function setToken(token) {
+    state.token = token || null;
+    store.set(state.token);
+    renderSession();
+  }
+
+  function renderSession() {
+    $("whoami").innerHTML = state.token
+      ? `<b>Token held</b> <span class="badge b-ok">${state.token.slice(0, 18)}…</span><br>${state.token.length} chars`
+      : "Not signed in.";
+  }
+
+  function entry(method, path, status, ms, payload) {
+    const ok = status !== null && status < 400;
+    const el = document.createElement("details");
+    el.className = "entry " + (ok ? "ok" : "bad");
+    el.open = !ok || $("log").children.length === 0;
+    const label = status === null ? "ERR" : status;
+    const cls = status === null ? "bad" : ok ? "ok" : "bad";
+    el.innerHTML =
+      `<summary><span class="m ${method}">${method}</span><span class="path">${escape(path)}</span>` +
+      `<span class="badge b-${cls}">${label}</span><span class="ms">${ms === null ? "" : ms + " ms"}</span></summary>` +
+      `<pre>${escape(typeof payload === "string" ? payload : JSON.stringify(payload, null, 2))}</pre>`;
+    $("log").prepend(el);
+    $("count").textContent = ++state.n;
+  }
+
+  const escape = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+  async function api(method, path, body, { auth = true, idempotency = false } = {}) {
+    const headers = {};
+    if (body !== undefined && body !== null && method !== "GET" && method !== "DELETE") {
+      headers["Content-Type"] = "application/json";
+    }
+    // The scheme is HTTPBearer, so the header is "Bearer <token>" — verified against the running
+    // API. Swagger's Authorize dialog takes the bare token because it adds the prefix for you.
+    if (auth && state.token) headers.Authorization = "Bearer " + state.token;
+    if (idempotency) headers["Idempotency-Key"] = crypto.randomUUID();
+
+    const t0 = performance.now();
+    let status = null, payload;
+    try {
+      const res = await fetch(url(path), {
+        method, headers,
+        body: headers["Content-Type"] ? JSON.stringify(body) : undefined,
+      });
+      status = res.status;
+      const text = await res.text();
+      try { payload = text ? JSON.parse(text) : "(empty body)"; } catch { payload = text; }
+      if (status === 429) banner("Rate limited (429). " + (res.headers.get("Retry-After") || "?") + "s — wait, or restart the server to clear the in-memory limiter.");
+      else banner("");
+    } catch (err) {
+      payload = "fetch failed: " + err.message +
+        "\n\nMost likely: the API is not running, or this page is not served from an origin in CORS_ORIGINS" +
+        "\n(http://localhost:5173 or http://127.0.0.1:5173). Opening the file as file:// sends Origin: null and is refused.";
+    }
+    entry(method, path, status, Math.round(performance.now() - t0), payload);
+    return { status, payload };
+  }
+
+  async function health() {
+    const el = $("base");
+    const t0 = performance.now();
+    try {
+      const res = await fetch(el.value.replace(/\/+$/, "") + "/health");
+      const json = await res.json();
+      entry("GET", "/health", res.status, Math.round(performance.now() - t0), json);
+      banner("");
+    } catch (err) {
+      entry("GET", "/health", null, Math.round(performance.now() - t0), "fetch failed: " + err.message);
+      banner("Cannot reach " + el.value + " — is uvicorn running?");
+    }
+  }
+
+  async function login() {
+    const r = await api("POST", "/auth/login",
+      { email: $("email").value.trim(), password: $("password").value }, { auth: false });
+    if (r.status === 200 && r.payload && r.payload.access_token) setToken(r.payload.access_token);
+  }
+
+  async function register() {
+    const stamp = Date.now();
+    await api("POST", "/auth/register", {
+      email: `console.${stamp}@ssa.org`,
+      password: $("password").value,
+      full_name: "Console Tester",
+      phone: "9876500000",
+      department: "CSE",
+      year: 2,
+    }, { auth: false });
+  }
+
+  const QUICK = [
+    ["/plans", "plans"],
+    ["/events?page_size=5", "events"],
+    ["/products?page_size=5", "products"],
+    ["/announcements?page_size=5", "announcements"],
+    ["/memberships/me", "my membership"],
+    ["/members/me/card", "my card"],
+    ["/tickets/me", "my tickets"],
+    ["/orders/me", "my orders"],
+    ["/tasks?page_size=5", "tasks"],
+    ["/fundraisers?page_size=5", "fundraisers"],
+    ["/finance/summary", "finance summary"],
+    ["/finance/reconcile", "reconcile"],
+    ["/users?page_size=5", "users"],
+    ["/users/assignable", "assignable"],
+  ];
+
+  for (const [path, label] of QUICK) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.title = "GET " + path;
+    b.onclick = () => api("GET", path);
+    $("quick").append(b);
+  }
+
+  $("health").onclick = health;
+  $("login").onclick = login;
+  $("register").onclick = register;
+  $("logout").onclick = () => { setToken(null); entry("GET", "(signed out)", null, null, "Token cleared."); };
+  $("me").onclick = () => api("GET", "/auth/me");
+  $("send").onclick = send;
+  $("runall").onclick = async () => { for (const [path] of QUICK) await api("GET", path); };
+  $("ci-go").onclick = () => api("POST", "/checkin", { event_id: $("ci-event").value.trim(), code: $("ci-code").value.trim() });
+
+  $("path").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+
+  function send() {
+    const method = $("method").value;
+    let body;
+    const raw = $("body").value.trim();
+    if (raw && method !== "GET" && method !== "DELETE") {
+      try { body = JSON.parse(raw); }
+      catch (err) { entry(method, $("path").value, null, null, "Body is not valid JSON: " + err.message); return; }
+    }
+    api(method, $("path").value.trim(), body, { auth: $("auth").checked, idempotency: $("idem").checked });
+  }
+
+  // A token from a previous visit may still be valid; show the session and confirm it on load.
+  setToken(store.get());
+  health();
+  if (state.token) $("me").click();
+})();
+</script>
+</body>
+</html>
