@@ -97,8 +97,8 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 ## Phase Log
 | Phase | Backend done | Frontend done | Demo link/screens | Tag |
 |---|---|---|---|---|
-| 0 | ☐ | ☐ | | |
-| 1 | ☐ | ☐ | | |
+| 0 | ☑ | ☑ | Scaffold shell & mocks verified | `phase-0-done` |
+| 1 | ☑ | ☑ | `docs/demos/phase1/DEMO_PHASE1.md` | `phase-1-done` |
 | 2 | ☐ | ☐ | | |
 | 3 | ☐ | ☐ | | |
 | 4 | ☐ | ☐ | | |
