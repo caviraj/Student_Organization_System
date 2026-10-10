@@ -1,12 +1,15 @@
 import { http, HttpResponse } from 'msw';
-import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets } from './data';
+import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets, mockAnnouncements, mockDeliveries } from './data';
 import type { UserMe, MembershipPlan } from '../types/api';
 import type { EventDetail, TicketItem, TicketCheckoutResponse } from '../types/events';
+import type { Announcement, AnnouncementDelivery, AnnouncementCategory, AnnouncementAudience } from '../types/announcements';
 
 let activeUserEmail = 'member@ssa.org';
 const plansState: MembershipPlan[] = [...mockPlans];
 export const eventsState: EventDetail[] = JSON.parse(JSON.stringify(mockEvents));
 export const ticketsState: TicketItem[] = JSON.parse(JSON.stringify(mockTickets));
+export const announcementsState: Announcement[] = JSON.parse(JSON.stringify(mockAnnouncements));
+export const deliveriesState: AnnouncementDelivery[] = JSON.parse(JSON.stringify(mockDeliveries));
 export const ticketOrdersState: Record<string, {
   order_id: string;
   payment_id: string;
@@ -870,6 +873,262 @@ export const handlers = [
       page: 1,
       page_size: 50,
     });
+  }),
+
+  // ==========================================
+  // PHASE 3: ANNOUNCEMENTS & PREFERENCES
+  // ==========================================
+
+  // 24. List Announcements (Public Feed & Management)
+  http.get('*/api/v1/announcements', ({ request }) => {
+    const url = new URL(request.url);
+    const category = url.searchParams.get('category') as AnnouncementCategory | null;
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(url.searchParams.get('page_size') || '20', 10);
+    const authHeader = request.headers.get('Authorization');
+
+    const currentUser: UserMe | null = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    let filtered = [...announcementsState];
+
+    // Audience filtering based on user role and tickets
+    if (!currentUser || currentUser.role === 'guest') {
+      filtered = filtered.filter((a) => a.audience === 'all');
+    } else if (currentUser.role === 'member') {
+      const userEventIds = ticketsState
+        .filter((t) => t.user_email === currentUser.email)
+        .map((t) => t.event_id);
+
+      filtered = filtered.filter(
+        (a) =>
+          a.audience === 'all' ||
+          a.audience === 'members' ||
+          (a.audience === 'event' && a.event_id && userEventIds.includes(a.event_id))
+      );
+    }
+    // Organizers, Volunteers, and Admins can see all announcements
+
+    // Category filter
+    if (category) {
+      filtered = filtered.filter((a) => a.category === category);
+    }
+
+    // Sort: pinned first, then newest published_at
+    filtered.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+    });
+
+    const total = filtered.length;
+    const startIndex = (page - 1) * pageSize;
+    const items = filtered.slice(startIndex, startIndex + pageSize);
+
+    return HttpResponse.json({
+      items,
+      total,
+      page,
+      page_size: pageSize,
+    });
+  }),
+
+  // 25. Get Single Announcement
+  http.get('*/api/v1/announcements/:id', ({ params }) => {
+    const { id } = params;
+    const announcement = announcementsState.find((a) => a.id === id);
+
+    if (!announcement) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'ANNOUNCEMENT_NOT_FOUND',
+            message: 'The requested announcement could not be found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    return HttpResponse.json(announcement);
+  }),
+
+  // 26. Create Announcement (Organizer+)
+  http.post('*/api/v1/announcements', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || (currentUser.role !== 'organizer' && currentUser.role !== 'admin')) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to publish announcements.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      title: string;
+      body: string;
+      category: AnnouncementCategory;
+      audience: AnnouncementAudience;
+      event_id?: string | null;
+      is_pinned?: boolean;
+    };
+
+    if (body.audience === 'event' && !body.event_id) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Event selection is required when audience is set to event.',
+          },
+        },
+        { status: 422 }
+      );
+    }
+
+    const newAnnouncement: Announcement = {
+      id: `ann_${Date.now()}`,
+      title: body.title,
+      body: body.body,
+      category: body.category,
+      audience: body.audience,
+      event_id: body.audience === 'event' ? body.event_id || null : null,
+      is_pinned: Boolean(body.is_pinned),
+      author_id: currentUser.id,
+      author_name: currentUser.full_name,
+      published_at: new Date().toISOString(),
+      revision_note: null,
+    };
+
+    announcementsState.unshift(newAnnouncement);
+
+    // Simulate dispatch deliveries
+    const newDeliveries: AnnouncementDelivery[] = [
+      {
+        id: `del_${Date.now()}_1`,
+        announcement_id: newAnnouncement.id,
+        user_id: 'usr_member_02',
+        user_name: 'Aarav Patel',
+        user_email: 'member@ssa.org',
+        channel: 'email',
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      },
+      {
+        id: `del_${Date.now()}_2`,
+        announcement_id: newAnnouncement.id,
+        user_id: 'usr_expiring_03',
+        user_name: 'Diya Sharma',
+        user_email: 'expiring@ssa.org',
+        channel: 'email',
+        status: 'queued',
+        sent_at: null,
+      },
+    ];
+    deliveriesState.unshift(...newDeliveries);
+
+    return HttpResponse.json(newAnnouncement, { status: 201 });
+  }),
+
+  // 27. Update Announcement Revision Note (Organizer+)
+  http.patch('*/api/v1/announcements/:id', async ({ params, request }) => {
+    const { id } = params;
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || (currentUser.role !== 'organizer' && currentUser.role !== 'admin')) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to edit announcements.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as { revision_note: string };
+    const announcement = announcementsState.find((a) => a.id === id);
+
+    if (!announcement) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'ANNOUNCEMENT_NOT_FOUND',
+            message: 'Announcement not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    announcement.revision_note = body.revision_note;
+
+    return HttpResponse.json(announcement);
+  }),
+
+  // 28. Get Announcement Deliveries (Admin Only!)
+  http.get('*/api/v1/announcements/:id/deliveries', ({ params, request }) => {
+    const { id } = params;
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    // Strict Role Check: Deliveries are Admin Only
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only administrators are authorized to inspect announcement delivery logs.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const items = deliveriesState.filter((d) => d.announcement_id === id);
+    const queued = items.filter((d) => d.status === 'queued').length;
+    const sent = items.filter((d) => d.status === 'sent').length;
+    const failed = items.filter((d) => d.status === 'failed').length;
+
+    return HttpResponse.json({
+      items,
+      total: items.length,
+      counts: {
+        queued,
+        sent,
+        failed,
+        total: items.length,
+      },
+    });
+  }),
+
+  // 29. Update Email Preferences
+  http.post('*/api/v1/users/me/email-preferences', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required to update preferences.',
+          },
+        },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as { email_opt_in: boolean };
+    currentUser.email_opt_in = body.email_opt_in;
+
+    return HttpResponse.json(currentUser);
   }),
 ];
 

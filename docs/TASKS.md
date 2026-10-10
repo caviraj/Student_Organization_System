@@ -100,7 +100,7 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 | 0 | ☑ | ☑ | Scaffold shell & mocks verified | `phase-0-done` |
 | 1 | ☑ | ☑ | `docs/demos/phase1/DEMO_PHASE1.md` | `phase-1-done` |
 | 2 | ☐ | ☑ | `docs/demos/phase2/DEMO_PHASE2.md` | `phase-2-done` |
-| 3 | ☐ | ☐ | | |
+| 3 | ☐ | ☑ | `docs/demos/phase3/DEMO_PHASE3.md` | `phase-3-done` |
 | 4 | ☐ | ☐ | | |
 | 5 | ☐ | ☐ | | |
 | 6 | ☐ | ☐ | | |

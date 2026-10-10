@@ -1,10 +1,12 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { membershipsApi } from '../../api/memberships';
 import { ticketsApi } from '../../api/tickets';
+import { authApi } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusChip, RoleBadge } from '../../components/ui/StatusChip';
@@ -23,12 +25,49 @@ import {
   Printer,
   UserCheck,
   Ticket,
+  Mail,
 } from 'lucide-react';
 
 export function MemberDashboard() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const cardRef = useRef<HTMLDivElement>(null);
+  const { success: showToastSuccess, error: showToastError } = useToast();
+
+  const [emailOptIn, setEmailOptIn] = useState<boolean>(user?.email_opt_in ?? true);
+  const [isUpdatingPreferences, setIsUpdatingPreferences] = useState(false);
+
+  useEffect(() => {
+    if (user?.email_opt_in !== undefined) {
+      setEmailOptIn(user.email_opt_in);
+    }
+  }, [user?.email_opt_in]);
+
+  const handleToggleEmailOptIn = async () => {
+    const previous = emailOptIn;
+    const next = !previous;
+    setEmailOptIn(next);
+    setIsUpdatingPreferences(true);
+
+    try {
+      await authApi.updateEmailPreferences({ email_opt_in: next });
+      showToastSuccess(
+        next
+          ? 'Subscribed to announcement email notifications.'
+          : 'Muted announcement email notifications.'
+      );
+      if (refreshUser) {
+        await refreshUser();
+      }
+    } catch (err: unknown) {
+      // Rollback on error
+      setEmailOptIn(previous);
+      const msg = err instanceof Error ? err.message : 'Failed to update email preferences.';
+      showToastError(`${msg} Preference rolled back.`);
+    } finally {
+      setIsUpdatingPreferences(false);
+    }
+  };
 
   const { data: card, isLoading, error, refetch } = useQuery({
     queryKey: ['myMemberCard'],
@@ -72,7 +111,7 @@ export function MemberDashboard() {
 
   if (!hasMembership) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-16">
+      <div className="max-w-xl mx-auto px-4 py-16 space-y-6">
         <EmptyState
           icon={<ShieldCheck className="w-14 h-14 text-slate-500" />}
           title="No Active Membership Found"
@@ -80,6 +119,70 @@ export function MemberDashboard() {
           actionLabel="Explore Membership Plans"
           onAction={() => navigate('/join')}
         />
+
+        {/* Email Notification Preferences Card for Non-Members */}
+        <Card className="border-slate-800/80 bg-slate-900/60 shadow-xl overflow-hidden">
+          <CardHeader className="pb-3 border-b border-slate-800/60 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base text-white">Email Notification Preferences</CardTitle>
+                <CardDescription className="text-xs text-slate-400">
+                  Manage club broadcasts
+                </CardDescription>
+              </div>
+            </div>
+            <span
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                emailOptIn
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              {emailOptIn ? 'Subscribed' : 'Muted'}
+            </span>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <label
+                  htmlFor="email-notifications-guest-switch"
+                  className="text-xs font-semibold text-slate-200 cursor-pointer"
+                >
+                  Announcement Broadcasts
+                </label>
+                <p className="text-[11px] text-slate-400">
+                  Receive email deliveries for campus updates, deadlines, and schedule changes.
+                </p>
+              </div>
+              <button
+                type="button"
+                id="email-notifications-guest-switch"
+                role="switch"
+                aria-checked={emailOptIn}
+                disabled={isUpdatingPreferences}
+                onClick={handleToggleEmailOptIn}
+                data-testid="email-opt-in-toggle"
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 ${
+                  emailOptIn ? 'bg-emerald-500' : 'bg-slate-700'
+                }`}
+              >
+                <span className="sr-only">Toggle announcement email notifications</span>
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    emailOptIn ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 italic pt-1">
+              Deliveries are sent to <span className="font-mono text-slate-400">{user?.email}</span>.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -330,6 +433,70 @@ export function MemberDashboard() {
                   </Button>
                 </p>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Email Notification Preferences Card */}
+          <Card className="border-slate-800/80 bg-slate-900/60 shadow-xl overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-800/60 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base text-white">Email Notification Preferences</CardTitle>
+                  <CardDescription className="text-xs text-slate-400">
+                    Manage club communications
+                  </CardDescription>
+                </div>
+              </div>
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                  emailOptIn
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+              >
+                {emailOptIn ? 'Subscribed' : 'Muted'}
+              </span>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <label
+                    htmlFor="email-notifications-member-switch"
+                    className="text-xs font-semibold text-slate-200 cursor-pointer"
+                  >
+                    Announcement Broadcasts
+                  </label>
+                  <p className="text-[11px] text-slate-400">
+                    Receive email deliveries for campus updates, deadlines, and schedule changes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="email-notifications-member-switch"
+                  role="switch"
+                  aria-checked={emailOptIn}
+                  disabled={isUpdatingPreferences}
+                  onClick={handleToggleEmailOptIn}
+                  data-testid="email-opt-in-toggle"
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 ${
+                    emailOptIn ? 'bg-emerald-500' : 'bg-slate-700'
+                  }`}
+                >
+                  <span className="sr-only">Toggle announcement email notifications</span>
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      emailOptIn ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 italic pt-1">
+                Deliveries are sent to <span className="font-mono text-slate-400">{user?.email}</span>. Essential receipts cannot be muted.
+              </p>
             </CardContent>
           </Card>
 

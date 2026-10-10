@@ -27,6 +27,7 @@ export interface User {
   department?: string | null;
   year?: number | null;
   role: Role;
+  email_opt_in?: boolean;
   created_at: string;
   updated_at: string;
 }

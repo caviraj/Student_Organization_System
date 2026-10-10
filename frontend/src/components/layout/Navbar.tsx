@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { hasMinimumRole } from '../../types/api';
 import { RoleBadge } from '../ui/StatusChip';
 import { Button } from '../ui/Button';
-import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar } from 'lucide-react';
+import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar, Megaphone } from 'lucide-react';
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -54,6 +54,9 @@ export function Navbar() {
             <NavLink to="/events" className={linkClass}>
               Events
             </NavLink>
+            <NavLink to="/announcements" className={linkClass}>
+              Announcements
+            </NavLink>
             <NavLink to="/join" className={linkClass}>
               Plans & Perks
             </NavLink>
@@ -87,12 +90,20 @@ export function Navbar() {
             )}
 
             {isOrganizer && (
-              <NavLink to="/manage/events" className={linkClass}>
-                <span className="inline-flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-indigo-600" />
-                  Manage Events
-                </span>
-              </NavLink>
+              <div className="flex items-center gap-1 pl-1 border-l border-slate-200/80">
+                <NavLink to="/manage/events" className={linkClass}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-indigo-600" />
+                    Events
+                  </span>
+                </NavLink>
+                <NavLink to="/manage/announcements" className={linkClass}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Megaphone className="w-4 h-4 text-indigo-600" />
+                    Announcements
+                  </span>
+                </NavLink>
+              </div>
             )}
 
             {isAdmin && (
@@ -191,6 +202,13 @@ export function Navbar() {
               Events
             </NavLink>
             <NavLink
+              to="/announcements"
+              className={linkClass}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Announcements
+            </NavLink>
+            <NavLink
               to="/join"
               className={linkClass}
               onClick={() => setMobileMenuOpen(false)}
@@ -250,6 +268,13 @@ export function Navbar() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Manage Events
+                </NavLink>
+                <NavLink
+                  to="/manage/announcements"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Manage Announcements
                 </NavLink>
               </div>
             )}

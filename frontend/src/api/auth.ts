@@ -38,6 +38,13 @@ export const authApi = {
     return apiClient<UserMe>('/auth/me');
   },
 
+  updateEmailPreferences: async (payload: { email_opt_in: boolean }): Promise<UserMe> => {
+    return apiClient<UserMe>('/users/me/email-preferences', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   logout: () => {
     setStoredToken(null);
   },

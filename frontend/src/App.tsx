@@ -13,6 +13,9 @@ import { DoorScanner } from './pages/staff/DoorScanner';
 import { ManageEvents } from './pages/manage/ManageEvents';
 import { EventForm } from './pages/manage/EventForm';
 import { EventReport } from './pages/manage/EventReport';
+import { AnnouncementsFeed } from './pages/announcements/AnnouncementsFeed';
+import { ManageAnnouncements } from './pages/manage/ManageAnnouncements';
+import { AnnouncementComposer } from './pages/manage/AnnouncementComposer';
 
 // Pages
 import { Home } from './pages/Home';
@@ -66,6 +69,7 @@ export function App() {
                 <Route index element={<Home />} />
                 <Route path="events" element={<EventsList />} />
                 <Route path="events/:id" element={<EventDetail />} />
+                <Route path="announcements" element={<AnnouncementsFeed />} />
                 <Route path="login" element={<Login />} />
                 <Route path="register" element={<Register />} />
                 <Route path="join" element={<Join />} />
@@ -155,6 +159,28 @@ export function App() {
                     <RequireAuth>
                       <RequireRole minRole="organizer">
                         <EventReport />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+
+                {/* Organizer Announcement Management Routes */}
+                <Route
+                  path="manage/announcements"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <ManageAnnouncements />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="manage/announcements/new"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <AnnouncementComposer />
                       </RequireRole>
                     </RequireAuth>
                   }
