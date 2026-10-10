@@ -1,0 +1,20 @@
+# SSA Hub backend - Phase 1 (Auth & Membership)
+# Pinned to the versions this phase was built and tested against.
+
+fastapi==0.138.0
+uvicorn[standard]==0.49.0
+sqlalchemy==2.0.51
+alembic==1.19.1
+pydantic==2.13.5
+pydantic-settings==2.15.0
+email-validator==2.3.0
+PyJWT==2.13.0
+bcrypt==5.0.0
+APScheduler==3.11.3
+
+# Postgres driver (the deployed target; dev defaults to SQLite, see .env.example)
+psycopg[binary]==3.2.10
+
+# tests
+pytest==9.1.1
+httpx==0.28.1
