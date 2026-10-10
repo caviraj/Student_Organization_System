@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, get_db
 from app.core.security import create_access_token
 from app.models import User
-from app.schemas import LoginIn, MeOut, MembershipSummary, RegisterIn, TokenOut
+from app.schemas import LoginIn, MembershipSummary, MeOut, RegisterIn, TokenOut
 from app.services import accounts
 from app.services.memberships import current_membership, summarize
 

@@ -47,6 +47,26 @@ def get_current_user(
     return user
 
 
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """For public endpoints that personalise when a token happens to be present
+    (e.g. `price_for_you` on an event). A bad token is treated as anonymous, never a 401 —
+    a stale token in a browser must not blank out the public events list."""
+    if credentials is None:
+        return None
+    payload = decode_token(credentials.credentials)
+    if not payload:
+        return None
+    try:
+        user_id = UUID(str(payload.get("sub")))
+    except (TypeError, ValueError):
+        return None
+    user = db.get(User, user_id)
+    return user if user is not None and user.is_active else None
+
+
 def require_role(*roles: str) -> Callable[..., User]:
     """Dependency factory; passes anyone at or above the lowest listed role."""
     min_rank = min(ROLE_RANK[role] for role in roles)

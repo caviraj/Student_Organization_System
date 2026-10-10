@@ -97,9 +97,9 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 ## Phase Log
 | Phase | Backend done | Frontend done | Demo link/screens | Tag |
 |---|---|---|---|---|
-| 0 | ☐ | ☐ | | |
-| 1 | ☐ | ☐ | | |
-| 2 | ☐ | ☐ | | |
+| 0 | ☑ | ☐ | `backend/README.md` (run commands), `GET /health`, `/docs` | `phase-0-done` |
+| 1 | ☑ | ☐ | `docs/demos/phase1/` (`demo_phase1.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase1.sh` | `phase-1-done` |
+| 2 | ☑ | ☐ | `docs/demos/phase2/` (`demo_phase2.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase2.sh` | `phase-2-done` |
 | 3 | ☐ | ☐ | | |
 | 4 | ☐ | ☐ | | |
 | 5 | ☐ | ☐ | | |

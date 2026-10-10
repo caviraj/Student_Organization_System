@@ -8,7 +8,15 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models import Membership, MembershipPlan, Order, OrderItem, Payment, Reminder, User
+from app.models import (
+    Membership,
+    MembershipPlan,
+    Order,
+    OrderItem,
+    Payment,
+    Reminder,
+    User,
+)
 from app.services import ledger, payments
 
 
@@ -158,19 +166,10 @@ def activate(db: Session, order: Order) -> Membership:
     return membership
 
 
-def confirm_mock_payment(db: Session, order_id: uuid.UUID, outcome: str, actor: User) -> dict:
-    """Simulates the gateway callback. Idempotent: the atomic pending→paid claim below
-    decides who does the work, so a repeat call changes nothing."""
-    order = db.get(Order, order_id)
-    if order is None:
-        raise AppError(404, "ORDER_NOT_FOUND", "Order not found", {"order_id": str(order_id)})
-    if order.user_id != actor.id and actor.role != "admin":
-        raise AppError(403, "FORBIDDEN", "You can only confirm your own orders")
-
-    payment = db.scalar(select(Payment).where(Payment.order_id == order.id).order_by(Payment.created_at.desc()))
-    if payment is None:
-        raise AppError(404, "PAYMENT_NOT_FOUND", "This order has no payment")
-
+def confirm_membership_payment(db: Session, order: Order, payment: Payment, outcome: str) -> dict:
+    """Membership half of the gateway callback (reached via services.payments.confirm_mock_payment).
+    Idempotent: the atomic pending→paid claim below decides who does the work, so a repeat
+    call changes nothing."""
     if outcome == "fail":
         if order.status == "pending":
             order.status = "failed"
@@ -180,14 +179,14 @@ def confirm_mock_payment(db: Session, order_id: uuid.UUID, outcome: str, actor: 
         db.refresh(payment)
         return _result(db, order, payment)
 
+    order_id = order.id
     claimed = db.execute(
-        update(Order).where(Order.id == order.id, Order.status == "pending").values(status="paid", updated_at=func.now())
+        update(Order).where(Order.id == order_id, Order.status == "pending").values(status="paid", updated_at=func.now())
     ).rowcount
     if not claimed:
         db.rollback()  # already settled — replay the stored result
         order = db.get(Order, order_id)
-        payment = db.scalar(select(Payment).where(Payment.order_id == order.id).order_by(Payment.created_at.desc()))
-        return _result(db, order, payment)
+        return _result(db, order, payments.latest_payment(db, order_id))
 
     payments.settle(db, payment, "success")
     membership = activate(db, order)
