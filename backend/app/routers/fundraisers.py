@@ -114,7 +114,10 @@ def fundraiser_tasks(
     )
     return {
         "items": [task_service.task_view(card) for card in cards],
-        "columns": {column: [task_service.task_view(card) for card in cards_in_column] for column, cards_in_column in columns.items()},
+        "columns": {
+            column: [task_service.task_view(card) for card in cards_in_column]
+            for column, cards_in_column in columns.items()
+        },
         "counts": {column: len(cards_in_column) for column, cards_in_column in columns.items()},
     }
 
@@ -135,7 +138,11 @@ def create_task(
     return task_service.task_view(task)
 
 
-@router.get("/{fundraiser_id}/volunteers", response_model=list[FundraiserVolunteerOut], summary="Who is on this board (volunteer+)")
+@router.get(
+    "/{fundraiser_id}/volunteers",
+    response_model=list[FundraiserVolunteerOut],
+    summary="Who is on this board (volunteer+)",
+)
 def fundraiser_volunteers(
     fundraiser_id: UUID,
     _: User = Depends(require_role(READ)),

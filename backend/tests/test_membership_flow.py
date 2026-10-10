@@ -50,7 +50,9 @@ def test_checkout_rejects_inactive_plan(client, db, make_user, make_plan, login,
     assert response.json()["error"]["code"] == "PLAN_NOT_FOUND"
 
 
-def test_successful_payment_activates_membership_and_writes_one_ledger_row(client, db, make_user, make_plan, login, auth):
+def test_successful_payment_activates_membership_and_writes_one_ledger_row(
+    client, db, make_user, make_plan, login, auth
+):
     user = make_user("buyer@ssa.org", role="guest")
     plan = make_plan(name="Standard", price=90000, duration_months=12)
     token = login("buyer@ssa.org")
@@ -138,7 +140,11 @@ def test_renewal_extends_from_previous_end_date(client, db, make_user, make_plan
     plan = make_plan(name="Standard", price=90000, duration_months=12)
     old_end = date.today() + timedelta(days=25)
     membership = Membership(
-        user_id=user.id, plan_id=plan.id, status="active", start_date=date.today() - timedelta(days=340), end_date=old_end
+        user_id=user.id,
+        plan_id=plan.id,
+        status="active",
+        start_date=date.today() - timedelta(days=340),
+        end_date=old_end,
     )
     db.add(membership)
     db.flush()
@@ -188,11 +194,15 @@ def test_confirm_requires_owner_or_admin(client, db, make_user, make_plan, login
         "/api/v1/memberships/checkout", json={"plan_id": str(plan.id)}, headers=auth(login("buyer@ssa.org"))
     ).json()["order_id"]
 
-    denied = client.post(f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": "success"}, headers=auth(login("nosy@ssa.org")))
+    denied = client.post(
+        f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": "success"}, headers=auth(login("nosy@ssa.org"))
+    )
     assert denied.status_code == 403
     assert db.query(Transaction).count() == 0
 
-    allowed = client.post(f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": "success"}, headers=auth(login("admin@ssa.org")))
+    allowed = client.post(
+        f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": "success"}, headers=auth(login("admin@ssa.org"))
+    )
     assert allowed.status_code == 200
     assert allowed.json()["order_status"] == "paid"
 
@@ -214,7 +224,15 @@ def test_verify_active_member(client, db, make_user, make_plan, login, auth):
     member = make_user("active@ssa.org", role="member")
     member.member_code = "SSA-2026-0001"
     plan = make_plan()
-    db.add(Membership(user_id=member.id, plan_id=plan.id, status="active", start_date=date.today(), end_date=date.today() + timedelta(days=100)))
+    db.add(
+        Membership(
+            user_id=member.id,
+            plan_id=plan.id,
+            status="active",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=100),
+        )
+    )
     db.commit()
 
     response = client.get("/api/v1/members/verify?code=SSA-2026-0001", headers=auth(login("vol@ssa.org")))
@@ -233,7 +251,11 @@ def test_verify_expired_member(client, db, make_user, make_plan, login, auth):
     member.member_code = "SSA-2026-0002"
     plan = make_plan()
     end = date.today() - timedelta(days=3)
-    db.add(Membership(user_id=member.id, plan_id=plan.id, status="expired", start_date=end - timedelta(days=365), end_date=end))
+    db.add(
+        Membership(
+            user_id=member.id, plan_id=plan.id, status="expired", start_date=end - timedelta(days=365), end_date=end
+        )
+    )
     db.commit()
 
     body = client.get("/api/v1/members/verify?code=SSA-2026-0002", headers=auth(login("vol@ssa.org"))).json()
@@ -255,7 +277,15 @@ def test_verify_by_name_search(client, db, make_user, make_plan, login, auth):
     member = make_user("priya@ssa.org", role="member", full_name="Priya Sharma")
     member.member_code = "SSA-2026-0003"
     plan = make_plan()
-    db.add(Membership(user_id=member.id, plan_id=plan.id, status="active", start_date=date.today(), end_date=date.today() + timedelta(days=10)))
+    db.add(
+        Membership(
+            user_id=member.id,
+            plan_id=plan.id,
+            status="active",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=10),
+        )
+    )
     db.commit()
     token = login("vol@ssa.org")
 
@@ -328,9 +358,33 @@ def test_renewals_due_lists_only_the_next_30_days(client, db, make_user, make_pl
     plan = make_plan()
     soon = make_user("soon@ssa.org", role="member")
     later = make_user("later@ssa.org", role="member")
-    db.add(Membership(user_id=soon.id, plan_id=plan.id, status="active", start_date=date.today(), end_date=date.today() + timedelta(days=10)))
-    db.add(Membership(user_id=later.id, plan_id=plan.id, status="active", start_date=date.today(), end_date=date.today() + timedelta(days=45)))
-    db.add(Membership(user_id=make_user("gone@ssa.org", role="member").id, plan_id=plan.id, status="expired", start_date=date.today() - timedelta(days=400), end_date=date.today() - timedelta(days=35)))
+    db.add(
+        Membership(
+            user_id=soon.id,
+            plan_id=plan.id,
+            status="active",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=10),
+        )
+    )
+    db.add(
+        Membership(
+            user_id=later.id,
+            plan_id=plan.id,
+            status="active",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=45),
+        )
+    )
+    db.add(
+        Membership(
+            user_id=make_user("gone@ssa.org", role="member").id,
+            plan_id=plan.id,
+            status="expired",
+            start_date=date.today() - timedelta(days=400),
+            end_date=date.today() - timedelta(days=35),
+        )
+    )
     db.commit()
 
     body = client.get("/api/v1/memberships/renewals-due", headers=auth(login("admin@ssa.org"))).json()
@@ -344,7 +398,15 @@ def test_memberships_list_filters(client, db, make_user, make_plan, login, auth)
     plan = make_plan()
     for index, days in enumerate((10, 200)):
         user = make_user(f"m{index}@ssa.org", role="member")
-        db.add(Membership(user_id=user.id, plan_id=plan.id, status="active", start_date=date.today(), end_date=date.today() + timedelta(days=days)))
+        db.add(
+            Membership(
+                user_id=user.id,
+                plan_id=plan.id,
+                status="active",
+                start_date=date.today(),
+                end_date=date.today() + timedelta(days=days),
+            )
+        )
     db.commit()
     token = login("admin@ssa.org")
 
@@ -358,7 +420,11 @@ def test_plans_public_list_shows_active_only(client, db, make_user, login, auth)
     make_user("admin@ssa.org", role="admin")
     token = login("admin@ssa.org")
     client.post("/api/v1/plans", json={"name": "Basic", "price": 50000, "duration_months": 12}, headers=auth(token))
-    client.post("/api/v1/plans", json={"name": "Retired", "price": 1000, "duration_months": 1, "is_active": False}, headers=auth(token))
+    client.post(
+        "/api/v1/plans",
+        json={"name": "Retired", "price": 1000, "duration_months": 1, "is_active": False},
+        headers=auth(token),
+    )
 
     public = client.get("/api/v1/plans")  # no auth: public
     assert public.status_code == 200
@@ -370,7 +436,9 @@ def test_plans_public_list_shows_active_only(client, db, make_user, login, auth)
     assert duplicate.status_code == 409
 
     plan_id = public.json()["items"][0]["id"]
-    patched = client.patch(f"/api/v1/plans/{plan_id}", json={"price": 60000, "merch_discount_pct": 10}, headers=auth(token))
+    patched = client.patch(
+        f"/api/v1/plans/{plan_id}", json={"price": 60000, "merch_discount_pct": 10}, headers=auth(token)
+    )
     assert patched.status_code == 200
     assert patched.json()["price"] == 60000
     assert patched.json()["merch_discount_pct"] == 10

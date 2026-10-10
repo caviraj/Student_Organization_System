@@ -9,6 +9,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
+from app.core import ratelimit
+from app.core.config import settings
 from app.core.deps import get_current_user, get_db
 from app.models import User
 from app.schemas import (
@@ -27,6 +29,11 @@ router = APIRouter(prefix="/orders", tags=["Merch Orders"])
     response_model=MerchCheckoutOut,
     status_code=201,
     summary="Order merch (auth; active members unless MERCH_MEMBERS_ONLY=false)",
+    dependencies=[
+        Depends(
+            ratelimit.limit_by_user("merch-checkout", settings.CHECKOUT_PER_MINUTE, "Too many checkouts; slow down")
+        )
+    ],
 )
 def merch_checkout(
     payload: MerchCheckoutIn,
@@ -57,7 +64,9 @@ def my_orders(
     return {"items": merch_service.orders_view(db, rows), "total": total, "page": page, "page_size": page_size}
 
 
-@router.get("/{order_id}", response_model=OrderOut, summary="One order with its payment and fulfilment (owner or admin)")
+@router.get(
+    "/{order_id}", response_model=OrderOut, summary="One order with its payment and fulfilment (owner or admin)"
+)
 def get_order(
     order_id: UUID,
     user: User = Depends(get_current_user),

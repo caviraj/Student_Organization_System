@@ -181,7 +181,9 @@ class Membership(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("membership_plans.id"))
-    status: Mapped[str] = mapped_column(_enum(*MEMBERSHIP_STATUSES, name="membership_status"), default="pending", index=True)
+    status: Mapped[str] = mapped_column(
+        _enum(*MEMBERSHIP_STATUSES, name="membership_status"), default="pending", index=True
+    )
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date, index=True)
     order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id"))
@@ -222,7 +224,9 @@ class Transaction(TimestampMixin, Base):
     ref_type: Mapped[str | None] = mapped_column(String(32))
     ref_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("events.id"), index=True)
-    fundraiser_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("fundraisers.id", ondelete="SET NULL"), index=True)
+    fundraiser_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("fundraisers.id", ondelete="SET NULL"), index=True
+    )
     # Fundraiser income is logged by hand, so the row records who counted the cash and the key
     # that stops a double-click from counting it twice (DESIGN.md §4 rule 13).
     logged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -353,9 +357,7 @@ class AnnouncementRevision(Base):
     __tablename__ = "announcement_revisions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    announcement_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("announcements.id", ondelete="CASCADE"), index=True
-    )
+    announcement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("announcements.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(120))
     body: Mapped[str] = mapped_column(Text)
     category: Mapped[str] = mapped_column(_enum(*ANNOUNCEMENT_CATEGORIES, name="announcement_category"))
@@ -379,9 +381,7 @@ class AnnouncementDelivery(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    announcement_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("announcements.id", ondelete="CASCADE"), index=True
-    )
+    announcement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("announcements.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     channel: Mapped[str] = mapped_column(_enum(*DELIVERY_CHANNELS, name="delivery_channel"))
     status: Mapped[str] = mapped_column(
@@ -464,9 +464,7 @@ class MerchOrder(TimestampMixin, Base):
     fulfilment_status: Mapped[str] = mapped_column(
         _enum(*FULFILMENT_STATUSES, name="fulfilment_status"), default="paid", index=True
     )
-    delivery_method: Mapped[str] = mapped_column(
-        _enum(*DELIVERY_METHODS, name="delivery_method"), default="pickup"
-    )
+    delivery_method: Mapped[str] = mapped_column(_enum(*DELIVERY_METHODS, name="delivery_method"), default="pickup")
     delivery_note: Mapped[str | None] = mapped_column(Text)
     packed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     handed_over_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -562,9 +560,7 @@ class Expense(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_expenses_amount_positive"),
         # A claim is charged to an event or to a fundraiser, never both: the two would double-count.
-        CheckConstraint(
-            "NOT (event_id IS NOT NULL AND fundraiser_id IS NOT NULL)", name="ck_expenses_one_bucket"
-        ),
+        CheckConstraint("NOT (event_id IS NOT NULL AND fundraiser_id IS NOT NULL)", name="ck_expenses_one_bucket"),
         Index("ix_expenses_claimant_status", "claimant_id", "status"),
         Index("ix_expenses_status_created", "status", "created_at"),
         Index("ix_expenses_event_id", "event_id"),
@@ -592,9 +588,7 @@ class Expense(TimestampMixin, Base):
     review_note: Mapped[str | None] = mapped_column(Text)
     reimbursed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     reimbursed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    reimbursement_method: Mapped[str | None] = mapped_column(
-        _enum(*REIMBURSEMENT_METHODS, name="reimbursement_method")
-    )
+    reimbursement_method: Mapped[str | None] = mapped_column(_enum(*REIMBURSEMENT_METHODS, name="reimbursement_method"))
     reimbursement_reference: Mapped[str | None] = mapped_column(String(120))
     # Set in the same transaction that writes the `out` ledger row; UNIQUE-ish in effect because
     # `reimburse_expense` only ever fills it for a claim that is still `approved`.

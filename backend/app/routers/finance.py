@@ -52,7 +52,10 @@ def summary(
 def list_transactions(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
-    source: str | None = Query(default=None, description="dues | tickets | merch | fundraiser | other_income | other_expense | expense_reimbursement"),
+    source: str | None = Query(
+        default=None,
+        description="dues | tickets | merch | fundraiser | other_income | other_expense | expense_reimbursement",
+    ),
     direction: str | None = Query(default=None, pattern="^(in|out)$"),
     event_id: UUID | None = Query(default=None),
     fundraiser_id: UUID | None = Query(default=None),
@@ -81,7 +84,9 @@ def list_transactions(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
-@router.post("/transactions", response_model=TransactionOut, status_code=201, summary="Manual ledger entry (treasurer+)")
+@router.post(
+    "/transactions", response_model=TransactionOut, status_code=201, summary="Manual ledger entry (treasurer+)"
+)
 def manual_entry(
     payload: ManualEntryIn,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
@@ -105,7 +110,12 @@ def manual_entry(
     return finance_service.transaction_view(entry, actor=user)
 
 
-@router.post("/transactions/{transaction_id}/reverse", response_model=TransactionOut, status_code=201, summary="Reverse a manual ledger row (treasurer+)")
+@router.post(
+    "/transactions/{transaction_id}/reverse",
+    response_model=TransactionOut,
+    status_code=201,
+    summary="Reverse a manual ledger row (treasurer+)",
+)
 def reverse_transaction(
     transaction_id: UUID,
     payload: ReverseIn,
@@ -126,7 +136,9 @@ def by_event(
     return finance_service.by_event(db, date_from, date_to)
 
 
-@router.get("/by-fundraiser", response_model=list[DimensionTotalOut], summary="Income and spend per fundraiser (treasurer+)")
+@router.get(
+    "/by-fundraiser", response_model=list[DimensionTotalOut], summary="Income and spend per fundraiser (treasurer+)"
+)
 def by_fundraiser(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
@@ -136,7 +148,11 @@ def by_fundraiser(
     return finance_service.by_fundraiser(db, date_from, date_to)
 
 
-@router.get("/outstanding-reimbursements", response_model=list[OutstandingReimbursementOut], summary="Who is waiting to be paid (treasurer+)")
+@router.get(
+    "/outstanding-reimbursements",
+    response_model=list[OutstandingReimbursementOut],
+    summary="Who is waiting to be paid (treasurer+)",
+)
 def outstanding_reimbursements(
     _: User = Depends(require_role(TREASURER)),
     db: Session = Depends(get_db),

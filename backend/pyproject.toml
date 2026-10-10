@@ -1,0 +1,5 @@
+# black does not read ruff.toml, so its two settings live here rather than drifting apart.
+# Keep line-length in step with ruff.toml.
+[tool.black]
+line-length = 120
+target-version = ["py311"]

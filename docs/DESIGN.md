@@ -174,7 +174,8 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 
 ### Memberships
 | GET | /plans | public | active plans only, cheapest first |
-| POST/PATCH | /plans, /plans/{id} | admin | 201; 409 `PLAN_NAME_TAKEN` on duplicate name |
+| POST | /plans | admin | 201; 409 `PLAN_NAME_TAKEN` on duplicate name |
+| PATCH | /plans/{id} | admin | any subset of the create fields; 404 `PLAN_NOT_FOUND` |
 | POST | /memberships/checkout | auth | 201; body `{plan_id}` → `{order_id, payment_id, amount, provider, status}`. Creates order(`membership`, `pending`) + order_item + `mock` payment intent. If the member is still active, the new period starts when the current one ends (see §4 rule 1); 404 `PLAN_NOT_FOUND` for a missing/inactive plan |
 | GET | /memberships/me | auth | 404 `MEMBERSHIP_NOT_FOUND` before the first purchase |
 | GET | /memberships | admin | filter `status`, `expiring_within_days`, `page`, `page_size` |
@@ -244,8 +245,8 @@ Reading needs **volunteer+** (guest 401, member 403); writing needs **organizer+
 | GET | /tasks | volunteer+ | every board at once. Filters `fundraiser_id`, `event_id`, `status`, `assignee_id`, `category`, `overdue=true`, `q`; `sort=board` (default) or `sort=due_date` (undated cards last) |
 | GET | /tasks/me | volunteer+ | **my cards across every board, overdue first** — the volunteer's whole workload, not one fundraiser's |
 | GET | /tasks/{id} | volunteer+ | 404 `TASK_NOT_FOUND` |
-| PATCH | /tasks/{id} | organizer+, or **the assignee for `status` only** | `{title?, description?, category?, assignee_id?, due_date?, status?}`. Setting `status` to `done` stamps `completed_at`; 403 `FORBIDDEN` with `details {fields}` when an assignee touches anything but `status`, and for anyone else's card. Reads as `volunteer+` at the router because the finer rule is per-card, and it lives in the service |
-| POST | /tasks/{id}/move | organizer+, or the assignee moving their own | `{status, position?}` — the drag-and-drop write. `position` is clamped into range and omitted means the bottom; both columns are re-indexed densely |
+| PATCH | /tasks/{id} | volunteer+ | **and the rule is per-card, in the service:** organizer+ for any field, or the card's own assignee **for `status`/`position` only** — anyone else gets 403 `FORBIDDEN` with `details {fields}`. `{title?, description?, category?, assignee_id?, due_date?, status?}`; setting `status` to `done` stamps `completed_at` |
+| POST | /tasks/{id}/move | volunteer+ | `{status, position?}` — the drag-and-drop write; organizer+, **or the card's own assignee**. `position` is clamped into range and omitted means the bottom; both columns are re-indexed densely |
 | DELETE | /tasks/{id} | organizer+ | 204. Writes an `edited`/`deleted` activity row first and keeps it (`task_activity.task_id` → NULL, the title in `to_value`) |
 | GET | /tasks/{id}/activity | volunteer+ | paginated trail, **newest first**: `{id, task_id, actor{id, full_name, role}, action, from_value, to_value, created_at}` |
 | GET | /fundraisers/{id}/volunteers | volunteer+ | who is on this board: `{user{id, full_name, role}, tasks_total, tasks_done, open_tasks}` — unassigned cards are nobody's |
@@ -289,6 +290,13 @@ Claiming is a **volunteer+** privilege (guest 401, member 403); deciding and pay
 | GET | /finance/periods | treasurer+ | closed and reopened periods, newest first |
 | POST | /finance/periods | treasurer+ | 201; `{name 3–120, start_date, end_date (must be in the past), force?}`. 422 for a future or reversed range, 409 `PERIOD_OVERLAP` if another closed period covers part of it, 409 `RECONCILIATION_FAILED` when the books do not add up, 409 `PENDING_CLAIMS` with `{count, claims}` while claims dated inside are unsettled, 409 `PERIOD_NAME_TAKEN`. `force=true` (bypasses the last two) is **admin-only** (403 `FORBIDDEN`) |
 | POST | /finance/periods/{id}/reopen | **admin only** | `{reason 10–300}`. 403 for a treasurer, 409 `INVALID_STATE` if it is not closed. The reason is kept |
+
+### Service
+Not part of the `/api/v1` surface — this is what a hosting health check calls.
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | /health | public | `{status: "ok", service, version}`. No database call, no auth: it answers "is this process up", and a health check that needs the database reports the database's health, not the app's |
 
 ## 6. Frontend Design
 

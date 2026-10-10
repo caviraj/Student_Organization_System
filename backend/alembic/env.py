@@ -17,7 +17,12 @@ config = context.config
 url = os.environ.get("ALEMBIC_DATABASE_URL") or settings.migration_url
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers=True` is fileConfig's default and it is wrong here: it sets
+    # `.disabled = True` on every logger that already exists, which is all of ours (`ssa.request`,
+    # `ssa.errors`, `ssa.mailer`, ...) the moment `app.main` has been imported. `alembic upgrade
+    # head` as a CLI never noticed, but the test suite migrates in-process, so every Phase 7 log
+    # assertion would have passed vacuously against a logger that could not emit.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

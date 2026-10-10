@@ -33,9 +33,7 @@ def make_product(db, actor, *, name="SSA Hoodie", base_price=HOODIE, pct=10, siz
     )
     slug = name.upper().replace(" ", "-")
     variants = {
-        size: merch_service.create_variant(
-            db, product, {"size": size, "sku": f"{slug}-{size}", "stock": stock}, actor
-        )
+        size: merch_service.create_variant(db, product, {"size": size, "sku": f"{slug}-{size}", "stock": stock}, actor)
         for size, stock in sizes
     }
     return product, variants
@@ -539,10 +537,11 @@ def test_shop_reads_are_public_and_retired_products_are_hidden(client, auth, log
     assert {p["name"] for p in staff["items"]} == {"SSA Hoodie", "Old Mug"}
 
     assert client.get(f"/api/v1/products/{retired.id}").status_code == 404
-    assert client.get(f"/api/v1/products/{retired.id}", headers=auth(login(buyer("other@ssa.org").email))).status_code == 404
-    assert client.get(
-        f"/api/v1/products/{retired.id}", headers=auth(login(admin_user.email))
-    ).status_code == 200
+    assert (
+        client.get(f"/api/v1/products/{retired.id}", headers=auth(login(buyer("other@ssa.org").email))).status_code
+        == 404
+    )
+    assert client.get(f"/api/v1/products/{retired.id}", headers=auth(login(admin_user.email))).status_code == 200
 
 
 def test_stock_status_reflects_the_threshold(client, shop):
@@ -557,13 +556,22 @@ def test_staff_writes_need_admin(client, auth, login, db, shop, buyer, admin_hea
     product, variants = shop
     member = auth(login(buyer().email))
 
-    assert client.post("/api/v1/products", json={"name": "SSA Cap", "base_price": 39900}, headers=member).status_code == 403
-    assert client.post(
-        f"/api/v1/products/{product.id}/variants", json={"size": "XL", "sku": "SSA-HOOD-XL"}, headers=member
-    ).status_code == 403
-    assert client.post(
-        f"/api/v1/variants/{variants['M'].id}/stock-adjust", json={"delta": 5, "reason": "restock"}, headers=member
-    ).status_code == 403
+    assert (
+        client.post("/api/v1/products", json={"name": "SSA Cap", "base_price": 39900}, headers=member).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/products/{product.id}/variants", json={"size": "XL", "sku": "SSA-HOOD-XL"}, headers=member
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/variants/{variants['M'].id}/stock-adjust", json={"delta": 5, "reason": "restock"}, headers=member
+        ).status_code
+        == 403
+    )
     assert client.patch(f"/api/v1/variants/{variants['M'].id}", json={"sku": "X"}, headers=member).status_code == 403
     assert client.get("/api/v1/admin/merch/orders", headers=member).status_code == 403
     assert client.get("/api/v1/admin/merch/stock-summary", headers=member).status_code == 403
@@ -582,9 +590,12 @@ def test_staff_writes_need_admin(client, auth, login, db, shop, buyer, admin_hea
         headers=admin_headers,
     )
     assert variant.status_code == 201 and variant.json()["stock_status"] == "low"
-    assert client.patch(
-        f"/api/v1/variants/{variant.json()['id']}", json={"sku": "SSA-CAP-M2"}, headers=admin_headers
-    ).status_code == 200
+    assert (
+        client.patch(
+            f"/api/v1/variants/{variant.json()['id']}", json={"sku": "SSA-CAP-M2"}, headers=admin_headers
+        ).status_code
+        == 200
+    )
 
     taken = client.post(
         f"/api/v1/products/{created.json()['id']}/variants",
@@ -621,7 +632,9 @@ def test_admin_board_filters_and_counts(client, auth, login, shop, buyer, admin_
     second_order = _checkout(client, auth, login(second.email), [variants["M"].id], [2]).json()["order_id"]
     _confirm(client, auth, login(second.email), second_order)
     for step in ("packed", "handed_over"):
-        client.patch(f"/api/v1/admin/merch/orders/{second_order}", json={"fulfilment_status": step}, headers=admin_headers)
+        client.patch(
+            f"/api/v1/admin/merch/orders/{second_order}", json={"fulfilment_status": step}, headers=admin_headers
+        )
 
     board = client.get("/api/v1/admin/merch/orders", headers=admin_headers).json()
     assert board["counts"] == {"paid": 1, "packed": 0, "handed_over": 1}

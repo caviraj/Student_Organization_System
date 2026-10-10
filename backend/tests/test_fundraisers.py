@@ -94,7 +94,11 @@ def test_write_permissions(client, tokens, auth, make_fundraiser, organizer, met
 def test_create_defaults_to_planning_and_runs_the_full_lifecycle(client, tokens, auth, db):
     created = client.post(
         "/api/v1/fundraisers",
-        json={"title": "Book Drive", "goal_amount": GOAL, "event_date": (date.today() + timedelta(days=30)).isoformat()},
+        json={
+            "title": "Book Drive",
+            "goal_amount": GOAL,
+            "event_date": (date.today() + timedelta(days=30)).isoformat(),
+        },
         headers=auth(tokens["organizer"]),
     )
     assert created.status_code == 201, created.text
@@ -232,8 +236,14 @@ def test_progress_counts_money_and_dates(db, make_fundraiser, make_task, organiz
 
     progress = fundraiser_service.compute_progress(db, fundraiser)
     assert progress["tasks"] == {
-        "total": 4, "todo": 2, "doing": 1, "done": 1,
-        "overdue": 1, "due_soon": 1, "unassigned": 1, "percent_done": 25,
+        "total": 4,
+        "todo": 2,
+        "doing": 1,
+        "done": 1,
+        "overdue": 1,
+        "due_soon": 1,
+        "unassigned": 1,
+        "percent_done": 25,
     }
     # `out` rows are not money raised: only the `in` side counts.
     assert progress["raised"] == 200000

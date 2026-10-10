@@ -1,0 +1,19 @@
+SSA Hub - performance check
+------------------------------------------------------------------------
+  target   http://localhost:8000
+  note     the server must be running and the database seeded
+------------------------------------------------------------------------
+  connected in 2095 ms
+  event    1f552e3c-8374-4e90-b779-9237c863ce1e with 100 tickets
+  scanners 3 volunteers, spreading the 120/min/user limit
+------------------------------------------------------------------------
+  POST /checkin  (200 sequential, real ticket codes)
+  check-in                   n=200  p50  385.8  p95  540.4  max 1288.5 ms  target p95 < 300 ms  MISSED
+
+  Reads  (100 sequential each)
+  event detail               n=100  p50  130.8  p95  138.4  max  375.1 ms
+  finance summary            n=100  p50  325.2  p95  373.3  max 1074.5 ms
+  product list               n=100  p50  164.5  p95  190.6  max  406.2 ms
+------------------------------------------------------------------------
+  mean check-in 425.3 ms  (200 scans)
+  RESULT: FAIL

@@ -76,9 +76,7 @@ def deliveries(db, announcement_id) -> list[AnnouncementDelivery]:
     db.expire_all()
     return list(
         db.scalars(
-            select(AnnouncementDelivery).where(
-                AnnouncementDelivery.announcement_id == UUID(str(announcement_id))
-            )
+            select(AnnouncementDelivery).where(AnnouncementDelivery.announcement_id == UUID(str(announcement_id)))
         )
     )
 
@@ -212,8 +210,7 @@ def test_feed_visibility_matrix(client, db, auth, login, world, organizer, admin
     # A post you may not see is a 404, never a 403: its existence is itself members-only news.
     assert client.get(f"/api/v1/announcements/{members['id']}").status_code == 404
     assert (
-        client.get(f"/api/v1/announcements/{members['id']}", headers=auth(login("active@ssa.org"))).status_code
-        == 200
+        client.get(f"/api/v1/announcements/{members['id']}", headers=auth(login("active@ssa.org"))).status_code == 200
     )
     assert client.get(f"/api/v1/announcements/{uuid4()}").status_code == 404
 
@@ -267,9 +264,12 @@ def test_at_most_three_pinned(client, db, auth, organizer):
 
     # Unpinning one makes room again: the limit is a live count, not a one-way door.
     top = client.get("/api/v1/announcements", params={"pinned": True}).json()["items"][0]
-    assert client.patch(
-        f"/api/v1/announcements/{top['id']}", json={"is_pinned": False}, headers=auth(organizer)
-    ).status_code == 200
+    assert (
+        client.patch(
+            f"/api/v1/announcements/{top['id']}", json={"is_pinned": False}, headers=auth(organizer)
+        ).status_code
+        == 200
+    )
     post(client, auth, organizer, **(PUBLIC | {"title": "Pin 4", "is_pinned": True}))
 
 
@@ -300,9 +300,7 @@ def test_recipients_are_resolved_from_the_audience(db, make_user, make_membershi
     rows = deliveries(db, announcement.id)
     assert len(rows) == 9
     quiet_user = db.scalar(select(User).where(User.email == "quiet@ssa.org"))
-    opted_in = set(
-        db.scalars(select(User.id).where(User.is_active.is_(True), User.email_opt_in.is_(True)))
-    )
+    opted_in = set(db.scalars(select(User.id).where(User.is_active.is_(True), User.email_opt_in.is_(True))))
     assert {r.user_id for r in rows if r.channel == "email"} == opted_in, "opted-out users get no email"
     assert quiet_user.id not in {r.user_id for r in rows if r.channel == "email"}
     assert len({r.user_id for r in rows if r.channel == "inapp"}) == 5
@@ -314,7 +312,9 @@ def test_recipients_are_resolved_from_the_audience(db, make_user, make_membershi
     assert {r.channel for r in deliveries(db, quiet.id)} == {"inapp"}
 
 
-def test_event_audience_is_the_ticket_holders(client, db, auth, login, make_user, make_event, make_ticket_type, organizer_user):
+def test_event_audience_is_the_ticket_holders(
+    client, db, auth, login, make_user, make_event, make_ticket_type, organizer_user
+):
     event = make_event()
     ticket_type = make_ticket_type(event, capacity=5)
     make_user("holder@ssa.org")
@@ -322,9 +322,7 @@ def test_event_audience_is_the_ticket_holders(client, db, auth, login, make_user
     bought = buy_tickets(client, auth, login("holder@ssa.org"), ticket_type.id, quantity=2)
     assert bought["tickets"]
 
-    announcement, summary = post_direct(
-        db, organizer_user, **EVENT_POST, event_id=event.id, send_email=True
-    )
+    announcement, summary = post_direct(db, organizer_user, **EVENT_POST, event_id=event.id, send_email=True)
     assert summary["inapp_queued"] == 1, "one holder, however many tickets they hold"
     holder = db.scalar(select(User).where(User.email == "holder@ssa.org"))
     assert {r.user_id for r in deliveries(db, announcement.id)} == {holder.id}
@@ -448,7 +446,9 @@ def test_two_workers_never_claim_the_same_row(pg_engine, db, monkeypatch, make_u
     assert {r.status for r in deliveries(db, announcement.id)} == {"sent"}
 
 
-def test_posting_kicks_the_worker_so_mail_goes_out_at_once(client, db, auth, member, organizer, make_user, make_membership):
+def test_posting_kicks_the_worker_so_mail_goes_out_at_once(
+    client, db, auth, member, organizer, make_user, make_membership
+):
     """The BackgroundTasks hook on POST /announcements. conftest points it at the test session."""
     make_membership(db.scalar(select(User).where(User.email == "member@ssa.org")))
     created = post(client, auth, organizer, **MEMBERS_ONLY, send_email=True)
@@ -493,9 +493,7 @@ def test_edit_requires_a_note_and_stores_the_previous_version(client, db, auth, 
     assert revision.edited_by == db.scalar(select(User.id).where(User.email == "organizer@ssa.org"))
 
     # Nothing actually changed: no note needed, and no revision row invented.
-    noop = client.patch(
-        f"/api/v1/announcements/{created['id']}", json={"title": "New title"}, headers=auth(organizer)
-    )
+    noop = client.patch(f"/api/v1/announcements/{created['id']}", json={"title": "New title"}, headers=auth(organizer))
     assert noop.status_code == 200
     assert db.scalar(select(func.count()).select_from(AnnouncementRevision)) == 1
 
@@ -507,25 +505,24 @@ def test_audience_and_event_are_locked_after_posting(client, auth, organizer, ma
         {"audience": "all", "revision_note": "widen it"},
         {"event_id": str(uuid4()), "revision_note": "wrong event"},
     ):
-        response = client.patch(
-            f"/api/v1/announcements/{created['id']}", json=payload, headers=auth(organizer)
-        )
+        response = client.patch(f"/api/v1/announcements/{created['id']}", json=payload, headers=auth(organizer))
         assert response.status_code == 422, response.text
         assert _code(response) == "AUDIENCE_LOCKED"
 
     # Sending the same value is not a change, so it stays a no-op rather than an error.
-    same = client.patch(
-        f"/api/v1/announcements/{created['id']}", json={"audience": "event"}, headers=auth(organizer)
-    )
+    same = client.patch(f"/api/v1/announcements/{created['id']}", json={"audience": "event"}, headers=auth(organizer))
     assert same.status_code == 200 and same.json()["audience"] == "event"
 
 
 def test_pinning_needs_no_note_and_revisions_read_newest_first(client, db, auth, organizer):
     created = post(client, auth, organizer, **PUBLIC)
 
-    assert client.patch(
-        f"/api/v1/announcements/{created['id']}", json={"is_pinned": True}, headers=auth(organizer)
-    ).status_code == 200
+    assert (
+        client.patch(
+            f"/api/v1/announcements/{created['id']}", json={"is_pinned": True}, headers=auth(organizer)
+        ).status_code
+        == 200
+    )
     assert db.scalar(select(func.count()).select_from(AnnouncementRevision)) == 0
 
     for body, note in (("Second version", "First fix"), ("Third version", "Second fix")):
@@ -545,10 +542,7 @@ def test_pinning_needs_no_note_and_revisions_read_newest_first(client, db, auth,
     assert items[1]["body"] == PUBLIC["body"], "the oldest revision is the original text"
     assert all(item["edited_by_name"] == "Om Prakash" for item in items)
 
-    assert (
-        client.get(f"/api/v1/announcements/{uuid4()}/revisions", headers=auth(organizer)).status_code
-        == 404
-    )
+    assert client.get(f"/api/v1/announcements/{uuid4()}/revisions", headers=auth(organizer)).status_code == 404
 
 
 # --- 7. role guards ---------------------------------------------------------------
@@ -566,8 +560,7 @@ def test_role_guards(client, auth, organizer, member, admin):
         == 403
     )
     assert (
-        client.get(f"/api/v1/announcements/{created['id']}/revisions", headers=auth(member)).status_code
-        == 403
+        client.get(f"/api/v1/announcements/{created['id']}/revisions", headers=auth(member)).status_code == 403
     ), "the edit history is not member reading"
 
     # Deliveries name every recipient and their address: admin only.
@@ -586,12 +579,8 @@ def test_deliveries_view_reports_per_recipient_status(client, db, auth, admin, o
         process_queued_deliveries(db)
 
     # The audience is members, so the recipients are the live memberships, not every active user.
-    recipients = db.scalar(
-        select(func.count()).select_from(Membership).where(Membership.status == "active")
-    )
-    body = client.get(
-        f"/api/v1/announcements/{created['id']}/deliveries", headers=auth(admin)
-    ).json()
+    recipients = db.scalar(select(func.count()).select_from(Membership).where(Membership.status == "active"))
+    body = client.get(f"/api/v1/announcements/{created['id']}/deliveries", headers=auth(admin)).json()
     assert body["summary"] == {
         "email": {"queued": 0, "sent": recipients - 1, "failed": 1},
         "inapp": {"queued": 0, "sent": recipients, "failed": 0},
@@ -616,9 +605,7 @@ def test_email_preference_round_trip(client, db, auth, member):
         "email": "member@ssa.org",
         "email_opt_in": True,
     }
-    off = client.post(
-        "/api/v1/users/me/email-preferences", json={"email_opt_in": False}, headers=auth(member)
-    )
+    off = client.post("/api/v1/users/me/email-preferences", json={"email_opt_in": False}, headers=auth(member))
     assert off.status_code == 200 and off.json()["email_opt_in"] is False
     db.expire_all()
     assert db.scalar(select(User.email_opt_in).where(User.email == "member@ssa.org")) is False
@@ -680,7 +667,9 @@ def test_bad_unsubscribe_tokens_are_rejected(client, db, make_user):
     assert client.get("/api/v1/unsubscribe").status_code == 422  # token is required
 
 
-def test_opting_out_drops_mail_that_was_already_queued(client, db, auth, login, monkeypatch, member, organizer_user, make_membership):
+def test_opting_out_drops_mail_that_was_already_queued(
+    client, db, auth, login, monkeypatch, member, organizer_user, make_membership
+):
     """A queued email is not a promise: if the member opts out first, it does not go out."""
     user = db.scalar(select(User).where(User.email == "member@ssa.org"))
     make_membership(user)
@@ -711,9 +700,7 @@ def test_every_public_table_has_rls_enabled_with_no_policies(pg_engine):
                 "where schemaname = 'public' and tablename <> 'alembic_version' order by tablename"
             )
         ).all()
-        policies = conn.execute(
-            text("select count(*) from pg_policies where schemaname = 'public'")
-        ).scalar()
+        policies = conn.execute(text("select count(*) from pg_policies where schemaname = 'public'")).scalar()
 
     names = {name for name, _ in tables}
     assert {"announcements", "announcement_revisions", "announcement_deliveries"} <= names

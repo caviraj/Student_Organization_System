@@ -41,9 +41,7 @@ def process_queued_deliveries(db: Session, batch_size: int = BATCH_SIZE) -> dict
 
     # Two lookups for the whole batch instead of two per row: each statement is a round trip to
     # Supabase, and a 100-row batch of lazy loads would take minutes.
-    users = {
-        user.id: user for user in db.scalars(select(User).where(User.id.in_({d.user_id for d in claimed})))
-    }
+    users = {user.id: user for user in db.scalars(select(User).where(User.id.in_({d.user_id for d in claimed})))}
     announcements = {
         announcement.id: announcement
         for announcement in db.scalars(

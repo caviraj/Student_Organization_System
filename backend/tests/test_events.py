@@ -35,7 +35,9 @@ def test_drafts_need_an_organizer_token(client, auth, login, make_user, make_eve
     assert client.get(f"/api/v1/events/{draft.id}", headers=auth(login("organizer@ssa.org"))).status_code == 200
 
 
-def test_summary_price_follows_the_caller(client, auth, login, make_user, make_membership, make_event, make_ticket_type):
+def test_summary_price_follows_the_caller(
+    client, auth, login, make_user, make_membership, make_event, make_ticket_type
+):
     member = make_user("member@ssa.org")
     make_membership(member)
     event = make_event()

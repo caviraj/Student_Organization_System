@@ -1,5 +1,6 @@
-# SSA Hub backend - Phase 1 (Auth & Membership)
-# Pinned to the versions this phase was built and tested against.
+# SSA Hub backend - phases 1-7.
+# Every pin is exact: a clean checkout must install exactly the versions the suite was run
+# against. `python -m pip install -r requirements.txt` is the whole setup.
 
 fastapi==0.138.0
 uvicorn[standard]==0.49.0
@@ -12,9 +13,17 @@ PyJWT==2.13.0
 bcrypt==5.0.0
 APScheduler==3.11.3
 
+# FastAPI needs this for any multipart route. The receipt upload (Phase 6) is one, so without it
+# `import app.main` itself fails - it is a runtime dependency, not a test-only one.
+python-multipart==0.0.32
+
 # Postgres driver (the deployed target; dev defaults to SQLite, see .env.example)
 psycopg[binary]==3.2.10
 
 # tests
 pytest==9.1.1
 httpx==0.28.1
+
+# dev tools - the `ruff` and `black` the golden rules require to be clean
+ruff==0.16.8
+black==26.10.1

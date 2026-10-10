@@ -1,0 +1,75 @@
+SSA Hub - reset demo data
+----------------------------------------------------------------
+  target          dev
+  database        aws-0-ap-south-1.pooler.supabase.com:5432/postgres (via DIRECT_URL)
+  APP_ENV         development
+  storage         local
+----------------------------------------------------------------
+  truncated       24 tables (restart identity, cascade)
+  receipts        9 object(s) deleted from the 'receipts' bucket
+----------------------------------------------------------------
+  reseeding...
+
+SSA Hub - Phase 1-6 seed
+----------------------------------------------------------
+  staff created          4 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        20 (of 20)
+  demo accounts created  4 (of 4)
+  memberships            23 total | 16 active | 8 expiring <=30d | 7 expired
+  paid orders            154
+  succeeded payments     144
+  ledger rows (dues)     23
+  reminders              10 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 16, 'expired': 0, 'reminders_created': 0}
+  events                 4 (new this run)
+  ticket types           5
+  tickets issued         119 | 64 checked in | 55 still valid
+  ledger rows (tickets)  109 | Rs 52,300 (5230000 paise)
+  announcements          6 (1 pinned) (new this run) | 2 revision rows
+  deliveries             email failed 1 | email sent 56 | inapp sent 140
+  opted out of email     3 users | bouncing@fail.test always fails
+  products               3 (2 active, 1 retired) | 11 variants (new this run)
+  merch stock            68 units | 2 out of stock | 4 low
+  merch orders           12 | paid 6, packed 4, handed_over 2
+  ledger rows (merch)    12 | Rs 11,011 (1101100 paise)
+  stock movements        24 rows | invariant SUM(delta) == stock for 11/11 variants
+  fundraisers            3 (new this run) | planning 1, active 1, done 1
+  tasks                  12 (5 done, 3 unassigned) | 12 activity rows
+  Spring Bake Sale       raised Rs 2,000 of Rs 5,000 (40%) | 3/8 tasks done | health at_risk
+  ledger rows (fundraiser) 3 | Rs 4,500 (450000 paise)
+  expenses               7 (new this run) | submitted 2, approved 1, rejected 1, reimbursed 2, withdrawn 1 | with receipts 4
+  claims total           Rs 9,220 (922000 paise) | 3 claimant(s) owed Rs 3,740
+  manual ledger rows     6 (1 reversal) | balance Rs 96,381 (9638100 paise) = in Rs 98,111 - out Rs 1,730
+  reconcile              OK - 7/7 checks pass
+----------------------------------------------------------
+  password for every account below: Passw0rd!
+
+  DEMO ACCOUNTS
+  --------------------------------------------------------------------------
+  email                  role       membership                         ends       
+  member@ssa.org         member     active (Standard)                  2027-04-28 (+200d)
+  expiring@ssa.org       member     active (Basic)                     2026-10-18 (+8d)
+  expired@ssa.org        member     expired (Basic)                    2026-09-10 (-30d)
+  guest@ssa.org          guest      guest - never paid, no membership  -          
+  admin@ssa.org          admin      staff - every admin screen         -          
+  treasurer@ssa.org      treasurer  staff - every admin screen         -          
+  organizer@ssa.org      organizer  staff - every admin screen         -          
+  volunteer@ssa.org      volunteer  staff - every admin screen         -          
+
+  KEY IDS (paste into a URL)
+  --------------------------------------------------------------------------
+  Spring Gala event      87fc8453-c9da-472f-b7a1-b8c6cb35cee7   (published)
+  ...VIP ticket type     ee5e271f-7b45-40f0-a4f4-aa54112aa4c6   (19/20 sold - nearly gone)
+  Spring Bake Sale       a093b183-e1dc-4f73-be00-1753d50f3290   (active)
+  Hoodie L               1aa48e27-65b8-4a74-a511-df5bd7aaba0c   stock 8 (SSA-HOOD-L)
+  Hoodie M               d594ede6-64b3-4b9a-8362-4558a22d1e41   stock 4 (SSA-HOOD-M)
+  Hoodie S               d1804108-0516-4384-9086-9b504d93d053   stock 0 (SSA-HOOD-S)
+  Hoodie XL              6e7d80c6-6e56-4963-98dd-55da19e64dc7   stock 4 (SSA-HOOD-XL)
+  Hoodie XXL             46f2ff88-f8c7-496c-9aa9-d3a6eb033074   stock 0 (SSA-HOOD-XXL)
+  overdue task           65395517-20f6-4c6c-b164-1c302ed27025   'Ask the library for a donation box' due 2026-09-20
+  pending claim          c9e6b48f-44e3-48ed-bd8e-1bb11ff18424   Rs 2,400 (equipment)
+  balance                Rs 96,381 - GET /finance/reconcile is ok
+
+----------------------------------------------------------------
+  OK: the demo database is back to a freshly seeded state

@@ -61,7 +61,9 @@ def log_fundraiser_income(
     now = datetime.now(UTC)
     when = as_utc(occurred_at) if occurred_at is not None else now
     if when > now:
-        raise AppError(422, "INVALID_OCCURRED_AT", "Income cannot be dated in the future", {"occurred_at": when.isoformat()})
+        raise AppError(
+            422, "INVALID_OCCURRED_AT", "Income cannot be dated in the future", {"occurred_at": when.isoformat()}
+        )
     if when < now - timedelta(days=MAX_BACKDATE_DAYS):
         raise AppError(
             422,

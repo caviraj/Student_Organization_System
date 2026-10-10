@@ -151,7 +151,9 @@ def update_product(db: Session, product: Product, data: dict) -> Product:
     return product
 
 
-def _assert_variant_free(db: Session, product_id: UUID, size: str, color: str | None, *, exclude: UUID | None = None) -> None:
+def _assert_variant_free(
+    db: Session, product_id: UUID, size: str, color: str | None, *, exclude: UUID | None = None
+) -> None:
     """The unique index covers (product_id, size, color), but Postgres treats NULLs as distinct -
     so a colourless variant needs this check to be unique at all."""
     conditions = [ProductVariant.product_id == product_id, ProductVariant.size == size]
@@ -250,9 +252,7 @@ def create_merch_checkout(
         delivery_note = (delivery_note or "").strip() or None
 
     if idempotency_key:
-        existing = db.scalar(
-            select(Order).where(Order.idempotency_key == idempotency_key, Order.user_id == user.id)
-        )
+        existing = db.scalar(select(Order).where(Order.idempotency_key == idempotency_key, Order.user_id == user.id))
         if existing is not None:
             return existing, payments.latest_payment(db, existing.id)
 
@@ -424,7 +424,9 @@ def confirm_merch_payment(db: Session, order: Order, payment: Payment, outcome: 
 
     order_id = order.id
     claimed = db.execute(
-        update(Order).where(Order.id == order_id, Order.status == "pending").values(status="paid", updated_at=func.now())
+        update(Order)
+        .where(Order.id == order_id, Order.status == "pending")
+        .values(status="paid", updated_at=func.now())
     ).rowcount
     if not claimed:
         db.rollback()  # already settled - replay the stored result
@@ -579,9 +581,7 @@ def orders_view(db: Session, orders: list[Order]) -> list[dict]:
         return []
 
     latest: dict[UUID, Payment] = {}
-    for payment in db.scalars(
-        select(Payment).where(Payment.order_id.in_(order_ids)).order_by(Payment.created_at)
-    ):
+    for payment in db.scalars(select(Payment).where(Payment.order_id.in_(order_ids)).order_by(Payment.created_at)):
         latest[payment.order_id] = payment
     fulfilments = {
         fulfilment.order_id: fulfilment
@@ -648,9 +648,11 @@ def admin_orders(
     if fulfilment_status:
         conditions.append(MerchOrder.fulfilment_status == fulfilment_status)
     if product_id or size:
-        line_orders = select(OrderItem.order_id).join(
-            ProductVariant, ProductVariant.id == OrderItem.item_id
-        ).where(OrderItem.item_type == "variant")
+        line_orders = (
+            select(OrderItem.order_id)
+            .join(ProductVariant, ProductVariant.id == OrderItem.item_id)
+            .where(OrderItem.item_type == "variant")
+        )
         if product_id:
             line_orders = line_orders.where(ProductVariant.product_id == product_id)
         if size:
@@ -668,10 +670,7 @@ def admin_orders(
 
     total = (
         db.scalar(
-            select(func.count())
-            .select_from(MerchOrder)
-            .join(Order, Order.id == MerchOrder.order_id)
-            .where(*conditions)
+            select(func.count()).select_from(MerchOrder).join(Order, Order.id == MerchOrder.order_id).where(*conditions)
         )
         or 0
     )
@@ -715,7 +714,9 @@ def fulfilment_counts(db: Session) -> dict:
     return counts
 
 
-def admin_order_view(order: Order, fulfilment: MerchOrder, buyer: User, lines: list[tuple[OrderItem, ProductVariant | None]]) -> dict:
+def admin_order_view(
+    order: Order, fulfilment: MerchOrder, buyer: User, lines: list[tuple[OrderItem, ProductVariant | None]]
+) -> dict:
     return {
         "order_id": order.id,
         "buyer": {
@@ -724,9 +725,7 @@ def admin_order_view(order: Order, fulfilment: MerchOrder, buyer: User, lines: l
             "member_code": buyer.member_code,
             "phone": buyer.phone,
         },
-        "items_summary": ", ".join(
-            f"{_line_label(item, variant)} x{item.quantity}" for item, variant in lines
-        )
+        "items_summary": ", ".join(f"{_line_label(item, variant)} x{item.quantity}" for item, variant in lines)
         or "no items",
         "items": [
             {
@@ -783,9 +782,7 @@ def stock_movements(db: Session, variant_id: UUID, *, page: int = 1, page_size: 
     )
     names = {
         actor.id: actor.full_name
-        for actor in db.scalars(
-            select(User).where(User.id.in_({row.created_by for row in rows if row.created_by}))
-        )
+        for actor in db.scalars(select(User).where(User.id.in_({row.created_by for row in rows if row.created_by})))
     }
     return (
         [

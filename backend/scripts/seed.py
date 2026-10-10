@@ -95,22 +95,51 @@ PLANS = [
 ]
 
 MEMBER_NAMES = [
-    "Aditi Rao", "Bhavya Shetty", "Chirag Patel", "Divya Menon", "Eshan Gupta",
-    "Farah Khan", "Gaurav Singh", "Harini Prasad", "Ishaan Bose", "Jaya Krishnan",
-    "Kabir Malhotra", "Lakshmi Reddy", "Manav Joshi", "Nisha Pillai", "Ojas Desai",
-    "Pooja Bhat", "Rahul Verma", "Sneha Kulkarni", "Tarun Nambiar", "Uma Sharma",
+    "Aditi Rao",
+    "Bhavya Shetty",
+    "Chirag Patel",
+    "Divya Menon",
+    "Eshan Gupta",
+    "Farah Khan",
+    "Gaurav Singh",
+    "Harini Prasad",
+    "Ishaan Bose",
+    "Jaya Krishnan",
+    "Kabir Malhotra",
+    "Lakshmi Reddy",
+    "Manav Joshi",
+    "Nisha Pillai",
+    "Ojas Desai",
+    "Pooja Bhat",
+    "Rahul Verma",
+    "Sneha Kulkarni",
+    "Tarun Nambiar",
+    "Uma Sharma",
 ]
 DEPARTMENTS = ["CSE", "ECE", "Mechanical", "Civil", "Business"]
 
 # (days until end_date, seeded status) — 8 healthy, 6 expiring, 1 the job must expire, 5 long expired
 MEMBER_STATES = [
-    (240, "active"), (200, "active"), (300, "active"), (180, "active"),
-    (150, "active"), (120, "active"), (275, "active"),
+    (240, "active"),
+    (200, "active"),
+    (300, "active"),
+    (180, "active"),
+    (150, "active"),
+    (120, "active"),
+    (275, "active"),
     (5, "active"),  # inside the 7-day window, so both expiry_30 and expiry_7 fire
-    (10, "active"), (10, "active"), (10, "active"),
-    (25, "active"), (25, "active"), (25, "active"),
+    (10, "active"),
+    (10, "active"),
+    (10, "active"),
+    (25, "active"),
+    (25, "active"),
+    (25, "active"),
     (-1, "active"),  # left for the daily scan: it flips to expired and raises the 'expired' reminder
-    (-20, "expired"), (-45, "expired"), (-70, "expired"), (-100, "expired"), (-150, "expired"),
+    (-20, "expired"),
+    (-45, "expired"),
+    (-70, "expired"),
+    (-100, "expired"),
+    (-150, "expired"),
 ]
 
 
@@ -164,61 +193,139 @@ def seed_members(db: Session, plans: list[MembershipPlan]) -> int:
         db.flush()
         ensure_member_code(db, user)
 
-        end_date = date.today() + timedelta(days=end_offset)
-        start_date = add_months(end_date, -plan.duration_months)
+        _paid_membership(
+            db, user, plan, date.today() + timedelta(days=end_offset), seeded_status, f"mock_seed_{index:04d}"
+        )
+        db.commit()
+        created += 1
+    return created
 
-        order = Order(
-            user_id=user.id,
-            kind="membership",
-            status="paid",
-            subtotal=plan.price,
-            discount=0,
-            total=plan.price,
-            currency="INR",
-            meta={"plan_id": str(plan.id), "plan_name": plan.name, "seeded": True},
-            idempotency_key=uuid4().hex,
+
+def _paid_membership(
+    db: Session,
+    user: User,
+    plan: MembershipPlan,
+    end_date: date,
+    status: str,
+    payment_ref: str,
+) -> Membership:
+    """A membership written the way the checkout service would have written it: order, order item,
+    a succeeded payment and the matching `dues` ledger row. The row is what `reconcile()` counts,
+    so a seeded membership that skipped it would make the books fail from a fresh database - and
+    `seed_members` takes the same path, so a dated start (`end_date` in the past) is possible
+    without a second implementation."""
+    start_date = add_months(end_date, -plan.duration_months)
+    order = Order(
+        user_id=user.id,
+        kind="membership",
+        status="paid",
+        subtotal=plan.price,
+        discount=0,
+        total=plan.price,
+        currency="INR",
+        meta={"plan_id": str(plan.id), "plan_name": plan.name, "seeded": True},
+        idempotency_key=uuid4().hex,
+    )
+    db.add(order)
+    db.flush()
+    db.add(
+        OrderItem(
+            order_id=order.id,
+            item_type="plan",
+            item_id=plan.id,
+            quantity=1,
+            unit_price=plan.price,
+            line_total=plan.price,
         )
-        db.add(order)
+    )
+    db.add(
+        Payment(
+            order_id=order.id,
+            provider="mock",
+            provider_ref=payment_ref,
+            status="succeeded",
+            amount=plan.price,
+            raw={"seeded": True},
+        )
+    )
+    membership = Membership(
+        user_id=user.id,
+        plan_id=plan.id,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        order_id=order.id,
+    )
+    db.add(membership)
+    db.add(
+        Transaction(
+            direction="in",
+            amount=plan.price,
+            source="dues",
+            ref_type="order",
+            ref_id=order.id,
+            note=f"Membership dues - {plan.name}",
+            occurred_at=datetime.combine(start_date, time(10, 0), tzinfo=UTC),
+        )
+    )
+    return membership
+
+
+# The four accounts the demo script, the frontend handoff and a judge's first click all use. They
+# exist so nobody has to remember that "the member" is member07@ssa.org: one account per state
+# that visibly changes what the UI shows. `guest` never pays, which is the state that proves the
+# members-only rules.
+DEMO_MEMBERS = [
+    # (email, full name, plan name, days until the membership ends, status)
+    ("member@ssa.org", "Meera Kapoor", "Standard", 200, "active"),
+    ("expiring@ssa.org", "Ela Fernandes", "Basic", 8, "active"),  # inside the 30-day renewal window
+    ("expired@ssa.org", "Dev Sharma", "Basic", -30, "expired"),
+]
+GUEST_EMAIL = "guest@ssa.org"
+
+
+def seed_demo_accounts(db: Session, plans: list[MembershipPlan]) -> int:
+    """The named demo logins, on top of the twenty numbered members."""
+    by_name = {plan.name: plan for plan in plans}
+    created = 0
+    for email, full_name, plan_name, end_offset, status in DEMO_MEMBERS:
+        if db.scalar(select(User.id).where(User.email == email)):
+            continue
+        user = User(
+            email=email,
+            password_hash=PASSWORD_HASH,
+            full_name=full_name,
+            phone=f"90000{created:05d}",
+            department=DEPARTMENTS[created % len(DEPARTMENTS)],
+            year=created % 4 + 1,
+            role="member",
+        )
+        db.add(user)
         db.flush()
-        db.add(
-            OrderItem(
-                order_id=order.id,
-                item_type="plan",
-                item_id=plan.id,
-                quantity=1,
-                unit_price=plan.price,
-                line_total=plan.price,
-            )
+        ensure_member_code(db, user)
+        _paid_membership(
+            db,
+            user,
+            by_name[plan_name],
+            date.today() + timedelta(days=end_offset),
+            status,
+            f"mock_demo_{email.split('@')[0]}",
         )
+        db.commit()
+        created += 1
+
+    # Registered but never paid: role=guest, no order, no ledger row. This is the account that
+    # proves MEMBERSHIP_REQUIRED, the members-only announcements and the 403 on /fundraisers.
+    if not db.scalar(select(User.id).where(User.email == GUEST_EMAIL)):
         db.add(
-            Payment(
-                order_id=order.id,
-                provider="mock",
-                provider_ref=f"mock_seed_{index:04d}",
-                status="succeeded",
-                amount=plan.price,
-                raw={"seeded": True},
-            )
-        )
-        db.add(
-            Membership(
-                user_id=user.id,
-                plan_id=plan.id,
-                status=seeded_status,
-                start_date=start_date,
-                end_date=end_date,
-                order_id=order.id,
-            )
-        )
-        db.add(
-            Transaction(
-                direction="in",
-                amount=plan.price,
-                source="dues",
-                ref_type="order",
-                ref_id=order.id,
-                note=f"Membership dues - {plan.name}",
-                occurred_at=datetime.combine(start_date, time(10, 0), tzinfo=UTC),
+            User(
+                email=GUEST_EMAIL,
+                password_hash=PASSWORD_HASH,
+                full_name="Gita Guest",
+                phone="9000099999",
+                department="CSE",
+                year=1,
+                role="guest",
             )
         )
         db.commit()
@@ -325,8 +432,10 @@ def seed_events(db: Session) -> dict:
 POSTS = [
     (
         "Welcome to Spring Semester",
-        ("The club desk in the Student Centre is open every weekday from 10 AM. Dues, events and "
-        "merch all start here - come and say hello."),
+        (
+            "The club desk in the Student Centre is open every weekday from 10 AM. Dues, events and "
+            "merch all start here - come and say hello."
+        ),
         "general",
         "all",
         True,
@@ -334,8 +443,10 @@ POSTS = [
     ),
     (
         "Members' AGM next Friday",
-        ("The Annual General Meeting is next Friday at 4 PM in the Seminar Hall. Office-bearer "
-        "elections are on the agenda, and only members may vote."),
+        (
+            "The Annual General Meeting is next Friday at 4 PM in the Seminar Hall. Office-bearer "
+            "elections are on the agenda, and only members may vote."
+        ),
         "deadline",
         "members",
         False,
@@ -343,8 +454,7 @@ POSTS = [
     ),
     (
         "Spring Gala: doors open 6 PM",
-        ("Doors open 6 PM - bring your QR ticket, entry is by scan only. See you in the Main "
-        "Auditorium."),
+        ("Doors open 6 PM - bring your QR ticket, entry is by scan only. See you in the Main " "Auditorium."),
         "change",
         "event",
         False,
@@ -352,8 +462,7 @@ POSTS = [
     ),
     (
         "Dues deadline is 31 October",
-        ("Memberships lapse on 31 October. Renew at the desk or online to keep member pricing for "
-        "the Gala."),
+        ("Memberships lapse on 31 October. Renew at the desk or online to keep member pricing for " "the Gala."),
         "deadline",
         "members",
         False,
@@ -374,9 +483,7 @@ def seed_announcements(db: Session) -> dict:
     """Six posts, one of them edited twice, delivered by the real worker."""
     organizer = db.scalar(select(User).where(User.email == "organizer@ssa.org"))
     gala = db.scalar(select(Event).where(Event.title == "Spring Gala"))
-    members = list(
-        db.scalars(select(User).where(User.email.like("member%@ssa.org")).order_by(User.email))
-    )
+    members = list(db.scalars(select(User).where(User.email.like("member%@ssa.org")).order_by(User.email)))
 
     # Three members have switched email off, and one more account has an address that always
     # bounces, so the mailing list has all three states (sent, failed, opted out) to show.
@@ -476,16 +583,26 @@ CATALOGUE = [
         "Heavyweight fleece, embroidered club crest. Unisex fit.",
         99900,
         10,
-        [("S", "SSA-HOOD-S", 0), ("M", "SSA-HOOD-M", 8), ("L", "SSA-HOOD-L", 10),
-         ("XL", "SSA-HOOD-XL", 6), ("XXL", "SSA-HOOD-XXL", 1)],
+        [
+            ("S", "SSA-HOOD-S", 0),
+            ("M", "SSA-HOOD-M", 8),
+            ("L", "SSA-HOOD-L", 10),
+            ("XL", "SSA-HOOD-XL", 6),
+            ("XXL", "SSA-HOOD-XXL", 1),
+        ],
     ),
     (
         "SSA T-Shirt",
         "Cotton tee with the club wordmark.",
         49900,
         15,
-        [("S", "SSA-TEE-S", 10), ("M", "SSA-TEE-M", 15), ("L", "SSA-TEE-L", 15),
-         ("XL", "SSA-TEE-XL", 10), ("XXL", "SSA-TEE-XXL", 5)],
+        [
+            ("S", "SSA-TEE-S", 10),
+            ("M", "SSA-TEE-M", 15),
+            ("L", "SSA-TEE-L", 15),
+            ("XL", "SSA-TEE-XL", 10),
+            ("XXL", "SSA-TEE-XXL", 5),
+        ],
     ),
     (
         "Old Mug",
@@ -629,11 +746,21 @@ def seed_fundraisers(db: Session) -> dict:
 
     # Real income through the real service, so the ledger row and `raised` are the same number.
     income_service.log_fundraiser_income(
-        db, admin, bake_sale.id, 120000, note="Pre-orders from the department", source_label="UPI",
+        db,
+        admin,
+        bake_sale.id,
+        120000,
+        note="Pre-orders from the department",
+        source_label="UPI",
         idempotency_key="seed-bake-sale-preorders",
     )
     income_service.log_fundraiser_income(
-        db, admin, bake_sale.id, 80000, note="Morning sales", source_label="Cash box",
+        db,
+        admin,
+        bake_sale.id,
+        80000,
+        note="Morning sales",
+        source_label="Cash box",
         idempotency_key="seed-bake-sale-morning",
     )
 
@@ -676,8 +803,14 @@ def seed_fundraisers(db: Session) -> dict:
 
     twenty_days_ago = datetime.now(UTC) - timedelta(days=20)
     income_service.log_fundraiser_income(
-        db, admin, stall.id, 250000, note="Evening takings", source_label="Cash box",
-        idempotency_key="seed-diwali-stall", occurred_at=twenty_days_ago,
+        db,
+        admin,
+        stall.id,
+        250000,
+        note="Evening takings",
+        source_label="Cash box",
+        idempotency_key="seed-diwali-stall",
+        occurred_at=twenty_days_ago,
     )
     # The stall finished three weeks ago, so the dates are the ones it really happened on - which
     # is also what puts its income past the 7-day grace window.
@@ -729,10 +862,7 @@ def _png(width: int = 240, height: int = 120) -> bytes:
     rows = b"".join(b"\x00" + bytes(0 if y < height // 3 else 200 for _ in range(width)) for y in range(height))
     header = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)  # 8-bit greyscale
     return (
-        b"\x89PNG\r\n\x1a\n"
-        + _chunk(b"IHDR", header)
-        + _chunk(b"IDAT", zlib.compress(rows, 9))
-        + _chunk(b"IEND", b"")
+        b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", header) + _chunk(b"IDAT", zlib.compress(rows, 9)) + _chunk(b"IEND", b"")
     )
 
 
@@ -779,7 +909,10 @@ def seed_expenses(db: Session) -> dict:
         if receipt == "png":
             blob = (_png(), "image/png")
         elif receipt == "pdf":
-            blob = (_pdf(["SSA Hub", description, f"Rs {amount / 100:,.2f}", date.today().isoformat()]), "application/pdf")
+            blob = (
+                _pdf(["SSA Hub", description, f"Rs {amount / 100:,.2f}", date.today().isoformat()]),
+                "application/pdf",
+            )
 
         expense = expense_service.create_expense(
             db,
@@ -809,11 +942,15 @@ def seed_expenses(db: Session) -> dict:
     # Two named hand-logged rows, and then the reversal that demonstrates the correction path: the
     # printer cancelled, so the row stays and its mirror image cancels it.
     finance_service.manual_entry(
-        db, treasurer, {"amount": 500000, "source": "other_income", "note": "Sponsor - campus bookstore"},
+        db,
+        treasurer,
+        {"amount": 500000, "source": "other_income", "note": "Sponsor - campus bookstore"},
         "seed-sponsor-bookstore",
     )
     banner, _ = finance_service.manual_entry(
-        db, treasurer, {"amount": 80000, "source": "other_expense", "note": "Banner printing"},
+        db,
+        treasurer,
+        {"amount": 80000, "source": "other_expense", "note": "Banner printing"},
         "seed-banner-printing",
     )
     finance_service.reverse_transaction(db, treasurer, banner.id, "The printer cancelled and refunded the deposit")
@@ -845,12 +982,69 @@ def seed_expenses(db: Session) -> dict:
     }
 
 
+def print_demo_table(db: Session) -> None:
+    """The two things a person starting the demo actually needs: which account to log in as, and
+    the ids to paste into a URL. Printed from the database rather than from the constants above, so
+    it cannot describe an account that failed to be created."""
+    today = date.today()
+    print(f"  password for every account below: {PASSWORD}")
+    print()
+    print("  DEMO ACCOUNTS")
+    print("  " + "-" * 74)
+    print(f"  {'email':<22} {'role':<10} {'membership':<34} {'ends':<11}")
+    for email in [e for e, _, _, _, _ in DEMO_MEMBERS] + [GUEST_EMAIL]:
+        user = db.scalar(select(User).where(User.email == email))
+        if user is None:
+            continue
+        membership = db.scalar(
+            select(Membership).where(Membership.user_id == user.id).order_by(Membership.end_date.desc())
+        )
+        if membership is None:
+            state = f"{user.role} - never paid, no membership"
+            ends = "-"
+        else:
+            state = f"{membership.status} ({membership.plan.name if membership.plan else '?'})"
+            ends = f"{membership.end_date} ({(membership.end_date - today).days:+d}d)"
+        print(f"  {email:<22} {user.role:<10} {state:<34} {ends:<11}")
+    for email in ("admin@ssa.org", "treasurer@ssa.org", "organizer@ssa.org", "volunteer@ssa.org"):
+        user = db.scalar(select(User).where(User.email == email))
+        if user is not None:
+            print(f"  {email:<22} {user.role:<10} {'staff - every admin screen':<34} {'-':<11}")
+
+    print()
+    print("  KEY IDS (paste into a URL)")
+    print("  " + "-" * 74)
+    gala = db.scalar(select(Event).where(Event.title == "Spring Gala"))
+    if gala is not None:
+        vip = db.scalar(select(TicketType).where(TicketType.event_id == gala.id, TicketType.name == "VIP"))
+        print(f"  Spring Gala event      {gala.id}   ({gala.status})")
+        if vip is not None:
+            print(f"  ...VIP ticket type     {vip.id}   ({vip.sold_count}/{vip.capacity} sold - nearly gone)")
+    bake = db.scalar(select(Fundraiser).where(Fundraiser.title == "Spring Bake Sale"))
+    if bake is not None:
+        print(f"  Spring Bake Sale       {bake.id}   ({bake.status})")
+    hoodie = db.scalar(select(Product).where(Product.name == "SSA Hoodie"))
+    if hoodie is not None:
+        for variant in sorted(hoodie.variants, key=lambda v: v.size):
+            print(f"  Hoodie {variant.size:<15} {variant.id}   stock {variant.stock} ({variant.sku})")
+    overdue = db.scalar(
+        select(Task).where(Task.status != "done", Task.due_date < today).order_by(Task.due_date).limit(1)
+    )
+    if overdue is not None:
+        print(f"  overdue task           {overdue.id}   '{overdue.title}' due {overdue.due_date}")
+    pending = db.scalar(select(Expense).where(Expense.status == "submitted").limit(1))
+    if pending is not None:
+        print(f"  pending claim          {pending.id}   Rs {pending.amount // 100:,} ({pending.category})")
+    print(f"  balance                Rs {ledger.totals(db)['balance'] // 100:,} - GET /finance/reconcile is ok")
+
+
 def main() -> None:
     db = MigrationSessionLocal()
     try:
         staff = get_or_create_staff(db)
         plans = get_or_create_plans(db)
         members = seed_members(db, plans)
+        demo = seed_demo_accounts(db, plans)
         events = seed_events(db)
         announcements = seed_announcements(db)
         merch = seed_merch(db)
@@ -868,8 +1062,11 @@ def main() -> None:
         print(f"  staff created          {staff} (of {len(STAFF)})")
         print(f"  plans                  {len(plans)}: {', '.join(p.name for p in plans)}")
         print(f"  members created        {members} (of {len(MEMBER_STATES)})")
-        print(f"  memberships            {len(memberships)} total | {len(active)} active | "
-              f"{len(expiring)} expiring <=30d | {len(memberships) - len(active)} expired")
+        print(f"  demo accounts created  {demo} (of {len(DEMO_MEMBERS) + 1})")
+        print(
+            f"  memberships            {len(memberships)} total | {len(active)} active | "
+            f"{len(expiring)} expiring <=30d | {len(memberships) - len(active)} expired"
+        )
         print(f"  paid orders            {db.query(Order).filter(Order.status == 'paid').count()}")
         print(f"  succeeded payments     {db.query(Payment).filter(Payment.status == 'succeeded').count()}")
         print(f"  ledger rows (dues)     {db.query(Transaction).filter(Transaction.source == 'dues').count()}")
@@ -879,39 +1076,47 @@ def main() -> None:
         tickets = db.query(Ticket).count()
         checked_in = db.query(Ticket).filter(Ticket.status == "used").count()
         ledger_paise = sum(t.amount for t in db.scalars(select(Transaction).where(Transaction.source == "tickets")))
-        print(f"  events                 {db.query(Event).count()} "
-              f"({'new this run' if events['created'] else 'already seeded'})")
+        print(
+            f"  events                 {db.query(Event).count()} "
+            f"({'new this run' if events['created'] else 'already seeded'})"
+        )
         print(f"  ticket types           {db.query(TicketType).count()}")
-        print(f"  tickets issued         {tickets} | {checked_in} checked in | "
-              f"{db.query(Ticket).filter(Ticket.status == 'valid').count()} still valid")
-        print(f"  ledger rows (tickets)  "
-              f"{db.query(Transaction).filter(Transaction.source == 'tickets').count()} | "
-              f"Rs {ledger_paise // 100:,} ({ledger_paise} paise)")
+        print(
+            f"  tickets issued         {tickets} | {checked_in} checked in | "
+            f"{db.query(Ticket).filter(Ticket.status == 'valid').count()} still valid"
+        )
+        print(
+            f"  ledger rows (tickets)  "
+            f"{db.query(Transaction).filter(Transaction.source == 'tickets').count()} | "
+            f"Rs {ledger_paise // 100:,} ({ledger_paise} paise)"
+        )
 
         deliveries = db.execute(
             select(AnnouncementDelivery.channel, AnnouncementDelivery.status, func.count())
             .group_by(AnnouncementDelivery.channel, AnnouncementDelivery.status)
             .order_by(AnnouncementDelivery.channel, AnnouncementDelivery.status)
         ).all()
-        print(f"  announcements          {db.query(Announcement).count()} "
-              f"({db.query(Announcement).filter(Announcement.is_pinned).count()} pinned) "
-              f"({'new this run' if announcements['created'] else 'already seeded'}) | "
-              f"{db.query(AnnouncementRevision).count()} revision rows")
-        print("  deliveries             "
-              + " | ".join(f"{channel} {status} {count}" for channel, status, count in deliveries))
-        print(f"  opted out of email     "
-              f"{db.query(User).filter(User.email_opt_in.is_(False)).count()} users "
-              f"| bouncing@fail.test always fails")
+        print(
+            f"  announcements          {db.query(Announcement).count()} "
+            f"({db.query(Announcement).filter(Announcement.is_pinned).count()} pinned) "
+            f"({'new this run' if announcements['created'] else 'already seeded'}) | "
+            f"{db.query(AnnouncementRevision).count()} revision rows"
+        )
+        print(
+            "  deliveries             "
+            + " | ".join(f"{channel} {status} {count}" for channel, status, count in deliveries)
+        )
+        print(
+            f"  opted out of email     "
+            f"{db.query(User).filter(User.email_opt_in.is_(False)).count()} users "
+            f"| bouncing@fail.test always fails"
+        )
 
         variant_count = db.query(ProductVariant).count()
         fulfilled = dict(
-            db.execute(
-                select(MerchOrder.fulfilment_status, func.count()).group_by(MerchOrder.fulfilment_status)
-            ).all()
+            db.execute(select(MerchOrder.fulfilment_status, func.count()).group_by(MerchOrder.fulfilment_status)).all()
         )
-        merch_paise = sum(
-            t.amount for t in db.scalars(select(Transaction).where(Transaction.source == "merch"))
-        )
+        merch_paise = sum(t.amount for t in db.scalars(select(Transaction).where(Transaction.source == "merch")))
         moved = (
             select(StockMovement.variant_id, func.sum(StockMovement.delta).label("delta"))
             .group_by(StockMovement.variant_id)
@@ -923,73 +1128,97 @@ def main() -> None:
             .outerjoin(moved, moved.c.variant_id == ProductVariant.id)
             .where(func.coalesce(moved.c.delta, 0) != ProductVariant.stock)
         )
-        print(f"  products               {db.query(Product).count()} "
-              f"({db.query(Product).filter(Product.is_active).count()} active, "
-              f"{db.query(Product).filter(Product.is_active.is_(False)).count()} retired) | "
-              f"{variant_count} variants "
-              f"({'new this run' if merch['created'] else 'already seeded'})")
-        print(f"  merch stock            "
-              f"{db.query(func.coalesce(func.sum(ProductVariant.stock), 0)).scalar()} units | "
-              f"{db.query(ProductVariant).filter(ProductVariant.stock <= 0).count()} out of stock | "
-              f"{db.query(ProductVariant).filter(ProductVariant.stock > 0, ProductVariant.stock <= ProductVariant.low_stock_threshold).count()} low")
-        print(f"  merch orders           {db.query(MerchOrder).count()} | "
-              + ", ".join(f"{status} {fulfilled.get(status, 0)}" for status in ("paid", "packed", "handed_over")))
-        print(f"  ledger rows (merch)    "
-              f"{db.query(Transaction).filter(Transaction.source == 'merch').count()} | "
-              f"Rs {merch_paise // 100:,} ({merch_paise} paise)")
-        print(f"  stock movements        {db.query(StockMovement).count()} rows | "
-              f"invariant SUM(delta) == stock for {variant_count - (drift or 0)}/{variant_count} variants")
-
-        by_status = dict(
-            db.execute(select(Fundraiser.status, func.count()).group_by(Fundraiser.status)).all()
+        print(
+            f"  products               {db.query(Product).count()} "
+            f"({db.query(Product).filter(Product.is_active).count()} active, "
+            f"{db.query(Product).filter(Product.is_active.is_(False)).count()} retired) | "
+            f"{variant_count} variants "
+            f"({'new this run' if merch['created'] else 'already seeded'})"
         )
+        print(
+            f"  merch stock            "
+            f"{db.query(func.coalesce(func.sum(ProductVariant.stock), 0)).scalar()} units | "
+            f"{db.query(ProductVariant).filter(ProductVariant.stock <= 0).count()} out of stock | "
+            f"{db.query(ProductVariant).filter(ProductVariant.stock > 0, ProductVariant.stock <= ProductVariant.low_stock_threshold).count()} low"
+        )
+        print(
+            f"  merch orders           {db.query(MerchOrder).count()} | "
+            + ", ".join(f"{status} {fulfilled.get(status, 0)}" for status in ("paid", "packed", "handed_over"))
+        )
+        print(
+            f"  ledger rows (merch)    "
+            f"{db.query(Transaction).filter(Transaction.source == 'merch').count()} | "
+            f"Rs {merch_paise // 100:,} ({merch_paise} paise)"
+        )
+        print(
+            f"  stock movements        {db.query(StockMovement).count()} rows | "
+            f"invariant SUM(delta) == stock for {variant_count - (drift or 0)}/{variant_count} variants"
+        )
+
+        by_status = dict(db.execute(select(Fundraiser.status, func.count()).group_by(Fundraiser.status)).all())
         fundraiser_paise = sum(
             t.amount for t in db.scalars(select(Transaction).where(Transaction.source == "fundraiser"))
         )
         bake_sale = db.scalar(select(Fundraiser).where(Fundraiser.title == "Spring Bake Sale"))
         bake_progress = fundraiser_service.compute_progress(db, bake_sale)
-        print(f"  fundraisers            {db.query(Fundraiser).count()} "
-              f"({'new this run' if fundraisers['created'] else 'already seeded'}) | "
-              + ", ".join(f"{status} {by_status.get(status, 0)}" for status in ("planning", "active", "done")))
-        print(f"  tasks                  {db.query(Task).count()} "
-              f"({db.query(Task).filter(Task.status == 'done').count()} done, "
-              f"{db.query(Task).filter(Task.status != 'done', Task.assignee_id.is_(None)).count()} unassigned) | "
-              f"{db.query(TaskActivity).count()} activity rows")
-        print(f"  Spring Bake Sale       raised Rs {bake_progress['raised'] // 100:,} of "
-              f"Rs {bake_progress['goal'] // 100:,} "
-              f"({bake_progress['percent_of_goal']}%) | {bake_progress['tasks']['done']}/"
-              f"{bake_progress['tasks']['total']} tasks done | health {bake_progress['health']}")
-        print(f"  ledger rows (fundraiser) "
-              f"{db.query(Transaction).filter(Transaction.source == 'fundraiser').count()} | "
-              f"Rs {fundraiser_paise // 100:,} ({fundraiser_paise} paise)")
-
-        claim_status = dict(
-            db.execute(select(Expense.status, func.count()).group_by(Expense.status)).all()
+        print(
+            f"  fundraisers            {db.query(Fundraiser).count()} "
+            f"({'new this run' if fundraisers['created'] else 'already seeded'}) | "
+            + ", ".join(f"{status} {by_status.get(status, 0)}" for status in ("planning", "active", "done"))
         )
+        print(
+            f"  tasks                  {db.query(Task).count()} "
+            f"({db.query(Task).filter(Task.status == 'done').count()} done, "
+            f"{db.query(Task).filter(Task.status != 'done', Task.assignee_id.is_(None)).count()} unassigned) | "
+            f"{db.query(TaskActivity).count()} activity rows"
+        )
+        print(
+            f"  Spring Bake Sale       raised Rs {bake_progress['raised'] // 100:,} of "
+            f"Rs {bake_progress['goal'] // 100:,} "
+            f"({bake_progress['percent_of_goal']}%) | {bake_progress['tasks']['done']}/"
+            f"{bake_progress['tasks']['total']} tasks done | health {bake_progress['health']}"
+        )
+        print(
+            f"  ledger rows (fundraiser) "
+            f"{db.query(Transaction).filter(Transaction.source == 'fundraiser').count()} | "
+            f"Rs {fundraiser_paise // 100:,} ({fundraiser_paise} paise)"
+        )
+
+        claim_status = dict(db.execute(select(Expense.status, func.count()).group_by(Expense.status)).all())
         claims_paise = db.query(func.coalesce(func.sum(Expense.amount), 0)).scalar()
         owed = finance_service.outstanding_reimbursements(db)
-        print(f"  expenses               {db.query(Expense).count()} "
-              f"({'new this run' if expenses['created'] else 'already seeded'}) | "
-              + ", ".join(f"{status} {claim_status.get(status, 0)}"
-                          for status in ("submitted", "approved", "rejected", "reimbursed", "withdrawn"))
-              + (f" | with receipts {db.query(Expense).filter(Expense.receipt_path.is_not(None)).count()}" if expenses["created"] else ""))
-        print(f"  claims total           Rs {(claims_paise or 0) // 100:,} ({(claims_paise or 0)} paise) | "
-              f"{len(owed)} claimant(s) owed Rs "
-              f"{sum(row['submitted_amount'] + row['approved_unpaid_amount'] for row in owed) // 100:,}")
+        print(
+            f"  expenses               {db.query(Expense).count()} "
+            f"({'new this run' if expenses['created'] else 'already seeded'}) | "
+            + ", ".join(
+                f"{status} {claim_status.get(status, 0)}"
+                for status in ("submitted", "approved", "rejected", "reimbursed", "withdrawn")
+            )
+            + (
+                f" | with receipts {db.query(Expense).filter(Expense.receipt_path.is_not(None)).count()}"
+                if expenses["created"]
+                else ""
+            )
+        )
+        print(
+            f"  claims total           Rs {(claims_paise or 0) // 100:,} ({(claims_paise or 0)} paise) | "
+            f"{len(owed)} claimant(s) owed Rs "
+            f"{sum(row['submitted_amount'] + row['approved_unpaid_amount'] for row in owed) // 100:,}"
+        )
         money = ledger.totals(db)
         manual_rows = db.query(Transaction).filter(Transaction.source.in_(("other_income", "other_expense"))).count()
         reversals = db.query(Transaction).filter(Transaction.is_reversal.is_(True)).count()
-        print(f"  manual ledger rows     {manual_rows} ({reversals} reversal) | "
-              f"balance Rs {money['balance'] // 100:,} ({money['balance']} paise) = "
-              f"in Rs {money['total_in'] // 100:,} - out Rs {money['total_out'] // 100:,}")
+        print(
+            f"  manual ledger rows     {manual_rows} ({reversals} reversal) | "
+            f"balance Rs {money['balance'] // 100:,} ({money['balance']} paise) = "
+            f"in Rs {money['total_in'] // 100:,} - out Rs {money['total_out'] // 100:,}"
+        )
         book = finance_service.reconcile(db)
-        print(f"  reconcile              {'OK - ' + str(len(book['checks'])) + '/' + str(len(book['checks'])) + ' checks pass' if book['ok'] else 'FAILED: ' + str([c for c in book['checks'] if not c['ok']])}")
+        print(
+            f"  reconcile              {'OK - ' + str(len(book['checks'])) + '/' + str(len(book['checks'])) + ' checks pass' if book['ok'] else 'FAILED: ' + str([c for c in book['checks'] if not c['ok']])}"
+        )
         print("-" * 58)
-        print("  login as staff: admin@ssa.org / treasurer@ssa.org / organizer@ssa.org / volunteer@ssa.org")
-        print("  members: member01@ssa.org ... member20@ssa.org")
-        if expenses["created"] and expenses.get("helpers"):
-            print("  new volunteers this run: neha@ssa.org, rohit@ssa.org (expense claimants)")
-        print(f"  password for all seeded accounts: {PASSWORD}")
+        print_demo_table(db)
 
         if settings.STORAGE_PROVIDER == "supabase":
             # The receipts above are already in the bucket by now, so the bucket has to exist first;

@@ -99,9 +99,8 @@ def signed_amount_expr():
 
     The window must be computed over the WHOLE ledger to mean anything, so a filtered page has to
     select from a subquery that carries the window (see `finance.list_transactions`)."""
-    return (
-        case((IN_PLAIN, Transaction.amount), (OUT_REVERSAL, -Transaction.amount), else_=0)
-        - case((OUT_PLAIN, Transaction.amount), (IN_REVERSAL, -Transaction.amount), else_=0)
+    return case((IN_PLAIN, Transaction.amount), (OUT_REVERSAL, -Transaction.amount), else_=0) - case(
+        (OUT_PLAIN, Transaction.amount), (IN_REVERSAL, -Transaction.amount), else_=0
     )
 
 
@@ -179,7 +178,11 @@ def add_transaction(
                 409,
                 "PERIOD_CLOSED",
                 f"'{period.name}' is closed; nothing may be dated inside it",
-                {"period_name": period.name, "start_date": period.start_date.isoformat(), "end_date": period.end_date.isoformat()},
+                {
+                    "period_name": period.name,
+                    "start_date": period.start_date.isoformat(),
+                    "end_date": period.end_date.isoformat(),
+                },
             )
 
     entry = Transaction(

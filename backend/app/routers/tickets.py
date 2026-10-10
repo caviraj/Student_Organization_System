@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core import ratelimit
+from app.core.config import settings
 from app.core.db import as_utc
 from app.core.deps import get_current_user, get_db
 from app.core.errors import AppError
@@ -27,7 +29,17 @@ def _attention_order(ticket: dict) -> tuple[int, float]:
     return (0, moment.timestamp()) if moment >= datetime.now(UTC) else (1, -moment.timestamp())
 
 
-@router.post("/checkout", response_model=TicketCheckoutOut, status_code=201, summary="Buy tickets (auth)")
+@router.post(
+    "/checkout",
+    response_model=TicketCheckoutOut,
+    status_code=201,
+    summary="Buy tickets (auth)",
+    dependencies=[
+        Depends(
+            ratelimit.limit_by_user("ticket-checkout", settings.CHECKOUT_PER_MINUTE, "Too many checkouts; slow down")
+        )
+    ],
+)
 def checkout(
     payload: TicketCheckoutIn,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),

@@ -124,7 +124,10 @@ def test_a_reversal_subtracts_from_the_side_its_original_was_on(db):
 
     # A naively-summed ledger would say 100_000 in and 130_000 out. It is 0 and 30_000.
     assert ledger.totals(db) == {"total_in": 0, "total_out": 30_000, "balance": -30_000}
-    assert db.scalar(select(Transaction.amount).where(Transaction.source == "other_income", Transaction.is_reversal)) == 100_000
+    assert (
+        db.scalar(select(Transaction.amount).where(Transaction.source == "other_income", Transaction.is_reversal))
+        == 100_000
+    )
 
 
 def test_the_central_writer_refuses_what_would_corrupt_the_books(db):
@@ -189,13 +192,19 @@ def test_a_treasurer_can_log_a_row_no_other_table_caused(client, auth, tokens, d
 
 def test_an_idempotency_key_makes_a_retry_a_replay(client, auth, tokens, db):
     first = post(
-        client, auth, tokens["treasurer"],
-        {"amount": 500_000, "source": "other_income", "note": "Sponsor - campus bookstore"}, key="sponsor-1",
+        client,
+        auth,
+        tokens["treasurer"],
+        {"amount": 500_000, "source": "other_income", "note": "Sponsor - campus bookstore"},
+        key="sponsor-1",
     )
     # A different body with the same key is still the same entry: the key wins, once it exists.
     again = post(
-        client, auth, tokens["treasurer"],
-        {"amount": 700_000, "source": "other_income", "note": "Sponsor - campus bookstore"}, key="sponsor-1",
+        client,
+        auth,
+        tokens["treasurer"],
+        {"amount": 700_000, "source": "other_income", "note": "Sponsor - campus bookstore"},
+        key="sponsor-1",
     )
     assert again["id"] == first["id"]
     assert again["amount"] == 500_000
@@ -233,7 +242,9 @@ def test_the_club_cannot_log_an_expense_it_cannot_afford(client, auth, tokens):
 
     # An admin may decide to go into the red, on purpose.
     forced = post(
-        client, auth, tokens["admin"],
+        client,
+        auth,
+        tokens["admin"],
         {"amount": 150_000, "source": "other_expense", "note": "Van hire for the stall", "allow_negative": True},
     )
     assert forced["signed_amount"] == -150_000
@@ -272,7 +283,9 @@ def test_a_hand_logged_row_may_be_backdated_but_only_recently(client, auth, toke
     assert ahead.status_code == 422 and ahead.json()["error"]["code"] == "INVALID_OCCURRED_AT"
 
     backdated = post(
-        client, auth, tokens["treasurer"],
+        client,
+        auth,
+        tokens["treasurer"],
         {**body, "occurred_at": (datetime.now(UTC) - timedelta(days=30)).isoformat()},
     )
     assert backdated["occurred_at"][:10] == (datetime.now(UTC) - timedelta(days=30)).date().isoformat()
@@ -329,7 +342,9 @@ def test_a_ticket_sale_is_undone_by_refunding_not_by_a_reversal(client, auth, to
 
 
 # --- 4. reconciliation ------------------------------------------------------------
-def test_the_books_reconcile_after_a_normal_run(client, auth, tokens, db, treasurer, volunteer, make_event, make_ticket_type):
+def test_the_books_reconcile_after_a_normal_run(
+    client, auth, tokens, db, treasurer, volunteer, make_event, make_ticket_type
+):
     event_row = make_event()
     buy_tickets(client, auth, tokens["volunteer"], make_ticket_type(event_row).id, quantity=2)
     income(client, auth, tokens["treasurer"], amount=500_000)
@@ -350,7 +365,9 @@ def test_the_books_reconcile_after_a_normal_run(client, auth, tokens, db, treasu
     ]
     reimbursements = next(check for check in report["checks"] if check["name"] == "Expense reimbursements")
     assert (reimbursements["ledger_total"], reimbursements["source_total"], reimbursements["difference"]) == (
-        45_000, 45_000, 0,
+        45_000,
+        45_000,
+        0,
     )
 
 
@@ -366,7 +383,9 @@ def test_reconciliation_catches_a_reimbursed_claim_that_left_no_trace(client, au
 
 def test_reconciliation_catches_a_negative_balance(client, auth, tokens):
     post(
-        client, auth, tokens["admin"],
+        client,
+        auth,
+        tokens["admin"],
         {"amount": 150_000, "source": "other_expense", "note": "Van hire for the stall", "allow_negative": True},
     )
     report = client.get("/api/v1/finance/reconcile", headers=auth(tokens["admin"])).json()
@@ -376,7 +395,9 @@ def test_reconciliation_catches_a_negative_balance(client, auth, tokens):
 
 
 # --- 5. the semester report -------------------------------------------------------
-def test_the_report_adds_up(client, auth, tokens, db, treasurer, volunteer, make_event, make_ticket_type, make_fundraiser, organizer):
+def test_the_report_adds_up(
+    client, auth, tokens, db, treasurer, volunteer, make_event, make_ticket_type, make_fundraiser, organizer
+):
     event_row = make_event()
     make_fundraiser(organizer)
     buy_tickets(client, auth, tokens["volunteer"], make_ticket_type(event_row).id, quantity=2)
@@ -409,7 +430,9 @@ def test_the_report_adds_up(client, auth, tokens, db, treasurer, volunteer, make
     assert backwards.status_code == 422
 
 
-def test_by_event_and_outstanding_are_grouped_not_per_row(client, auth, tokens, queries, volunteer, make_event, make_ticket_type, db):
+def test_by_event_and_outstanding_are_grouped_not_per_row(
+    client, auth, tokens, queries, volunteer, make_event, make_ticket_type, db
+):
     for index in range(6):
         event_row = make_event(title=f"Event {index}")
         buy_tickets(client, auth, tokens["volunteer"], make_ticket_type(event_row).id)
@@ -506,9 +529,7 @@ def test_a_period_cannot_be_closed_over_unsettled_claims_or_a_broken_book(client
     assert pending.json()["error"]["details"]["count"] == 1
 
     # Only an admin may overrule that, and it has to be said out loud.
-    assert close(
-        client, auth, tokens["treasurer"], "Semester 1 2026", start, end, force=True
-    ).status_code == 403
+    assert close(client, auth, tokens["treasurer"], "Semester 1 2026", start, end, force=True).status_code == 403
     forced = close(client, auth, tokens["admin"], "Semester 1 2026", start, end, force=True)
     assert forced.status_code == 201, forced.text
 
@@ -519,12 +540,16 @@ def test_a_period_must_be_in_the_past_and_must_not_overlap(client, auth, tokens)
     assert close(client, auth, tokens["treasurer"], "Semester 1 2026", start, TODAY).status_code == 422
     assert close(client, auth, tokens["treasurer"], "Semester 1 2026", start, end).status_code == 201
 
-    overlapping = close(client, auth, tokens["treasurer"], "Semester 2 2026", end - timedelta(days=1), TODAY - timedelta(days=1))
+    overlapping = close(
+        client, auth, tokens["treasurer"], "Semester 2 2026", end - timedelta(days=1), TODAY - timedelta(days=1)
+    )
     assert overlapping.status_code == 409, overlapping.text
     assert overlapping.json()["error"]["code"] == "PERIOD_OVERLAP"
     assert overlapping.json()["error"]["details"]["period_name"] == "Semester 1 2026"
 
-    same_name = close(client, auth, tokens["treasurer"], "Semester 1 2026", start - timedelta(days=60), start - timedelta(days=1))
+    same_name = close(
+        client, auth, tokens["treasurer"], "Semester 1 2026", start - timedelta(days=60), start - timedelta(days=1)
+    )
     assert same_name.status_code == 409
     assert same_name.json()["error"]["code"] == "PERIOD_NAME_TAKEN"
 
@@ -534,12 +559,20 @@ def test_only_an_admin_reopens_and_only_with_a_reason(client, auth, tokens):
     start, end = TODAY - timedelta(days=50), TODAY - timedelta(days=10)
     period_id = close(client, auth, tokens["treasurer"], "Semester 1 2026", start, end).json()["id"]
 
-    assert client.post(
-        f"/api/v1/finance/periods/{period_id}/reopen", json={"reason": "Missed October"}, headers=auth(tokens["treasurer"])
-    ).status_code == 403
-    assert client.post(
-        f"/api/v1/finance/periods/{period_id}/reopen", json={"reason": "oops"}, headers=auth(tokens["admin"])
-    ).status_code == 422
+    assert (
+        client.post(
+            f"/api/v1/finance/periods/{period_id}/reopen",
+            json={"reason": "Missed October"},
+            headers=auth(tokens["treasurer"]),
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/finance/periods/{period_id}/reopen", json={"reason": "oops"}, headers=auth(tokens["admin"])
+        ).status_code
+        == 422
+    )
 
     reopened = client.post(
         f"/api/v1/finance/periods/{period_id}/reopen",
@@ -552,7 +585,9 @@ def test_only_an_admin_reopens_and_only_with_a_reason(client, auth, tokens):
 
     # Reopened means writable again - and the reason is kept for whoever audits this later.
     backdated = post(
-        client, auth, tokens["treasurer"],
+        client,
+        auth,
+        tokens["treasurer"],
         {
             "amount": 10_000,
             "source": "other_income",
@@ -574,8 +609,14 @@ def test_the_seed_style_backdate_is_the_only_way_into_a_closed_period(db, treasu
     start, end = TODAY - timedelta(days=40), TODAY - timedelta(days=5)
     db.add(
         FinancePeriod(
-            name="Semester 1 2026", start_date=start, end_date=end, status="closed",
-            closing_balance=0, snapshot={}, closed_by=treasurer.id, closed_at=datetime.now(UTC),
+            name="Semester 1 2026",
+            start_date=start,
+            end_date=end,
+            status="closed",
+            closing_balance=0,
+            snapshot={},
+            closed_by=treasurer.id,
+            closed_at=datetime.now(UTC),
         )
     )
     db.commit()
@@ -585,9 +626,7 @@ def test_the_seed_style_backdate_is_the_only_way_into_a_closed_period(db, treasu
         ledger.add_transaction(db, direction="in", amount=1000, source="other_income", occurred_at=when)
     assert refused.value.code == "PERIOD_CLOSED"
 
-    ledger.add_transaction(
-        db, direction="in", amount=1000, source="other_income", occurred_at=when, seed_backdate=True
-    )
+    ledger.add_transaction(db, direction="in", amount=1000, source="other_income", occurred_at=when, seed_backdate=True)
     db.commit()
     assert ledger.totals(db)["total_in"] == 1000
 
@@ -634,7 +673,9 @@ def claim_for(client, auth, token, fundraiser_id, amount: int = 45_000) -> dict:
     return created.json()
 
 
-def test_a_fundraiser_reports_gross_raised_and_net_after_its_own_bills(client, auth, tokens, organizer, volunteer, make_fundraiser):
+def test_a_fundraiser_reports_gross_raised_and_net_after_its_own_bills(
+    client, auth, tokens, organizer, volunteer, make_fundraiser
+):
     fundraiser = make_fundraiser(organizer)
     cash = client.post(
         f"/api/v1/fundraisers/{fundraiser.id}/income",

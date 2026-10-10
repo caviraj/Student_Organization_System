@@ -54,7 +54,9 @@ def _write_positions(tasks: list[Task]) -> None:
         task.position = index
 
 
-def _log(db: Session, task: Task, actor: User, action: str, from_value: str | None = None, to_value: str | None = None) -> None:
+def _log(
+    db: Session, task: Task, actor: User, action: str, from_value: str | None = None, to_value: str | None = None
+) -> None:
     db.add(TaskActivity(task_id=task.id, actor_id=actor.id, action=action, from_value=from_value, to_value=to_value))
 
 
@@ -241,7 +243,9 @@ def board(db: Session, **filters) -> tuple[list[Task], dict[str, list[Task]]]:
     return tasks, columns
 
 
-def my_tasks(db: Session, user: User, *, status: str | None = None, page: int = 1, page_size: int = 50) -> tuple[list[Task], int]:
+def my_tasks(
+    db: Session, user: User, *, status: str | None = None, page: int = 1, page_size: int = 50
+) -> tuple[list[Task], int]:
     """Overdue first: a card with no due date is not urgent, so it sorts last."""
     conditions = [Task.assignee_id == user.id]
     if status:
@@ -272,9 +276,12 @@ def activity(db: Session, task_id: UUID, *, page: int = 1, page_size: int = 50) 
 
 
 def open_task_count(db: Session, fundraiser_id: UUID) -> int:
-    return db.scalar(
-        select(func.count()).select_from(Task).where(Task.fundraiser_id == fundraiser_id, Task.status != "done")
-    ) or 0
+    return (
+        db.scalar(
+            select(func.count()).select_from(Task).where(Task.fundraiser_id == fundraiser_id, Task.status != "done")
+        )
+        or 0
+    )
 
 
 # --- writes -----------------------------------------------------------------------------------
@@ -345,7 +352,9 @@ def update_task(db: Session, task: Task, data: dict, actor: User) -> Task:
         _log(db, task, actor, "due_changed", _date_label(task.due_date), _date_label(data["due_date"]))
         task.due_date = data["due_date"]
 
-    edited = sorted(key for key in data if key not in ("status", "assignee_id", "due_date") and getattr(task, key) != data[key])
+    edited = sorted(
+        key for key in data if key not in ("status", "assignee_id", "due_date") and getattr(task, key) != data[key]
+    )
     for key in edited:
         setattr(task, key, data[key])
     if edited:
@@ -399,9 +408,7 @@ def delete_task(db: Session, task: Task, actor: User) -> None:
 def assignable_users(db: Session) -> list[User]:
     """The assignee picker: active volunteer and above."""
     roles = [role for role, rank in ROLE_RANK.items() if rank >= ROLE_RANK["volunteer"]]
-    return list(
-        db.scalars(select(User).where(User.is_active.is_(True), User.role.in_(roles)).order_by(User.full_name))
-    )
+    return list(db.scalars(select(User).where(User.is_active.is_(True), User.role.in_(roles)).order_by(User.full_name)))
 
 
 def _user_label(user_id: UUID | None) -> str | None:

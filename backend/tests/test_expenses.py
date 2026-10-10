@@ -106,7 +106,9 @@ def fund(client, auth, token, amount: int = 1_000_000, note: str = "Sponsor - ca
     return response.json()
 
 
-def claims(*, description: str = DESCRIPTION, amount: int = 45000, category: str = "printing", incurred_on: date | None = None) -> dict:
+def claims(
+    *, description: str = DESCRIPTION, amount: int = 45000, category: str = "printing", incurred_on: date | None = None
+) -> dict:
     return {
         "amount": str(amount),
         "description": description,
@@ -135,7 +137,9 @@ def test_a_plain_member_cannot_claim_expenses(client, auth, tokens):
     assert response.status_code == 403, response.text
 
 
-@pytest.mark.parametrize("path", ["/api/v1/expenses", "/api/v1/finance/summary", "/api/v1/finance/transactions", "/api/v1/finance/reconcile"])
+@pytest.mark.parametrize(
+    "path", ["/api/v1/expenses", "/api/v1/finance/summary", "/api/v1/finance/transactions", "/api/v1/finance/reconcile"]
+)
 def test_the_treasury_is_closed_to_volunteers_and_organizers(client, auth, tokens, path):
     assert client.get(path, headers=auth(tokens["volunteer"])).status_code == 403
     assert client.get(path, headers=auth(tokens["organizer"])).status_code == 403
@@ -275,7 +279,9 @@ def test_dating_a_claim(client, auth, tokens):
     assert edge.status_code == 201, edge.text
 
 
-def test_a_claim_hangs_off_an_event_or_a_fundraiser_but_never_both(client, auth, tokens, make_event, make_fundraiser, organizer):
+def test_a_claim_hangs_off_an_event_or_a_fundraiser_but_never_both(
+    client, auth, tokens, make_event, make_fundraiser, organizer
+):
     event = make_event()
     fundraiser = make_fundraiser(organizer)
     both = client.post(
@@ -332,7 +338,10 @@ def test_a_rejection_needs_a_reason(client, auth, tokens, volunteer, make_expens
     expense = make_expense(volunteer, receipt=True)
     headers = auth(tokens["treasurer"])
 
-    assert client.patch(f"/api/v1/expenses/{expense.id}/review", json={"decision": "reject"}, headers=headers).status_code == 422
+    assert (
+        client.patch(f"/api/v1/expenses/{expense.id}/review", json={"decision": "reject"}, headers=headers).status_code
+        == 422
+    )
     assert (
         client.patch(
             f"/api/v1/expenses/{expense.id}/review", json={"decision": "reject", "note": "no"}, headers=headers
@@ -483,7 +492,12 @@ def test_reimbursing_pays_once_and_drops_the_balance_by_exactly_the_amount(
     assert ledger_rows(db, source="expense_reimbursement") == 1
 
     entry = db.get(Transaction, UUID(body["ledger_transaction_id"]))
-    assert (entry.direction, entry.source, entry.ref_type, entry.ref_id) == ("out", "expense_reimbursement", "expense", expense.id)
+    assert (entry.direction, entry.source, entry.ref_type, entry.ref_id) == (
+        "out",
+        "expense_reimbursement",
+        "expense",
+        expense.id,
+    )
     assert entry.logged_by == treasurer.id
 
     # Paying twice is a replay, not a second payment.
@@ -613,9 +627,7 @@ def test_the_queue_filters_and_counts(client, auth, tokens, volunteer, other_vol
     assert body["submitted_amount"] == 1000
     assert body["approved_unpaid_amount"] == 2000
 
-    by_claimant = client.get(
-        f"/api/v1/expenses?claimant_id={volunteer.id}", headers=auth(tokens["treasurer"])
-    ).json()
+    by_claimant = client.get(f"/api/v1/expenses?claimant_id={volunteer.id}", headers=auth(tokens["treasurer"])).json()
     assert by_claimant["total"] == 2
 
     by_amount = client.get("/api/v1/expenses?min_amount=1500", headers=auth(tokens["treasurer"])).json()

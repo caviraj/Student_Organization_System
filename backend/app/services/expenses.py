@@ -98,7 +98,9 @@ def _clean_amount(value) -> int:
     try:
         amount = int(value)
     except (TypeError, ValueError):
-        raise AppError(422, "VALIDATION_ERROR", "amount must be an integer number of paise", {"amount": value}) from None
+        raise AppError(
+            422, "VALIDATION_ERROR", "amount must be an integer number of paise", {"amount": value}
+        ) from None
     if not MIN_AMOUNT <= amount <= MAX_AMOUNT:
         raise AppError(
             422,
@@ -128,7 +130,9 @@ def _clean_incurred_on(value) -> date:
         raise AppError(422, "VALIDATION_ERROR", "incurred_on must be a date", {"incurred_on": str(value)})
     today = datetime.now(UTC).date()
     if value > today:
-        raise AppError(422, "INVALID_INCURRED_ON", "A claim cannot be dated in the future", {"incurred_on": value.isoformat()})
+        raise AppError(
+            422, "INVALID_INCURRED_ON", "A claim cannot be dated in the future", {"incurred_on": value.isoformat()}
+        )
     if value < today - timedelta(days=settings.EXPENSE_BACKDATE_DAYS):
         raise AppError(
             422,
@@ -143,9 +147,7 @@ def _clean_bucket(db: Session, data: dict) -> tuple[UUID | None, UUID | None]:
     """At most one of event / fundraiser, and whichever is given must exist."""
     event_id, fundraiser_id = data.get("event_id"), data.get("fundraiser_id")
     if event_id is not None and fundraiser_id is not None:
-        raise AppError(
-            422, "VALIDATION_ERROR", "A claim is charged to an event or a fundraiser, not both", {}
-        )
+        raise AppError(422, "VALIDATION_ERROR", "A claim is charged to an event or a fundraiser, not both", {})
     if event_id is not None and db.get(Event, event_id) is None:
         raise AppError(404, "EVENT_NOT_FOUND", "No event with that id", {"event_id": str(event_id)})
     if fundraiser_id is not None and db.get(Fundraiser, fundraiser_id) is None:
@@ -155,7 +157,12 @@ def _clean_bucket(db: Session, data: dict) -> tuple[UUID | None, UUID | None]:
 
 def _clean_category(value) -> str:
     if value not in EXPENSE_CATEGORIES:
-        raise AppError(422, "VALIDATION_ERROR", "Unknown expense category", {"category": value, "allowed": list(EXPENSE_CATEGORIES)})
+        raise AppError(
+            422,
+            "VALIDATION_ERROR",
+            "Unknown expense category",
+            {"category": value, "allowed": list(EXPENSE_CATEGORIES)},
+        )
     return value
 
 
@@ -262,7 +269,9 @@ def expense_conditions(
     return conditions
 
 
-def list_expenses(db: Session, *, sort: str = "desc", page: int = 1, page_size: int = 20, **filters) -> tuple[list[Expense], int]:
+def list_expenses(
+    db: Session, *, sort: str = "desc", page: int = 1, page_size: int = 20, **filters
+) -> tuple[list[Expense], int]:
     conditions = expense_conditions(**filters)
     order = (
         (Expense.created_at.asc(), Expense.id.asc())
@@ -270,7 +279,9 @@ def list_expenses(db: Session, *, sort: str = "desc", page: int = 1, page_size: 
         else (Expense.created_at.desc(), Expense.id.desc())
     )
     total = db.scalar(select(func.count()).select_from(Expense).where(*conditions)) or 0
-    rows = db.scalars(select(Expense).where(*conditions).order_by(*order).offset((page - 1) * page_size).limit(page_size)).all()
+    rows = db.scalars(
+        select(Expense).where(*conditions).order_by(*order).offset((page - 1) * page_size).limit(page_size)
+    ).all()
     return list(rows), total
 
 
@@ -369,7 +380,10 @@ def update_expense(db: Session, expense: Expense, data: dict, actor: User) -> Ex
     if "incurred_on" in data:
         data = {**data, "incurred_on": _clean_incurred_on(data["incurred_on"])}
     if "event_id" in data or "fundraiser_id" in data:
-        merged = {**{key: getattr(expense, key) for key in ("event_id", "fundraiser_id")}, **{k: v for k, v in data.items() if k in ("event_id", "fundraiser_id")}}
+        merged = {
+            **{key: getattr(expense, key) for key in ("event_id", "fundraiser_id")},
+            **{k: v for k, v in data.items() if k in ("event_id", "fundraiser_id")},
+        }
         event_id, fundraiser_id = _clean_bucket(db, merged)
         data = {**data, "event_id": event_id, "fundraiser_id": fundraiser_id}
 
@@ -450,7 +464,9 @@ def review_expense(db: Session, expense: Expense, reviewer: User, decision: str,
             409, "INVALID_STATE", f"A {expense.status} claim is not waiting for a decision", {"status": expense.status}
         )
     if decision == "approve" and expense.receipt_path is None:
-        raise AppError(409, "RECEIPT_REQUIRED", "Attach a receipt before approving this claim", {"expense_id": str(expense.id)})
+        raise AppError(
+            409, "RECEIPT_REQUIRED", "Attach a receipt before approving this claim", {"expense_id": str(expense.id)}
+        )
 
     expense.status = "approved" if decision == "approve" else "rejected"
     expense.reviewed_by = reviewer.id

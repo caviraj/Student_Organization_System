@@ -1,5 +1,5 @@
-"""SSA Hub API — Phases 1-6 (Auth & Membership, Events & Tickets, Announcements, Merchandise,
-Fundraisers & Tasks, Expenses & Treasurer Finance)."""
+"""SSA Hub API — Phases 1-7 (Auth & Membership, Events & Tickets, Announcements, Merchandise,
+Fundraisers & Tasks, Expenses & Treasurer Finance, Hardening & Docs)."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.errors import register_error_handlers
+from app.core.middleware import RequestContextMiddleware
 from app.jobs.scheduler import start_scheduler, stop_scheduler
 from app.routers import (
     announcements,
@@ -48,6 +49,7 @@ if not _ssa_log.handlers:
 async def lifespan(_: FastAPI):
     # Expiry scan at startup then daily; stale-checkout sweep and announcement deliveries every
     # 5 and 60 seconds.
+    settings.enforce_startup_config()
     start_scheduler()
     yield
     stop_scheduler()
@@ -57,10 +59,11 @@ app = FastAPI(
     title="SSA Hub API",
     version="1.0.0",
     description=(
-        "Skyline Student Association platform — Phase 3: Announcements & mailing list.\n\n"
-        "All endpoints are under `/api/v1`. Errors are `{\"error\": {\"code\", \"message\", \"details\"}}`; "
-        "lists are `{\"items\", \"total\", \"page\", \"page_size\"}`. Money is integer paise. "
-        "Timestamps are UTC and always end in `Z`."
+        "Skyline Student Association platform — phases 1-7: auth & membership, events & tickets, "
+        "announcements, merchandise, fundraisers & tasks, expenses & treasurer finance.\n\n"
+        'All endpoints are under `/api/v1`. Errors are `{"error": {"code", "message", "details"}}`; '
+        'lists are `{"items", "total", "page", "page_size"}`. Money is integer paise. '
+        "Timestamps are UTC and always end in `Z`. See `docs/API_HANDOFF.md` for the client guide."
     ),
     lifespan=lifespan,
 )
@@ -72,6 +75,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Added last, so it wraps CORS: the request id and the security headers are on the response even
+# when CORS rejects the request, which is the case someone is most likely to be debugging.
+app.add_middleware(RequestContextMiddleware)
 
 register_error_handlers(app)
 

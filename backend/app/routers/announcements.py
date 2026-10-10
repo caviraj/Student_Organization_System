@@ -45,9 +45,7 @@ def list_announcements(
     """Pinned first, then newest. What comes back depends on who you are: guests see public posts,
     active members also see members-only ones, anyone holding a ticket for an event also sees that
     event's posts, and organizers see everything (PRD FR-3.2)."""
-    rows, total = service.feed(
-        db, user, category=category, q=q, pinned=pinned, page=page, page_size=page_size
-    )
+    rows, total = service.feed(db, user, category=category, q=q, pinned=pinned, page=page, page_size=page_size)
     return {
         "items": [service.announcement_summary(a) for a in rows],
         "total": total,
@@ -74,9 +72,7 @@ def create_announcement(
     result = service.create_announcement(db, user, payload.model_dump())
     # Via the module, not the function: the tests point this at their own session.
     background_tasks.add_task(scheduler.run_deliveries_once)
-    return service.announcement_detail(result["announcement"]) | {
-        "delivery_summary": result["delivery_summary"]
-    }
+    return service.announcement_detail(result["announcement"]) | {"delivery_summary": result["delivery_summary"]}
 
 
 @router.get(

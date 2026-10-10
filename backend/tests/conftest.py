@@ -21,6 +21,10 @@ os.environ["BCRYPT_ROUNDS"] = "4"
 # write into the repo. STORAGE_PROVIDER=local also keeps the service-role key out of the suite.
 os.environ["STORAGE_PROVIDER"] = "local"
 os.environ["LOCAL_STORAGE_DIR"] = tempfile.mkdtemp(prefix="ssa-test-receipts-")
+# Rate limits off by default: a suite that logs in a few hundred times would otherwise trip its own
+# limiter, and a test that trips a limit would be testing the limiter, not the route. The limits
+# have their own tests, which turn this back on for that test alone (see the `rate_limits` fixture).
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 from datetime import UTC, date, datetime, timedelta
 
@@ -76,7 +80,9 @@ def _truncate_all(target_engine) -> None:
             .all()
         )
         if names:
-            conn.execute(text("TRUNCATE TABLE " + ", ".join(f'"{name}"' for name in names) + " RESTART IDENTITY CASCADE"))
+            conn.execute(
+                text("TRUNCATE TABLE " + ", ".join(f'"{name}"' for name in names) + " RESTART IDENTITY CASCADE")
+            )
 
 
 @pytest.fixture(scope="session")
@@ -121,6 +127,27 @@ def client(db: Session, monkeypatch) -> TestClient:
     # Not used as a context manager: that would start the APScheduler job.
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _clean_ratelimits():
+    """The counters are process state, so one test's logins are the next test's problem."""
+    from app.core import ratelimit
+
+    ratelimit.reset()
+    yield
+    ratelimit.reset()
+
+
+@pytest.fixture
+def rate_limits(monkeypatch):
+    """Turn the limits on for one test. Off everywhere else (see the top of this file)."""
+    from app.core import ratelimit
+
+    monkeypatch.setattr(ratelimit.settings, "RATE_LIMIT_ENABLED", True)
+    ratelimit.reset()
+    yield ratelimit
+    ratelimit.reset()
 
 
 # --- helpers ----------------------------------------------------------------------
@@ -238,7 +265,15 @@ def make_fundraiser(db):
     """A fundraiser row, written straight to the table: the fixtures here build state, they do not
     test the service. Its `event_date` defaults to 10 days out, like the seeded bake sale."""
 
-    def _make(owner: User, *, title: str = "Spring Bake Sale", goal: int = 500000, days: int = 10, status: str = "planning", **extra) -> Fundraiser:
+    def _make(
+        owner: User,
+        *,
+        title: str = "Spring Bake Sale",
+        goal: int = 500000,
+        days: int = 10,
+        status: str = "planning",
+        **extra,
+    ) -> Fundraiser:
         fundraiser = Fundraiser(
             title=title,
             goal_amount=goal,
@@ -309,9 +344,7 @@ def buy_membership(client, auth, token: str, plan_id: str, outcome: str = "succe
     checkout = client.post("/api/v1/memberships/checkout", json={"plan_id": plan_id}, headers=auth(token))
     assert checkout.status_code == 201, checkout.text
     order_id = checkout.json()["order_id"]
-    confirm = client.post(
-        f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": outcome}, headers=auth(token)
-    )
+    confirm = client.post(f"/api/v1/payments/{order_id}/mock-confirm", json={"outcome": outcome}, headers=auth(token))
     assert confirm.status_code == 200, confirm.text
     return confirm.json()
 

@@ -73,7 +73,9 @@ def create_ticket_checkout(
 
     ticket_type = db.get(TicketType, ticket_type_id)
     if ticket_type is None:
-        raise AppError(404, "TICKET_TYPE_NOT_FOUND", "No ticket type with that id", {"ticket_type_id": str(ticket_type_id)})
+        raise AppError(
+            404, "TICKET_TYPE_NOT_FOUND", "No ticket type with that id", {"ticket_type_id": str(ticket_type_id)}
+        )
 
     event = db.get(Event, ticket_type.event_id)
     if event is None or event.status != "published":
@@ -82,11 +84,16 @@ def create_ticket_checkout(
 
     now = datetime.now(UTC)
     if ticket_type.sale_starts_at and now < as_utc(ticket_type.sale_starts_at):
-        raise AppError(409, "NOT_IN_SALE_WINDOW", "Ticket sales have not started yet",
-                       {"sale_starts_at": ticket_type.sale_starts_at.isoformat()})
+        raise AppError(
+            409,
+            "NOT_IN_SALE_WINDOW",
+            "Ticket sales have not started yet",
+            {"sale_starts_at": ticket_type.sale_starts_at.isoformat()},
+        )
     if ticket_type.sale_ends_at and now > as_utc(ticket_type.sale_ends_at):
-        raise AppError(409, "NOT_IN_SALE_WINDOW", "Ticket sales have ended",
-                       {"sale_ends_at": ticket_type.sale_ends_at.isoformat()})
+        raise AppError(
+            409, "NOT_IN_SALE_WINDOW", "Ticket sales have ended", {"sale_ends_at": ticket_type.sale_ends_at.isoformat()}
+        )
 
     unit_price, is_member_price = pricing.resolve_ticket_price(db, user, ticket_type)
     reserve_seats(db, ticket_type.id, quantity)

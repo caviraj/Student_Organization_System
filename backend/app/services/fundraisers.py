@@ -113,9 +113,7 @@ def _money_by(db: Session, fundraiser_ids: list[UUID]) -> dict[UUID, dict[str, i
         .where(Transaction.fundraiser_id.in_(fundraiser_ids))
         .group_by(Transaction.fundraiser_id)
     ).all()
-    return {
-        fundraiser_id: {"raised": int(raised), "spent": int(spent)} for fundraiser_id, raised, spent in rows
-    }
+    return {fundraiser_id: {"raised": int(raised), "spent": int(spent)} for fundraiser_id, raised, spent in rows}
 
 
 def _progress_body(fundraiser, stats: dict, money: dict, today: date) -> dict:
@@ -161,7 +159,10 @@ def progress_for(db: Session, fundraisers: list, *, today: date | None = None) -
     money = _money_by(db, ids)
     return {
         fundraiser.id: _progress_body(
-            fundraiser, stats.get(fundraiser.id, EMPTY_STATS), money.get(fundraiser.id, {"raised": 0, "spent": 0}), today
+            fundraiser,
+            stats.get(fundraiser.id, EMPTY_STATS),
+            money.get(fundraiser.id, {"raised": 0, "spent": 0}),
+            today,
         )
         for fundraiser in fundraisers
     }
@@ -370,9 +371,14 @@ def update_fundraiser(db: Session, fundraiser, data: dict, actor: User, *, force
                 {"from": fundraiser.status, "to": new_status, "allowed": allowed},
             )
         if new_status == "done":
-            open_count = db.scalar(
-                select(func.count()).select_from(Task).where(Task.fundraiser_id == fundraiser.id, Task.status != "done")
-            ) or 0
+            open_count = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(Task)
+                    .where(Task.fundraiser_id == fundraiser.id, Task.status != "done")
+                )
+                or 0
+            )
             if open_count and not force:
                 raise AppError(
                     409,

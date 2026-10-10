@@ -41,7 +41,14 @@ def verify(
         user = matches[0] if matches else None
 
     if user is None:
-        return {"valid": False, "status": "none", "name": None, "member_code": None, "valid_until": None, "reason": "No member found"}
+        return {
+            "valid": False,
+            "status": "none",
+            "name": None,
+            "member_code": None,
+            "valid_until": None,
+            "reason": "No member found",
+        }
 
     state = verification_state(db, user)
     return {"name": user.full_name, "member_code": user.member_code, **state}
@@ -50,4 +57,9 @@ def verify(
 @router.get("/me/card", response_model=CardOut, summary="QR member card payload")
 def my_card(user: User = Depends(require_role("member")), db: Session = Depends(get_db)):
     state = verification_state(db, user)
-    return {"full_name": user.full_name, "member_code": user.member_code, "status": state["status"], "valid_until": state["valid_until"]}
+    return {
+        "full_name": user.full_name,
+        "member_code": user.member_code,
+        "status": state["status"],
+        "valid_until": state["valid_until"],
+    }

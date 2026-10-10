@@ -159,17 +159,22 @@ class SupabaseStorageProvider(StorageProvider):
         self._headers = {"Authorization": f"Bearer {service_key}", "apikey": service_key}
 
     def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        # `put` extends the auth headers with its own; merging here is what lets it, because
+        # `client.request(..., **kwargs)` would otherwise receive `headers` twice.
+        headers = {**self._headers, **kwargs.pop("headers", {})}
         last: Exception | None = None
         for attempt in (1, 2):
             try:
                 with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
-                    response = client.request(method, url, headers=self._headers, **kwargs)
+                    response = client.request(method, url, headers=headers, **kwargs)
             except httpx.HTTPError as exc:  # a dropped connection is worth the same single retry
                 last = exc
                 continue
             if response.status_code < 500:
                 return response
-            last = httpx.HTTPStatusError(f"{response.status_code} from storage", request=response.request, response=response)
+            last = httpx.HTTPStatusError(
+                f"{response.status_code} from storage", request=response.request, response=response
+            )
             if attempt == 2:
                 raise last
         raise last  # pragma: no cover - the loop above always returns or raises

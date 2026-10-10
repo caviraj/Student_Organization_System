@@ -1,6 +1,10 @@
 # SSA Hub — Backend
 
-FastAPI + SQLAlchemy 2.x + Alembic. Contract: `docs/DESIGN.md` §5. Phases 0–6 are implemented: foundation, auth & membership, events/tickets/check-in, announcements & the mailing list, merchandise (products, stock, orders, fulfilment), fundraisers (planning, the task board, progress, hand-logged income), and expenses & treasurer finance (receipt uploads, review, reimbursement, the finance dashboard, manual entries, reversals and finance periods).
+FastAPI + SQLAlchemy 2.x + Alembic. Contract: `docs/DESIGN.md` §5. Phases 0–7 are implemented: foundation, auth & membership, events/tickets/check-in, announcements & the mailing list, merchandise (products, stock, orders, fulfilment), fundraisers (planning, the task board, progress, hand-logged income), expenses & treasurer finance (receipt uploads, review, reimbursement, the finance dashboard, manual entries, reversals and finance periods), and the Phase 7 hardening pass (rate limits, request ids and request logging that cannot leak a secret, uniform errors, an end-to-end proof over HTTP, one-command demo reset, and the frontend handoff pack).
+
+**Starting here?** Read [`docs/API_HANDOFF.md`](../docs/API_HANDOFF.md) if you are connecting a
+client, [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) if you are changing the backend, and
+[`docs/DEMO_SCRIPT.md`](../docs/DEMO_SCRIPT.md) if you are about to present it.
 
 ## Run it
 
@@ -20,6 +24,11 @@ python -m uvicorn app.main:app --reload             # http://127.0.0.1:8000
 - Health: `GET /health`.
 - End-to-end demos (migrate, seed, boot the server, walk the whole flow):
   `bash scripts/demo_phase1.sh` · `bash scripts/demo_phase2.sh` · `bash scripts/demo_phase3.sh` · `bash scripts/demo_phase4.sh` · `bash scripts/demo_phase5.sh` · `bash scripts/demo_phase6.sh`
+
+**Run one worker.** The background jobs live in the API process, and the Phase 7 rate limiter is an
+in-memory dict — both assume a single process. `uvicorn app.main:app` with no `--workers` is the
+supported deployment; more than one worker means N schedulers and N independent rate-limit counters.
+(M2 replaces the limiter with Redis and the schedulers with a separate process.)
 
 ## Database (Supabase Postgres — two URLs, not interchangeable)
 
@@ -84,16 +93,32 @@ never started and no test opens a second connection to your application database
 
 Password for all of them: `Passw0rd!`
 
-| Role | Email |
-| --- | --- |
-| admin | `admin@ssa.org` |
-| treasurer | `treasurer@ssa.org` |
-| organizer | `organizer@ssa.org` |
-| volunteer | `volunteer@ssa.org` |
-| volunteer | `neha@ssa.org`, `rohit@ssa.org` (extra claimants, so one review queue has several owners) |
-| member | `member01@ssa.org` … `member20@ssa.org` |
+| Role | Email | What it is for |
+| --- | --- | --- |
+| admin | `admin@ssa.org` | every admin screen; products, stock, roles, period reopen |
+| treasurer | `treasurer@ssa.org` | the finance dashboard, the claim queue, ledger and reports |
+| organizer | `organizer@ssa.org` | creating events, tickets, announcements, fundraisers |
+| volunteer | `volunteer@ssa.org` | the scanner, the task board, submitting a claim |
+| member | `member@ssa.org` | the default happy path: active dues, member pricing, a member code |
+| member | `expiring@ssa.org` | dues end in 8 days — the renewal-reminder state |
+| member | `expired@ssa.org` | dues lapsed 30 days ago — the "renew for member pricing" state |
+| guest | `guest@ssa.org` | signed in, never paid: public announcements only, non-member prices |
+| volunteer | `neha@ssa.org`, `rohit@ssa.org` | extra claimants, so the review queue has several owners |
+| member | `member01@ssa.org` … `member20@ssa.org` | fills the events, orders and merch demo data |
 
-Seeding is idempotent — run it as often as you like.
+There is also `bouncing@fail.test`, a deliberately undeliverable address, so the admin deliveries
+screen has a `failed` row to show.
+
+Seeding is idempotent — run it as often as you like. To throw the demo away and rebuild it from
+nothing (the state a rehearsal needs):
+
+```bash
+python scripts/reset_demo.py --yes    # TRUNCATEs every table and reseeds; refuses in production
+```
+
+`scripts/seed.py` prints a **DEMO ACCOUNTS** and a **KEY IDS** table when it finishes — the ids to
+paste into a URL for the nearly-sold-out ticket type, the sold-out hoodie size, the overdue task and
+the pending claim.
 
 ## Layout
 
@@ -112,10 +137,27 @@ app/services/      business rules — memberships, payments, ledger, reminders, 
 app/jobs/          APScheduler wiring for the daily expiry scan, the ticket sweep, the
                    merchandise sweep and the announcement delivery job
 alembic/           migrations (autogenerate wired to Base.metadata)
-scripts/           seed.py, check_db.py, setup_storage.py, demo_phase1.sh … demo_phase6.sh
+scripts/           the operator's toolbox, below
 tests/             pytest (auth, membership, events/tickets/check-in, announcements, merchandise,
-                   fundraisers/tasks/income, expenses/receipts/finance)
+                   fundraisers/tasks/income, expenses/receipts/finance, the semester end-to-end
+                   story, and the Phase 7 hardening guarantees)
 ```
+
+### `scripts/`
+
+| Script | What it is for |
+| --- | --- |
+| `seed.py` | idempotent demo data for every phase; prints the accounts and key ids |
+| `reset_demo.py` | **destructive**: TRUNCATE every table, clear the receipt objects, reseed. Needs `--yes` |
+| `check_db.py` | server version, which database, pooler or not, RLS per table. Non-zero exit if RLS is off anywhere |
+| `check_storage.py` | proves the private bucket is reachable, writable, and that a signed URL round-trips |
+| `contract_check.py` | compares `docs/DESIGN.md` §5 against the app's real routes, methods and roles |
+| `export_openapi.py` | regenerates `docs/openapi.json` deterministically |
+| `smoke_e2e.py` | drives the whole semester story **over HTTP** against a running server; PASS/FAIL table, non-zero exit on failure |
+| `perf_check.py` | times 200 check-ins, 100 event reads and 100 finance summaries; prints p50/p95/max. Non-zero exit if check-in p95 ≥ 300 ms |
+| `secret_scan.py` | greps the tree for keys, tokens and credentials that should not be committed |
+| `setup_storage.py` | creates the private receipts bucket (Supabase only; no-op for local) |
+| `demo_phase1.sh` … `demo_phase6.sh` | per-phase end-to-end walkthroughs against a running server |
 
 Money is **integer paise** everywhere — never a float. Errors are always
 `{"error": {"code", "message", "details"}}`.
@@ -149,6 +191,32 @@ tests both fail loudly if it ever disagrees.
 checkout with a conditional `UPDATE … WHERE stock >= qty` (never read-then-write), released once
 per order via a marker under `SELECT … FOR UPDATE`, and a `merch_orders` row exists only after
 payment succeeds. Prices are resolved once, at checkout, in integer paise.
+
+## Hardening (Phase 7)
+
+No new product features — the phase that makes the existing ones survivable in a room full of
+students. What it added, and where it is proved:
+
+| Thing | Behaviour | Proof |
+| --- | --- | --- |
+| Startup config validation | `Settings.problems()` refuses to boot on a `*` CORS origin, a short `JWT_SECRET`, or a production `APP_ENV` with `STORAGE_PROVIDER=local` | `app/core/config.py` |
+| Rate limiting | login/register 10/min per IP, check-in 120/min per user, ticket and merch checkout 30/min per user; `429` with `Retry-After` | `tests/test_hardening.py` |
+| Login lockout | 5 consecutive failures lock that **email** for 15 minutes, answered even for the right password; a success clears the count | `tests/test_hardening.py` |
+| Password policy | 8+ characters with a letter and a digit, as `422 WEAK_PASSWORD` | `tests/test_hardening.py` |
+| Errors | every status from every route is `{"error": {code, message, details}}` — including the framework's own 404 and 405; 422 lists `details.fields`; 500 says nothing and logs everything with the request id | `tests/test_hardening.py` |
+| Request identity | `X-Request-ID` echoed or minted, on `request.state`, in every log line | `tests/test_hardening.py` |
+| Request logging | method, path, status, duration, request id — **no** query string, **no** headers | `tests/test_hardening.py` proves a password and an unsubscribe token never reach the log |
+| Route audit | every route outside a documented `PUBLIC_ALLOWLIST` answers `401` with no token; a role matrix asserts what a plain member may reach | `tests/test_hardening.py` |
+| Response schemas | no response model exposes `password_hash`, a storage path or the service-role key | `tests/test_hardening.py` |
+| Secret scanning | `scripts/secret_scan.py` over the tree, with a self-test that its own rules fire | `scripts/secret_scan.py` |
+
+**Query review.** The Postgres catalog was queried for foreign keys without a supporting index: 20
+of 47 lack one, and 18 of those are display-only joins through `users`' primary key, which needs no
+index and would only cost write amplification. The two the API actually filters on —
+`tasks.event_id` and `fundraisers.owner_id` — got an index in
+`alembic/versions/b7f1c9a4e2d8`. `EXPLAIN ANALYZE` on the five hot queries (check-in by code, an
+event's ticket types, the product list, the finance summary, the ledger page) shows an index scan or
+a plan over a table small enough that it makes no difference; the numbers are in the Phase 7 report.
 
 ## Roles
 

@@ -1,0 +1,27 @@
+SSA Hub - end-to-end smoke test against http://localhost:8000
+------------------------------------------------------------------------------------------------
+  server   http://localhost:8000
+  accounts admin@ / organizer@ / treasurer@ / volunteer@ssa.org (password from DEMO_PASSWORD)
+  run id   1791628447 (every object this run creates is suffixed with it)
+------------------------------------------------------------------------------------------------
+  [1/9] PASS  A student joins and pays dues
+  [2/9] PASS  Organizer publishes the event and announces it
+  [3/9] PASS  Three seats, four buyers
+  [4/9] PASS  The door: check-in and the event report
+  [5/9] PASS  Merch sells out and ships
+  [6/9] PASS  A fundraiser, its board and its cash
+  [7/9] PASS  A claim, a refusal, a payment
+  [8/9] PASS  The books add up
+  [9/9] PASS  Close the period, refuse a late entry, reopen
+------------------------------------------------------------------------------------------------
+  1. A student joins and pays dues                   PASS  SSA-2026-0025 on plan Basic (500 INR)  [15.01s]
+  2. Organizer publishes the event and announces it  PASS  Gala Smoke 1791628447 published with 3 seats; announcement queued in-app 18, email 15, nothing failed  [16.85s]
+  3. Three seats, four buyers                        PASS  sold 3/3, member paid 1000, guests 1500  [28.56s]
+  4. The door: check-in and the event report         PASS  VALID/ALREADY_USED/INVALID/WRONG_EVENT; sold 3, in 1, away 2  [19.21s]
+  5. Merch sells out and ships                       PASS  1 sold at 720 (discount 10%), paid -> packed -> handed_over, 1 left  [29.48s]
+  6. A fundraiser, its board and its cash            PASS  3 cards, 1 done; 1000 INR logged twice, one row, 20% of goal  [28.67s]
+  7. A claim, a refusal, a payment                   PASS  SELF_REVIEW refused; 500 INR paid once, balance 103501 -> 103001  [31.40s]
+  8. The books add up                                PASS  event in 4000 / out 500; fundraiser in 1000; reconcile ok; opening 25300 + 77701 = 103001  [12.06s]
+  9. Close the period, refuse a late entry, reopen   PASS  closed outright -> late entry 409 PERIOD_CLOSED -> treasurer 403 -> admin reopened, balance unchanged  [17.31s]
+------------------------------------------------------------------------------------------------
+  9/9 steps passed

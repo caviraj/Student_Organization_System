@@ -45,6 +45,20 @@ print(data)
 ' "$@"
 }
 
+by_email() {  # by_email <email> : read /users/assignable on stdin, print that user's id
+  # Not `pick <index>`: the assignable list is ordered by nothing in particular, so a positional
+  # pick silently starts handing the card to whoever the seed happened to create third that day.
+  "$PY" -c '
+import json, sys
+for user in json.load(sys.stdin):
+    if user["email"] == sys.argv[1]:
+        print(user["id"])
+        break
+else:
+    sys.exit("no assignable user with email " + sys.argv[1])
+' "$1"
+}
+
 pretty() { "$PY" -m json.tool; }
 hr() { if [ -t 1 ]; then printf "\n\033[1m%s\033[0m\n" "$1"; else printf "\n== %s\n" "$1"; fi; }
 post() { curl -s -X POST "$BASE$1" -H 'Content-Type: application/json' "${@:2}"; }
@@ -203,7 +217,7 @@ patch "/fundraisers/$FUNDRAISER_ID" -H "Authorization: Bearer $ORGANIZER_TOKEN" 
 
 hr "4. GET /users/assignable  (organizer: who a card can be given to)"
 get /users/assignable -H "Authorization: Bearer $ORGANIZER_TOKEN" | assignable
-VOLUNTEER_ID=$(get /users/assignable -H "Authorization: Bearer $ORGANIZER_TOKEN" | pick 3 id)
+VOLUNTEER_ID=$(get /users/assignable -H "Authorization: Bearer $ORGANIZER_TOKEN" | by_email volunteer@ssa.org)
 ORGANIZER_ID=$(get /auth/me -H "Authorization: Bearer $ORGANIZER_TOKEN" | pick id)
 echo "  VOLUNTEER_ID=$VOLUNTEER_ID  (volunteer@ssa.org)"
 
