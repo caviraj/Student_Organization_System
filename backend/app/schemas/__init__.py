@@ -233,6 +233,7 @@ class EventListItem(BaseModel):
     ends_at: UtcDateTime
     banner_url: str | None = None
     status: str
+    department: str | None = None
     min_price: int | None = Field(default=None, description="Cheapest price that applies to the caller, in paise")
     seats_left: int
 
@@ -246,6 +247,7 @@ class EventDetail(BaseModel):
     ends_at: UtcDateTime
     banner_url: str | None = None
     status: str
+    department: str | None = None
     created_by: UUID | None = None
     created_at: UtcDateTime
     seats_left: int
@@ -259,6 +261,7 @@ class EventCreateIn(BaseModel):
     starts_at: datetime = Field(examples=["2026-11-01T18:00:00Z"])
     ends_at: datetime = Field(examples=["2026-11-01T22:00:00Z"])
     banner_url: str | None = Field(default=None, max_length=512)
+    department: str | None = Field(default=None, max_length=120, examples=["CSE"])
 
 
 class EventUpdateIn(BaseModel):
@@ -268,6 +271,7 @@ class EventUpdateIn(BaseModel):
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     banner_url: str | None = Field(default=None, max_length=512)
+    department: str | None = Field(default=None, max_length=120)
     status: Literal["draft", "published", "closed"] | None = Field(
         default=None, description="draft -> published -> closed only"
     )

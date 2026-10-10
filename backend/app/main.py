@@ -12,6 +12,7 @@ from app.core.errors import register_error_handlers
 from app.core.middleware import RequestContextMiddleware
 from app.jobs.scheduler import start_scheduler, stop_scheduler
 from app.routers import (
+    admin_portal,
     announcements,
     auth,
     checkin,
@@ -27,6 +28,8 @@ from app.routers import (
     plans,
     preferences,
     products,
+    staff_portal,
+    student_portal,
     tasks,
     tickets,
     users,
@@ -104,6 +107,9 @@ for router in (
     expenses.router,
     finance.router,
     finance.periods_router,
+    admin_portal.router,
+    student_portal.router,
+    staff_portal.router,
 ):
     app.include_router(router, prefix=API_PREFIX)
 

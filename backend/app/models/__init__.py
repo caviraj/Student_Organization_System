@@ -251,6 +251,7 @@ class Event(TimestampMixin, Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     banner_url: Mapped[str | None] = mapped_column(String(512))
     status: Mapped[str] = mapped_column(_enum(*EVENT_STATUSES, name="event_status"), default="draft", index=True)
+    department: Mapped[str | None] = mapped_column(String(120), index=True, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
     # selectin: the events list needs every type's seats_left, and N+1 there is wasteful.

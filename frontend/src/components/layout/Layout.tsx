@@ -13,14 +13,14 @@ export function Layout() {
       <footer className="border-t border-slate-200 bg-white/70 py-6 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700">SSA Hub</span>
+            <span className="font-semibold text-slate-700">College Org System</span>
             <span>&bull;</span>
-            <span>Student Organization System</span>
+            <span>Student Organization Portal</span>
             <span>&bull;</span>
-            <span className="text-indigo-600 font-medium">Phase 1 (Auth & Membership)</span>
+            <span className="text-indigo-600 font-medium">9 Departments & Company Products</span>
           </div>
           <div className="flex items-center gap-1 text-slate-400">
-            <span>Built with precision for student club governance</span>
+            <span>Admin &bull; Student &bull; Staff</span>
           </div>
         </div>
       </footer>

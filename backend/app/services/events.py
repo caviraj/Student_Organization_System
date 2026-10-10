@@ -59,6 +59,7 @@ def event_summary(event: Event, *, is_member: bool) -> dict:
         "ends_at": event.ends_at,
         "banner_url": event.banner_url,
         "status": event.status,
+        "department": event.department,
         "min_price": min((price_for(t, is_member) for t in types), default=None),
         "seats_left": sum(seats_left(t) for t in types),
     }
@@ -76,6 +77,7 @@ def event_detail(db: Session, event: Event, user: User | None = None) -> dict:
         "ends_at": event.ends_at,
         "banner_url": event.banner_url,
         "status": event.status,
+        "department": event.department,
         "created_by": event.created_by,
         "created_at": event.created_at,
         "seats_left": sum(seats_left(t) for t in event.ticket_types),
@@ -101,6 +103,7 @@ def create_event(db: Session, creator: User, payload) -> Event:
         ends_at=payload.ends_at,
         banner_url=payload.banner_url,
         status="draft",
+        department=payload.department,
         created_by=creator.id,
     )
     db.add(event)

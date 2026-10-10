@@ -1,407 +1,277 @@
-import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
-import { Skeleton } from '../components/ui/Skeleton';
-import { EmptyState } from '../components/ui/EmptyState';
-import { eventsApi } from '../api/events';
-import { announcementsApi } from '../api/announcements';
-import { formatDateTime } from '../lib/formatDate';
-import { formatRelativeTime } from '../lib/formatRelativeTime';
 import {
-  Sparkles,
+  GraduationCap,
   ShieldCheck,
-  QrCode,
-  Award,
+  ShieldAlert,
   ArrowRight,
-  Calendar,
-  MapPin,
-  Megaphone,
-  Pin,
-  RefreshCw,
-  AlertCircle,
-  Tag,
+  Sparkles,
+  CheckCircle2,
+  Info,
 } from 'lucide-react';
 
+const DEPARTMENTS = [
+  'AIDS',
+  'CSE',
+  'IT',
+  'CIVIL',
+  'MECH',
+  'AIML',
+  'BIO TECH',
+  'ECE',
+  'EEE',
+];
+
 export function Home() {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
-  // Next Upcoming Event Query
-  const {
-    data: eventsData,
-    isLoading: isEventsLoading,
-    isError: isEventsError,
-    refetch: refetchEvents,
-  } = useQuery({
-    queryKey: ['events', 'home-next'],
-    queryFn: () => eventsApi.getEvents({ status: 'published', page_size: 10 }),
-  });
-
-  // Latest Announcement Query
-  const {
-    data: announcementsData,
-    isLoading: isAnnouncementsLoading,
-    isError: isAnnouncementsError,
-    refetch: refetchAnnouncements,
-  } = useQuery({
-    queryKey: ['announcements', 'home-latest'],
-    queryFn: () => announcementsApi.getAnnouncements({ page_size: 1 }),
-  });
-
-  // Calculate the next upcoming event
-  const nextEvent = eventsData?.items && eventsData.items.length > 0
-    ? [...eventsData.items].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0]
-    : null;
-
-  const latestAnnouncement = announcementsData?.items && announcementsData.items.length > 0
-    ? announcementsData.items[0]
-    : null;
+  // If user is already logged in, redirect directly to their respective portal
+  if (isAuthenticated && user) {
+    if (user.role === 'admin' || user.role === 'organizer' || user.role === 'treasurer') {
+      return <Navigate to="/admin" replace />;
+    }
+    if (user.role === 'volunteer') {
+      return <Navigate to="/staff/scan" replace />;
+    }
+    return <Navigate to="/me" replace />;
+  }
 
   return (
-    <div className="space-y-12 sm:space-y-16">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white p-8 sm:p-14 shadow-2xl border border-indigo-700/40">
+    <div className="space-y-12 sm:space-y-16 py-4">
+      {/* College Portal Hero Header */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white p-8 sm:p-12 shadow-2xl border border-indigo-800/40">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-80 h-80 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-80 h-80 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/25 border border-indigo-400/30 text-indigo-200 text-xs font-semibold tracking-wide uppercase">
+        <div className="relative z-10 max-w-4xl space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-semibold tracking-wide uppercase">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Official Student Association Platform
+            Official College Student Organization System
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            One Hub for Every Student Leader, Member &amp; Event
+            College Department Portal &amp; Student Organization System
           </h1>
 
-          <p className="text-base sm:text-lg text-indigo-100/90 leading-relaxed max-w-2xl">
-            Join the campus's premier student community. Get your digital verified ID card, instant access to club privileges, workshops, and exclusive member discounts.
+          <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-3xl">
+            Centralized portal covering all 9 College Departments, department events, registered student rosters with Email IDs, and optional company products for students.
           </p>
 
-          <div className="pt-2 flex flex-wrap items-center gap-4">
-            {isAuthenticated ? (
-              <Link to="/me">
-                <Button variant="secondary" size="lg" leftIcon={<QrCode className="w-5 h-5" />}>
-                  Open My Membership Card
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link to="/register">
-                  <Button variant="secondary" size="lg" rightIcon={<ArrowRight className="w-5 h-5" />}>
-                    Join as a Member
-                  </Button>
-                </Link>
-                <Link to="/login">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 bg-white/5"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-              </>
-            )}
-            <Link to="/events">
-              <Button
-                variant="secondary"
-                size="lg"
-                className="bg-amber-400 hover:bg-amber-300 text-slate-900 border-none font-bold"
-              >
-                Browse Events
-              </Button>
-            </Link>
-            <Link to="/announcements">
-              <Button
-                variant="ghost"
-                size="lg"
-                className="text-indigo-200 hover:text-white hover:bg-white/10"
-                leftIcon={<Megaphone className="w-4 h-4" />}
-              >
-                Announcements
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Live Highlights: Next Event & Latest Announcement */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-              Live Campus Updates
-            </h2>
-            <p className="text-sm text-slate-500">
-              Check out what's coming next and recent official club dispatches.
+          {/* 9 Departments Badges */}
+          <div className="pt-2">
+            <p className="text-xs uppercase font-bold tracking-wider text-indigo-300 mb-2.5">
+              Available College Departments (9 Branches):
             </p>
+            <div className="flex flex-wrap gap-2">
+              {DEPARTMENTS.map((dept) => (
+                <span
+                  key={dept}
+                  className="px-3 py-1 rounded-xl text-xs font-black bg-indigo-900/60 text-indigo-200 border border-indigo-700/60 shadow-xs"
+                >
+                  {dept}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Card 1: Next Upcoming Event */}
-          <Card className="flex flex-col justify-between border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all">
-            <CardContent className="p-6 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/60">
-                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                    Next Upcoming Event
-                  </span>
-                  <Link
-                    to="/events"
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-                  >
-                    All events
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-
-                {isEventsLoading && (
-                  <div className="space-y-3 py-2">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </div>
-                )}
-
-                {isEventsError && (
-                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>Could not load upcoming events.</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => refetchEvents()}
-                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                )}
-
-                {!isEventsLoading && !isEventsError && !nextEvent && (
-                  <EmptyState
-                    icon={<Calendar className="w-6 h-6 text-slate-400" />}
-                    title="No upcoming events"
-                    description="Stay tuned! New club events will be published soon."
-                    actionLabel="View past events"
-                    onAction={() => {}}
-                    className="p-6"
-                  />
-                )}
-
-                {!isEventsLoading && !isEventsError && nextEvent && (
-                  <div className="space-y-3">
-                    <h3 className="text-xl font-bold text-slate-900 line-clamp-1">
-                      {nextEvent.title}
-                    </h3>
-
-                    <div className="space-y-1.5 text-sm text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="font-medium text-slate-800">
-                          {formatDateTime(nextEvent.starts_at)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="line-clamp-1">{nextEvent.venue || 'Campus Venue TBA'}</span>
-                      </div>
-                    </div>
-
-                    {nextEvent.description && (
-                      <p className="text-sm text-slate-500 line-clamp-2 pt-1">
-                        {nextEvent.description}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {!isEventsLoading && !isEventsError && nextEvent && (
-                <div className="pt-6 border-t border-slate-100 mt-6 flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60">
-                    Registration Open
-                  </span>
-                  <Link to={`/events/${nextEvent.id}`}>
-                    <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-4 h-4" />}>
-                      View &amp; Get Tickets
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Latest Announcement */}
-          <Card className="flex flex-col justify-between border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all">
-            <CardContent className="p-6 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200/60">
-                    <Megaphone className="w-3.5 h-3.5 text-indigo-600" />
-                    Latest Announcement
-                  </span>
-                  <Link
-                    to="/announcements"
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-                  >
-                    All notices
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-
-                {isAnnouncementsLoading && (
-                  <div className="space-y-3 py-2">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/3" />
-                    <Skeleton className="h-12 w-full" />
-                  </div>
-                )}
-
-                {isAnnouncementsError && (
-                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>Could not load announcements.</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => refetchAnnouncements()}
-                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                )}
-
-                {!isAnnouncementsLoading && !isAnnouncementsError && !latestAnnouncement && (
-                  <EmptyState
-                    icon={<Megaphone className="w-6 h-6 text-slate-400" />}
-                    title="No announcements posted"
-                    description="Club organizers have not published any announcements yet."
-                    className="p-6"
-                  />
-                )}
-
-                {!isAnnouncementsLoading && !isAnnouncementsError && latestAnnouncement && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 capitalize">
-                        <Tag className="w-3 h-3 text-slate-400" />
-                        {latestAnnouncement.category}
-                      </span>
-                      {latestAnnouncement.is_pinned && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          <Pin className="w-3 h-3 text-amber-600" />
-                          Pinned
-                        </span>
-                      )}
-                      <span className="text-xs text-slate-400">
-                        {formatRelativeTime(latestAnnouncement.published_at)}
-                      </span>
-                    </div>
-
-                    <h3 className="text-xl font-bold text-slate-900 line-clamp-1">
-                      {latestAnnouncement.title}
-                    </h3>
-
-                    {/* Plain text body preview - React escaping ensures XSS safety */}
-                    <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed whitespace-pre-line">
-                      {latestAnnouncement.body_preview}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {!isAnnouncementsLoading && !isAnnouncementsError && latestAnnouncement && (
-                <div className="pt-6 border-t border-slate-100 mt-6 flex items-center justify-between">
-                  <span className="text-xs text-slate-500 font-medium">
-                    Posted by: <strong className="text-slate-800">{latestAnnouncement.author_name}</strong>
-                  </span>
-                  <Link to="/announcements">
-                    <Button variant="outline" size="sm" rightIcon={<ArrowRight className="w-4 h-4" />}>
-                      Read Full Notice
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </section>
 
-      {/* Feature Highlights */}
+      {/* 3 Dedicated Role Portals */}
       <section className="space-y-6">
-        <div className="text-center max-w-xl mx-auto space-y-2">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Why Join SSA Hub?
+        <div className="text-center max-w-2xl mx-auto space-y-2">
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+            Select Your Portal to Login
           </h2>
           <p className="text-sm text-slate-600">
-            Engineered from the ground up for seamless student governance and club perks.
+            Access is organized strictly into 3 dedicated portals: Admin, Student, and Staff.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="hover:border-indigo-200 transition-all">
-            <CardContent className="p-6 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                <QrCode className="w-6 h-6" />
+          {/* 1. Admin Portal Card */}
+          <Card className="border-2 border-purple-200/80 hover:border-purple-500 shadow-md hover:shadow-xl transition-all rounded-3xl overflow-hidden bg-gradient-to-b from-purple-50/40 to-white flex flex-col justify-between">
+            <CardContent className="p-6 sm:p-7 space-y-5 flex-1 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-black shadow-lg shadow-purple-600/30">
+                  <ShieldAlert className="w-7 h-7" />
+                </div>
+
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 mb-1.5">
+                    Role: Administrator
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">
+                    Admin Portal
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    Manage all 9 College Departments, department events, registered student emails, and company products.
+                  </p>
+                </div>
+
+                <ul className="space-y-2 text-xs text-slate-700 pt-2 border-t border-purple-100">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                    <span><strong>9 Departments</strong>: AIDS, CSE, IT, CIVIL, MECH, AIML, BIO TECH, ECE, EEE</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                    <span><strong>Department Events</strong>: Registered student count &amp; student <strong>Email IDs</strong></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                    <span><strong>Add Company Products</strong>: Add educational products for students</span>
+                  </li>
+                </ul>
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Digital QR Verification</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Scan-ready digital membership card directly on your phone. Verified in milliseconds at club venue entries.
-              </p>
+
+              <div className="pt-4 border-t border-purple-100">
+                <Link to="/login" className="block">
+                  <Button
+                    variant="primary"
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 py-2.5 font-bold"
+                    rightIcon={<ArrowRight className="w-4 h-4" />}
+                  >
+                    Login to Admin Portal
+                  </Button>
+                </Link>
+                <p className="text-[11px] text-center text-slate-600 mt-2">
+                  Default login: <span className="font-mono text-purple-700 font-semibold">admin@ssa.org</span>
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="hover:border-amber-200 transition-all">
-            <CardContent className="p-6 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                <Award className="w-6 h-6" />
+          {/* 2. Student Portal Card */}
+          <Card className="border-2 border-emerald-200/80 hover:border-emerald-500 shadow-md hover:shadow-xl transition-all rounded-3xl overflow-hidden bg-gradient-to-b from-emerald-50/40 to-white flex flex-col justify-between">
+            <CardContent className="p-6 sm:p-7 space-y-5 flex-1 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-lg shadow-emerald-600/30">
+                  <GraduationCap className="w-7 h-7" />
+                </div>
+
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-1.5">
+                    Role: Student
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">
+                    Student Portal
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    View department events, registration status, and company products added for student needs.
+                  </p>
+                </div>
+
+                <ul className="space-y-2 text-xs text-slate-700 pt-2 border-t border-emerald-100">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Department Events</strong>: Register for branch-specific workshops &amp; events</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Company Products</strong>: Products for student needs (<strong>Optional — Not compulsory to buy</strong>)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Digital Passes</strong>: View registered tickets &amp; QR verification</span>
+                  </li>
+                </ul>
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Transparent Annual Plans</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Clear pricing, instant activations, and renewal tracking with no hidden charges or surprises.
-              </p>
+
+              <div className="pt-4 border-t border-emerald-100">
+                <Link to="/login" className="block">
+                  <Button
+                    variant="primary"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 py-2.5 font-bold"
+                    rightIcon={<ArrowRight className="w-4 h-4" />}
+                  >
+                    Login to Student Portal
+                  </Button>
+                </Link>
+                <p className="text-[11px] text-center text-slate-600 mt-2">
+                  Default login: <span className="font-mono text-emerald-700 font-semibold">student@ssa.org</span>
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="hover:border-emerald-200 transition-all">
-            <CardContent className="p-6 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                <ShieldCheck className="w-6 h-6" />
+          {/* 3. Staff Portal Card */}
+          <Card className="border-2 border-blue-200/80 hover:border-blue-500 shadow-md hover:shadow-xl transition-all rounded-3xl overflow-hidden bg-gradient-to-b from-blue-50/40 to-white flex flex-col justify-between">
+            <CardContent className="p-6 sm:p-7 space-y-5 flex-1 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-lg shadow-blue-600/30">
+                  <ShieldCheck className="w-7 h-7" />
+                </div>
+
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 mb-1.5">
+                    Role: Staff / Volunteer
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">
+                    Staff Portal
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    Verify student credentials, scan event tickets, and manage event check-ins.
+                  </p>
+                </div>
+
+                <ul className="space-y-2 text-xs text-slate-700 pt-2 border-t border-blue-100">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <span><strong>Ticket Scanner</strong>: Instant camera &amp; barcode ticket validation</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <span><strong>Event Check-in</strong>: Real-time attendance tracking</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <span><strong>Venue Entry</strong>: Fast pass scanning for registered students</span>
+                  </li>
+                </ul>
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Role-Based Governance</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Dedicated tools for organizers, treasurers, and volunteers to verify identities and maintain rosters.
-              </p>
+
+              <div className="pt-4 border-t border-blue-100">
+                <Link to="/login" className="block">
+                  <Button
+                    variant="primary"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 py-2.5 font-bold"
+                    rightIcon={<ArrowRight className="w-4 h-4" />}
+                  >
+                    Login to Staff Portal
+                  </Button>
+                </Link>
+                <p className="text-[11px] text-center text-slate-600 mt-2">
+                  Default login: <span className="font-mono text-blue-700 font-semibold">staff@ssa.org</span>
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
       </section>
 
-      {/* CTA section */}
-      <section className="rounded-3xl bg-slate-900 text-white p-8 sm:p-12 text-center max-w-4xl mx-auto space-y-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white">
-          Ready to become an official member?
-        </h2>
-        <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto">
-          Sign up today to activate your annual membership and unlock all student privileges.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Link to="/join">
-            <Button variant="secondary" size="lg">
-              View Membership Plans
-            </Button>
-          </Link>
+      {/* Notice Banner: Company Products Optional Policy */}
+      <section className="bg-amber-50 border border-amber-200 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+            <Info className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-amber-950">
+              Student Policy: Company Products are Strictly Optional
+            </h3>
+            <p className="text-xs sm:text-sm text-amber-800 mt-1 leading-relaxed">
+              Company products added in the Admin Portal are made available solely for student academic and project convenience. It is <strong>NOT compulsory to buy</strong> any product. Students are free to buy if they require them.
+            </p>
+          </div>
         </div>
+
+        <Link to="/login" className="shrink-0">
+          <Button variant="outline" size="sm" className="border-amber-300 text-amber-900 hover:bg-amber-100 font-semibold">
+            Go to Login
+          </Button>
+        </Link>
       </section>
     </div>
   );

@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { hasMinimumRole } from '../../types/api';
 import { RoleBadge } from '../ui/StatusChip';
 import { Button } from '../ui/Button';
-import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar, Megaphone, ShoppingBag, HeartHandshake, CheckSquare } from 'lucide-react';
+import {
+  Menu,
+  X,
+  LogOut,
+  Building2,
+  Package,
+  GraduationCap,
+  ShieldCheck,
+  LogIn,
+  ShoppingBag,
+} from 'lucide-react';
 import { useCart } from '../../features/shop/context/CartContext';
 import { CartDrawer } from '../../features/shop/components/CartDrawer';
 
@@ -21,166 +30,111 @@ export function Navbar() {
   };
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+    `inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
       isActive
-        ? 'bg-indigo-50 text-indigo-700 font-semibold'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+        ? 'bg-indigo-600 text-white shadow-xs'
+        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
     }`;
 
-  const isStaff = user ? hasMinimumRole(user.role, 'volunteer') : false;
-  const isOrganizer = user ? hasMinimumRole(user.role, 'organizer') : false;
   const isAdmin = user?.role === 'admin';
+  const isStudent = user?.role === 'member';
+  const isStaff = user?.role === 'volunteer' || user?.role === 'organizer';
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Logo / Brand */}
           <Link
-            to="/"
-            className="flex items-center gap-2.5 font-bold text-lg tracking-tight text-slate-900 select-none group"
+            to={isAdmin ? '/admin' : isStudent ? '/me' : isStaff ? '/staff/scan' : '/login'}
+            className="flex items-center gap-2.5 select-none group"
           >
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5 text-amber-300" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-black shadow-md shadow-indigo-600/20 group-hover:scale-105 transition-transform">
+              <Building2 className="w-5 h-5 text-indigo-100" />
             </div>
             <div className="flex flex-col">
-              <span className="leading-tight text-slate-900">SSA Hub</span>
-              <span className="text-[10px] text-slate-500 font-medium tracking-wide">STUDENT CLUB</span>
+              <span className="font-extrabold text-base tracking-tight text-slate-900 leading-tight">
+                College Org System
+              </span>
+              <span className="text-[10px] text-indigo-600 font-semibold tracking-wider uppercase">
+                {isAdmin ? 'Admin Console' : isStudent ? 'Student Portal' : isStaff ? 'Staff Portal' : 'Admin • Student • Staff'}
+              </span>
             </div>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
-            <NavLink to="/" className={linkClass} end>
-              Home
-            </NavLink>
-            <NavLink to="/events" className={linkClass}>
-              Events
-            </NavLink>
-            <NavLink to="/announcements" className={linkClass}>
-              Announcements
-            </NavLink>
-            <NavLink to="/shop" className={linkClass}>
-              Shop
-            </NavLink>
-            <NavLink to="/join" className={linkClass}>
-              Plans & Perks
-            </NavLink>
-
-            {isAuthenticated && (
+          {/* Desktop Navigation - Role-Specific Options Only */}
+          <nav className="hidden md:flex items-center gap-1.5">
+            {isAdmin && (
               <>
-                <NavLink to="/me" className={linkClass}>
-                  My Card
+                <NavLink to="/admin" className={linkClass} end>
+                  <Building2 className="w-4 h-4" />
+                  College Departments (9 Branches)
                 </NavLink>
-                <NavLink to="/me/tickets" className={linkClass}>
-                  My Tickets
+                <NavLink to="/admin?tab=products" className={linkClass}>
+                  <Package className="w-4 h-4" />
+                  Company Products
                 </NavLink>
-                <NavLink to="/me/orders" className={linkClass}>
-                  My Orders
+              </>
+            )}
+
+            {isStudent && (
+              <>
+                <NavLink to="/me" className={linkClass} end>
+                  <GraduationCap className="w-4 h-4" />
+                  Student Portal (Departments & Events)
+                </NavLink>
+                <NavLink to="/me#company-products" className={linkClass}>
+                  <Package className="w-4 h-4" />
+                  Company Products (Optional)
                 </NavLink>
               </>
             )}
 
             {isStaff && (
-              <div className="flex items-center gap-1 pl-1 border-l border-slate-200/80">
-                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
-                  <NavLink to="/tasks" className={linkClass}>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckSquare className="w-4 h-4 text-indigo-600" />
-                      My Tasks
-                    </span>
-                  </NavLink>
-                )}
-                <NavLink to="/staff/verify-member" className={linkClass}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                    Member Scanner
-                  </span>
-                </NavLink>
+              <>
                 <NavLink to="/staff/scan" className={linkClass}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <QrCode className="w-4 h-4 text-indigo-600" />
-                    Door Scanner
-                  </span>
+                  <ShieldCheck className="w-4 h-4" />
+                  Staff Ticket Scanner
                 </NavLink>
-                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
-                  <NavLink to="/tasks" className={linkClass}>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckSquare className="w-4 h-4 text-indigo-600" />
-                      My Tasks
-                    </span>
-                  </NavLink>
-                )}
-              </div>
+              </>
             )}
 
-            {isOrganizer && (
-              <div className="flex items-center gap-1 pl-1 border-l border-slate-200/80">
-                <NavLink to="/manage/events" className={linkClass}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-indigo-600" />
-                    Events
-                  </span>
+            {!isAuthenticated && (
+              <>
+                <NavLink to="/login" className={linkClass}>
+                  <LogIn className="w-4 h-4" />
+                  Login (Admin / Student / Staff)
                 </NavLink>
-                <NavLink to="/manage/announcements" className={linkClass}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Megaphone className="w-4 h-4 text-indigo-600" />
-                    Announcements
-                  </span>
-                </NavLink>
-                <NavLink to="/manage/fundraisers" className={linkClass}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <HeartHandshake className="w-4 h-4 text-indigo-600" />
-                    Fundraisers
-                  </span>
-                </NavLink>
-              </div>
-            )}
-
-            {isAdmin && (
-              <div className="flex items-center pl-2 ml-2 border-l border-slate-200 gap-1">
-                <NavLink to="/admin/members" className={linkClass}>
-                  Members
-                </NavLink>
-                <NavLink to="/admin/plans" className={linkClass}>
-                  Plans
-                </NavLink>
-                <NavLink to="/admin/renewals" className={linkClass}>
-                  Renewals
-                </NavLink>
-                <NavLink to="/admin/products" className={linkClass}>
-                  Merch
-                </NavLink>
-                <NavLink to="/admin/merch-orders" className={linkClass}>
-                  Orders Board
-                </NavLink>
-              </div>
+              </>
             )}
           </nav>
 
-          {/* Desktop User Menu / Auth CTAs / Cart */}
+          {/* Desktop User Menu & Actions */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Cart Trigger */}
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              aria-label={`Open shopping cart with ${itemCount} items`}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              {itemCount > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-sm ring-2 ring-white">
-                  {itemCount}
-                </span>
-              )}
-            </button>
+            {/* Student Cart Trigger for Company Products */}
+            {isStudent && (
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(true)}
+                className="relative p-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label={`Open shopping cart with ${itemCount} items`}
+                title="Cart (Company Products)"
+              >
+                <ShoppingBag className="w-5 h-5 text-indigo-600" />
+                {itemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-sm ring-2 ring-white">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 pl-2">
+                <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
                   <div className="flex flex-col text-right">
-                    <span className="text-xs font-semibold text-slate-900">{user.full_name}</span>
-                    <span className="text-[10px] text-slate-500">{user.email}</span>
+                    <span className="text-xs font-bold text-slate-900">{user.full_name}</span>
+                    <span className="text-[10px] text-slate-500 font-medium">{user.email}</span>
                   </div>
                   <RoleBadge role={user.role} />
                 </div>
@@ -188,7 +142,7 @@ export function Navbar() {
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
-                  leftIcon={<LogOut className="w-4 h-4 text-slate-500" />}
+                  leftIcon={<LogOut className="w-4 h-4 text-rose-500" />}
                   className="text-slate-600 hover:text-rose-600 hover:bg-rose-50"
                   aria-label="Log out"
                 >
@@ -196,36 +150,31 @@ export function Navbar() {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <Link to="/login">
-                  <Button variant="ghost" size="sm">
-                    Log in
-                  </Button>
-                </Link>
-                <Link to="/register">
-                  <Button variant="primary" size="sm">
-                    Join SSA
-                  </Button>
-                </Link>
-              </div>
+              <Link to="/login">
+                <Button variant="primary" size="sm" leftIcon={<LogIn className="w-4 h-4" />}>
+                  Sign In
+                </Button>
+              </Link>
             )}
           </div>
 
-          {/* Mobile Cart & Menu toggle */}
-          <div className="flex items-center gap-1 md:hidden">
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"
-              aria-label={`Open cart with ${itemCount} items`}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              {itemCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-[10px] font-bold text-white ring-2 ring-white">
-                  {itemCount}
-                </span>
-              )}
-            </button>
+          {/* Mobile Menu Button */}
+          <div className="flex items-center gap-2 md:hidden">
+            {isStudent && (
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(true)}
+                className="relative p-2 rounded-xl text-slate-600 hover:bg-slate-100"
+                aria-label="Open cart"
+              >
+                <ShoppingBag className="w-5 h-5 text-indigo-600" />
+                {itemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 focus:outline-none"
@@ -239,182 +188,86 @@ export function Navbar() {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3">
+        <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 shadow-lg">
           {isAuthenticated && user && (
-            <div className="p-3 mb-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <div className="p-3 mb-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900">{user.full_name}</p>
+                <p className="text-sm font-bold text-slate-900">{user.full_name}</p>
                 <p className="text-xs text-slate-500">{user.email}</p>
               </div>
               <RoleBadge role={user.role} />
             </div>
           )}
 
-          <div className="flex flex-col gap-1">
-            <NavLink
-              to="/"
-              className={linkClass}
-              end
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Home
-            </NavLink>
-            <NavLink
-              to="/events"
-              className={linkClass}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Events
-            </NavLink>
-            <NavLink
-              to="/announcements"
-              className={linkClass}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Announcements
-            </NavLink>
-            <NavLink
-              to="/shop"
-              className={linkClass}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Shop
-            </NavLink>
-            <NavLink
-              to="/join"
-              className={linkClass}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Plans & Perks
-            </NavLink>
+          <div className="flex flex-col gap-1.5">
+            {isAdmin && (
+              <>
+                <NavLink
+                  to="/admin"
+                  className={linkClass}
+                  end
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Building2 className="w-4 h-4" />
+                  College Departments (9 Branches)
+                </NavLink>
+                <NavLink
+                  to="/admin?tab=products"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Package className="w-4 h-4" />
+                  Company Products
+                </NavLink>
+              </>
+            )}
 
-            {isAuthenticated && (
+            {isStudent && (
               <>
                 <NavLink
                   to="/me"
                   className={linkClass}
+                  end
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  My Membership Card
+                  <GraduationCap className="w-4 h-4" />
+                  Student Portal (Departments & Events)
                 </NavLink>
                 <NavLink
-                  to="/me/tickets"
+                  to="/me#company-products"
                   className={linkClass}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  My Event Tickets
-                </NavLink>
-                <NavLink
-                  to="/me/orders"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  My Merch Orders
+                  <Package className="w-4 h-4" />
+                  Company Products (Optional)
                 </NavLink>
               </>
             )}
 
             {isStaff && (
-              <div className="pt-2 mt-2 border-t border-slate-100 flex flex-col gap-1">
-                <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Staff Scanners
-                </span>
-                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
-                  <NavLink
-                    to="/tasks"
-                    className={linkClass}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    My Assigned Tasks
-                  </NavLink>
-                )}
-                <NavLink
-                  to="/staff/verify-member"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Member Card Scanner
-                </NavLink>
+              <>
                 <NavLink
                   to="/staff/scan"
                   className={linkClass}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Door Ticket Scanner
+                  <ShieldCheck className="w-4 h-4" />
+                  Staff Ticket Scanner
                 </NavLink>
-              </div>
+              </>
             )}
 
-            {isOrganizer && (
-              <div className="pt-2 mt-2 border-t border-slate-100 flex flex-col gap-1">
-                <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Organizer
-                </span>
+            {!isAuthenticated && (
+              <>
                 <NavLink
-                  to="/manage/events"
+                  to="/login"
                   className={linkClass}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Manage Events
+                  <LogIn className="w-4 h-4" />
+                  Login (Admin / Student / Staff)
                 </NavLink>
-                <NavLink
-                  to="/manage/announcements"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Manage Announcements
-                </NavLink>
-                <NavLink
-                  to="/manage/fundraisers"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Manage Fundraisers
-                </NavLink>
-              </div>
-            )}
-
-            {isAdmin && (
-              <div className="pt-2 mt-2 border-t border-slate-100 flex flex-col gap-1">
-                <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Admin Management
-                </span>
-                <NavLink
-                  to="/admin/members"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Member Roster
-                </NavLink>
-                <NavLink
-                  to="/admin/plans"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Plan Editor
-                </NavLink>
-                <NavLink
-                  to="/admin/renewals"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Renewals Due
-                </NavLink>
-                <NavLink
-                  to="/admin/products"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Merchandise & Stock
-                </NavLink>
-                <NavLink
-                  to="/admin/merch-orders"
-                  className={linkClass}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Merch Orders Board
-                </NavLink>
-              </div>
+              </>
             )}
           </div>
 
@@ -429,24 +282,17 @@ export function Navbar() {
                 Log Out
               </Button>
             ) : (
-              <div className="flex flex-col gap-2">
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="outline" size="sm" className="w-full justify-center">
-                    Log in
-                  </Button>
-                </Link>
-                <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="primary" size="sm" className="w-full justify-center">
-                    Join SSA Hub
-                  </Button>
-                </Link>
-              </div>
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="primary" size="sm" className="w-full justify-center">
+                  Sign In
+                </Button>
+              </Link>
             )}
           </div>
         </div>
       )}
 
-      {/* Cart Drawer rendered in navigation tree */}
+      {/* Cart Drawer for student optional purchases */}
       <CartDrawer />
     </header>
   );
