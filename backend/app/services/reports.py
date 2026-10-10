@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Ticket, TicketType, User
+from app.models import Order, OrderItem, Product, Ticket, TicketType, User
 from app.services.events import get_event, seats_left
 
 SOLD_STATUSES = ("valid", "used")  # void tickets were never sold
@@ -121,4 +121,83 @@ def _attendee(db: Session, ticket: Ticket) -> dict:
         "price_paid": ticket.price_paid,
         "is_member_price": ticket.is_member_price,
         "checked_in_at": ticket.checked_in_at,
+    }
+
+
+# --- merch stock (Phase 4) --------------------------------------------------------------------
+
+SIZE_ORDER = ("S", "M", "L", "XL", "XXL")
+_COUNTERS = ("stock", "sold_units", "reserved_units")
+
+
+def _units_by_variant(db: Session) -> dict[UUID, dict[str, int]]:
+    """Sold (paid) and reserved (pending) units per variant - one query for the whole report."""
+    units: dict[UUID, dict[str, int]] = {}
+    for variant_id, status, qty in db.execute(
+        select(OrderItem.item_id, Order.status, func.coalesce(func.sum(OrderItem.quantity), 0))
+        .join(Order, Order.id == OrderItem.order_id)
+        .where(OrderItem.item_type == "variant", Order.kind == "merch", Order.status.in_(("paid", "pending")))
+        .group_by(OrderItem.item_id, Order.status)
+    ):
+        units.setdefault(variant_id, {"sold": 0, "reserved": 0})["sold" if status == "paid" else "reserved"] = int(qty)
+    return units
+
+
+def _size_key(size: str) -> tuple[int, str]:
+    return (SIZE_ORDER.index(size) if size in SIZE_ORDER else len(SIZE_ORDER), size)
+
+
+def stock_summary(db: Session) -> dict:
+    """What we hold, what moved and what is only reserved (DESIGN.md §5 admin stock summary)."""
+    units = _units_by_variant(db)
+    by_size: dict[str, dict[str, int]] = {}
+    products = []
+    totals = dict.fromkeys(_COUNTERS, 0)
+
+    for product in db.scalars(select(Product).order_by(Product.name)):
+        product_totals = dict.fromkeys(_COUNTERS, 0)
+        variants = []
+        for variant in sorted(product.variants, key=lambda v: _size_key(v.size)):
+            counted = units.get(variant.id, {"sold": 0, "reserved": 0})
+            variants.append(
+                {
+                    "variant_id": variant.id,
+                    "size": variant.size,
+                    "color": variant.color,
+                    "sku": variant.sku,
+                    "stock": variant.stock,
+                    "sold_units": counted["sold"],
+                    "reserved_units": counted["reserved"],
+                    "low_stock_threshold": variant.low_stock_threshold,
+                    "low_stock": variant.stock <= variant.low_stock_threshold,
+                    "out_of_stock": variant.stock <= 0,
+                }
+            )
+            for counter, value in (
+                ("stock", variant.stock),
+                ("sold_units", counted["sold"]),
+                ("reserved_units", counted["reserved"]),
+            ):
+                product_totals[counter] += value
+                by_size.setdefault(variant.size, dict.fromkeys(_COUNTERS, 0))[counter] += value
+                totals[counter] += value
+
+        products.append(
+            {
+                "product_id": product.id,
+                "name": product.name,
+                "is_active": product.is_active,
+                "total_stock": product_totals["stock"],
+                "sold_units": product_totals["sold_units"],
+                "reserved_units": product_totals["reserved_units"],
+                "low_stock_count": sum(1 for v in variants if v["low_stock"]),
+                "out_of_stock_count": sum(1 for v in variants if v["out_of_stock"]),
+                "variants": variants,
+            }
+        )
+
+    return {
+        "products": products,
+        "demand_by_size": [{"size": size, **by_size[size]} for size in sorted(by_size, key=_size_key)],
+        "totals": totals,
     }

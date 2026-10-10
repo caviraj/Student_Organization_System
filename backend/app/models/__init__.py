@@ -1,11 +1,13 @@
 """ORM models (DESIGN.md §4). Money is always integer paise; PKs are UUIDs.
 
 Phase 1 tables: users, membership_plans, memberships, orders, order_items, payments,
-transactions, reminders. Phase 2 adds events, ticket_types, tickets. Merch arrives later.
+transactions, reminders. Phase 2 adds events, ticket_types, tickets. Phase 3 adds
+announcements, announcement_revisions, announcement_deliveries. Phase 4 adds products,
+product_variants, stock_movements, merch_orders.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
@@ -42,6 +44,13 @@ LEDGER_SOURCES = ("dues", "tickets", "merch", "fundraiser", "other_income", "exp
 REMINDER_KINDS = ("expiry_30", "expiry_7", "expired")
 EVENT_STATUSES = ("draft", "published", "closed")
 TICKET_STATUSES = ("valid", "used", "void")
+ANNOUNCEMENT_CATEGORIES = ("meeting", "deadline", "change", "general")
+ANNOUNCEMENT_AUDIENCES = ("all", "members", "event")
+DELIVERY_CHANNELS = ("email", "inapp")
+DELIVERY_STATUSES = ("queued", "sent", "failed")
+FULFILMENT_STATUSES = ("paid", "packed", "handed_over")
+DELIVERY_METHODS = ("pickup", "campus_delivery")
+STOCK_REASONS = ("initial", "sale", "release", "restock", "adjustment")
 
 
 def _enum(*values: str, name: str) -> Enum:
@@ -251,3 +260,161 @@ class Reminder(Base):
     delivered: Mapped[bool] = mapped_column(Boolean, default=False)
 
     membership: Mapped[Membership] = relationship(back_populates="reminders")
+
+
+class Announcement(TimestampMixin, Base):
+    """A post to the feed. There is no delete endpoint: the record of what was said, and when,
+    is permanent (PRD FR-3.2). Edits keep the previous version in `announcement_revisions`."""
+
+    __tablename__ = "announcements"
+    # The feed is "pinned first, then newest", which is exactly this index read backwards.
+    __table_args__ = (Index("ix_announcements_pinned_published", "is_pinned", "published_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(_enum(*ANNOUNCEMENT_CATEGORIES, name="announcement_category"), index=True)
+    audience: Mapped[str] = mapped_column(_enum(*ANNOUNCEMENT_AUDIENCES, name="announcement_audience"), index=True)
+    event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    author_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # Set from Python, not `func.now()`: Postgres returns the *transaction* timestamp, so two
+    # announcements posted in one transaction would be indistinguishable to "newest first".
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), server_default=func.now(), index=True
+    )
+    revision_note: Mapped[str | None] = mapped_column(Text)  # why the latest edit happened
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # null = never edited
+
+    author: Mapped[User | None] = relationship(lazy="joined")  # every feed row shows the name
+    event: Mapped[Event | None] = relationship()
+
+
+class AnnouncementRevision(Base):
+    """Immutable history. Each row holds the version that was REPLACED, so the feed can always
+    answer "what did it say before, and who changed it?" (PRD FR-3.2). No updated_at: a revision
+    is never edited."""
+
+    __tablename__ = "announcement_revisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    announcement_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("announcements.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(_enum(*ANNOUNCEMENT_CATEGORIES, name="announcement_category"))
+    audience: Mapped[str] = mapped_column(_enum(*ANNOUNCEMENT_AUDIENCES, name="announcement_audience"))
+    edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    edited_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), server_default=func.now(), index=True
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class AnnouncementDelivery(TimestampMixin, Base):
+    """One row per recipient per channel - the mailing list of PRD FR-3.3. The unique constraint
+    is the idempotency guard: a re-post can never queue the same person twice."""
+
+    __tablename__ = "announcement_deliveries"
+    __table_args__ = (
+        UniqueConstraint("announcement_id", "user_id", "channel", name="uq_announcement_deliveries_target"),
+        # The worker's claim query filters on exactly this pair.
+        Index("ix_announcement_deliveries_status_channel", "status", "channel"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    announcement_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("announcements.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    channel: Mapped[str] = mapped_column(_enum(*DELIVERY_CHANNELS, name="delivery_channel"))
+    status: Mapped[str] = mapped_column(
+        _enum(*DELIVERY_STATUSES, name="delivery_status"), default="queued", server_default=text("'queued'")
+    )
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    error: Mapped[str | None] = mapped_column(Text)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship()
+
+
+class Product(TimestampMixin, Base):
+    """Something the club sells (PRD FR-4.1). The image is a URL: no uploads in this phase."""
+
+    __tablename__ = "products"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(80), index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(String(512))
+    base_price: Mapped[int] = mapped_column(Integer)  # paise
+    member_discount_pct: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), index=True)
+
+    # selectin: the product list always shows its variants, and N+1 there would be 20 queries.
+    variants: Mapped[list["ProductVariant"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan", order_by="ProductVariant.size", lazy="selectin"
+    )
+
+
+class ProductVariant(TimestampMixin, Base):
+    """A size/colour of a product with its own stock (PRD FR-4.2). `size` is free text so a mug
+    can say "350 ml"; the checkout schema validates the S-XXL set for apparel."""
+
+    __tablename__ = "product_variants"
+    __table_args__ = (
+        UniqueConstraint("product_id", "size", "color", name="uq_product_variants_size_color"),
+        # The stock floor lives in the DB too, so a bug in the service cannot oversell.
+        CheckConstraint("stock >= 0", name="ck_product_variants_stock_non_negative"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    size: Mapped[str] = mapped_column(String(20))
+    color: Mapped[str | None] = mapped_column(String(40))
+    sku: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    stock: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    low_stock_threshold: Mapped[int] = mapped_column(Integer, default=5, server_default=text("5"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+
+    # joined: the stock error message and every admin row need the product name, and a lazy load
+    # per variant would be a round trip each.
+    product: Mapped[Product] = relationship(back_populates="variants", lazy="joined")
+
+
+class StockMovement(Base):
+    """Immutable audit of every stock change (PRD FR-4.3). Never updated, never deleted, so
+    `SUM(delta)` reconstructs the current stock from zero. No updated_at, like a revision row."""
+
+    __tablename__ = "stock_movements"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    variant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("product_variants.id", ondelete="CASCADE"), index=True)
+    delta: Mapped[int] = mapped_column(Integer)  # negative = out of the door
+    reason: Mapped[str] = mapped_column(_enum(*STOCK_REASONS, name="stock_reason"))
+    order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MerchOrder(TimestampMixin, Base):
+    """Fulfilment side of a merch order (PRD FR-4.4). One row per paid order, created only when
+    the payment succeeds - a cancelled checkout never reaches the packing table."""
+
+    __tablename__ = "merch_orders"
+
+    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), primary_key=True)
+    fulfilment_status: Mapped[str] = mapped_column(
+        _enum(*FULFILMENT_STATUSES, name="fulfilment_status"), default="paid", index=True
+    )
+    delivery_method: Mapped[str] = mapped_column(
+        _enum(*DELIVERY_METHODS, name="delivery_method"), default="pickup"
+    )
+    delivery_note: Mapped[str | None] = mapped_column(Text)
+    packed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    handed_over_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    handled_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    order: Mapped[Order] = relationship()

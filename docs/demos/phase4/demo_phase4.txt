@@ -1,0 +1,340 @@
+
+== 0. migrate + seed  (Alembic + seed.py run on DIRECT_URL, the session pooler)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+SSA Hub - Phase 1-4 seed
+----------------------------------------------------------
+  staff created          0 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        0 (of 20)
+  memberships            20 total | 14 active | 7 expiring <=30d | 6 expired
+  paid orders            152
+  succeeded payments     142
+  ledger rows (dues)     20
+  reminders              9 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 14, 'expired': 0, 'reminders_created': 0}
+  events                 4 (already seeded)
+  ticket types           5
+  tickets issued         119 | 64 checked in | 55 still valid
+  ledger rows (tickets)  109 | Rs 52,800 (5280000 paise)
+  announcements          15 (1 pinned) (already seeded) | 6 revision rows
+  deliveries             email failed 1 | email sent 134 | inapp sent 249
+  opted out of email     7 users | bouncing@fail.test always fails
+  products               4 (3 active, 1 retired) | 12 variants (already seeded)
+  merch stock            74 units | 2 out of stock | 4 low
+  merch orders           13 | paid 6, packed 4, handed_over 3
+  ledger rows (merch)    13 | Rs 11,290 (1129015 paise)
+  stock movements        27 rows | invariant SUM(delta) == stock for 12/12 variants
+----------------------------------------------------------
+  login as staff: admin@ssa.org / treasurer@ssa.org / organizer@ssa.org / volunteer@ssa.org
+  members: member01@ssa.org ... member20@ssa.org
+  password for all seeded accounts: Passw0rd!
+
+== starting uvicorn on :8000  (log: /tmp/ssa_uvicorn.log)
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+signed in as admin@ssa.org, member01@ssa.org (active) and member15@ssa.org (lapsed)
+
+== 1. the shop before the demo product exists
+  3 product(s), active only
+  - Demo Cap               Rs 399     price_for_you=null
+      M    stock  6  in_stock     sku SSA-CAP-M
+  - SSA Hoodie             Rs 999     price_for_you=null
+      L    stock  8  in_stock     sku SSA-HOOD-L
+      M    stock  4  low          sku SSA-HOOD-M
+      S    stock  0  out_of_stock sku SSA-HOOD-S
+      XL   stock  4  low          sku SSA-HOOD-XL
+      XXL  stock  0  out_of_stock sku SSA-HOOD-XXL
+  - SSA T-Shirt            Rs 499     price_for_you=null
+      L    stock 13  in_stock     sku SSA-TEE-L
+      M    stock 12  in_stock     sku SSA-TEE-M
+      S    stock  9  in_stock     sku SSA-TEE-S
+      XL   stock  9  in_stock     sku SSA-TEE-XL
+      XXL  stock  5  low          sku SSA-TEE-XXL
+
+== 2. POST /products  (admin): "Demo Cap" at Rs 399, 5% member discount
+  Demo Cap already exists; resetting stock from 6 back to 2 so this demo repeats cleanly.
+{
+    "id": "a4acde8d-a66e-4ea7-ac5b-5b789d852416",
+    "size": "M",
+    "color": "Navy",
+    "sku": "SSA-CAP-M",
+    "stock": 2,
+    "stock_status": "low",
+    "is_active": true
+}
+  base_price = 39900 paise (Rs 399) - integer paise everywhere, never a float
+
+== 3. GET /products  as a guest  (public, and no price_for_you: there is no "you")
+  3 product(s), active only
+  - Demo Cap               Rs 399     price_for_you=null
+      M    stock  2  low          sku SSA-CAP-M
+  - SSA Hoodie             Rs 999     price_for_you=null
+      L    stock  8  in_stock     sku SSA-HOOD-L
+      M    stock  4  low          sku SSA-HOOD-M
+      S    stock  0  out_of_stock sku SSA-HOOD-S
+      XL   stock  4  low          sku SSA-HOOD-XL
+      XXL  stock  0  out_of_stock sku SSA-HOOD-XXL
+  - SSA T-Shirt            Rs 499     price_for_you=null
+      L    stock 13  in_stock     sku SSA-TEE-L
+      M    stock 12  in_stock     sku SSA-TEE-M
+      S    stock  9  in_stock     sku SSA-TEE-S
+      XL   stock  9  in_stock     sku SSA-TEE-XL
+      XXL  stock  5  low          sku SSA-TEE-XXL
+
+== 4. GET /products  as member01  (5% off the cap, resolved from their live membership)
+  3 product(s), active only
+  - Demo Cap               Rs 399     price_for_you=Rs 379 (member=True)
+      M    stock  2  low          sku SSA-CAP-M
+  - SSA Hoodie             Rs 999     price_for_you=Rs 899 (member=True)
+      L    stock  8  in_stock     sku SSA-HOOD-L
+      M    stock  4  low          sku SSA-HOOD-M
+      S    stock  0  out_of_stock sku SSA-HOOD-S
+      XL   stock  4  low          sku SSA-HOOD-XL
+      XXL  stock  0  out_of_stock sku SSA-HOOD-XXL
+  - SSA T-Shirt            Rs 499     price_for_you=Rs 424 (member=True)
+      L    stock 13  in_stock     sku SSA-TEE-L
+      M    stock 12  in_stock     sku SSA-TEE-M
+      S    stock  9  in_stock     sku SSA-TEE-S
+      XL   stock  9  in_stock     sku SSA-TEE-XL
+      XXL  stock  5  low          sku SSA-TEE-XXL
+
+== 5. POST /orders/merch/checkout  as member15  (lapsed: 403 MEMBERSHIP_REQUIRED)
+{
+    "error": {
+        "code": "MEMBERSHIP_REQUIRED",
+        "message": "Merch is for members: join or renew your membership to place an order",
+        "details": {
+            "merch_members_only": true
+        }
+    }
+}
+
+== 6. POST /orders/merch/checkout  as member01  (1 cap, campus delivery needs a note)
+{
+    "error": {
+        "code": "DELIVERY_NOTE_REQUIRED",
+        "message": "A campus delivery needs a block/room note (5+ characters)",
+        "details": {}
+    }
+}
+  ^ 422 DELIVERY_NOTE_REQUIRED - the same rule the frontend shows inline.
+{
+    "order_id": "3245c0b1-d635-45bf-8c1d-99f8a09e720d",
+    "payment_id": "4eb5a156-5067-4141-ad99-c5c1ed25dbb7",
+    "amount": 37905,
+    "subtotal": 39900,
+    "discount": 1995,
+    "items": [
+        {
+            "variant_id": "a4acde8d-a66e-4ea7-ac5b-5b789d852416",
+            "product_name": "Demo Cap",
+            "size": "M",
+            "color": "Navy",
+            "qty": 1,
+            "unit_price": 37905,
+            "line_total": 37905
+        }
+    ],
+    "delivery_method": "campus_delivery",
+    "provider": "mock",
+    "status": "pending",
+    "expires_at": "2026-10-10T07:31:10.857396Z"
+}
+  Stock is reserved HERE, not at payment - that is why the shelf is already down to 1.
+  stock now 1 (low)
+
+== 7. POST /payments/{order_id}/mock-confirm  (success)
+{
+    "order_id": "3245c0b1-d635-45bf-8c1d-99f8a09e720d",
+    "payment_id": "4eb5a156-5067-4141-ad99-c5c1ed25dbb7",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_1332fac248c24746b9729d4aad2871f8",
+    "membership": null,
+    "tickets": null,
+    "merch": {
+        "order_id": "3245c0b1-d635-45bf-8c1d-99f8a09e720d",
+        "fulfilment_status": "paid",
+        "delivery_method": "campus_delivery",
+        "delivery_note": "Hostel B, room 214",
+        "packed_at": null,
+        "handed_over_at": null
+    }
+}
+  One fulfilment row (paid), one ledger row (source=merch). Stock is NOT touched again: it was
+  already reserved, so paying twice can never take a second cap off the shelf.
+
+== 8. POST /payments/{order_id}/mock-confirm  again  (idempotent: still one cap, one ledger row)
+{
+    "order_id": "3245c0b1-d635-45bf-8c1d-99f8a09e720d",
+    "payment_id": "4eb5a156-5067-4141-ad99-c5c1ed25dbb7",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_1332fac248c24746b9729d4aad2871f8",
+    "membership": null,
+    "tickets": null,
+    "merch": {
+        "order_id": "3245c0b1-d635-45bf-8c1d-99f8a09e720d",
+        "fulfilment_status": "paid",
+        "delivery_method": "campus_delivery",
+        "delivery_note": "Hostel B, room 214",
+        "packed_at": null,
+        "handed_over_at": null
+    }
+}
+
+== 9. GET /orders/me  as member01  (the receipt, with its fulfilment status)
+  12 order(s), newest first
+  3245c0b1  merch      paid      succeeded Rs 379  paid
+      Demo Cap (M) x1 @ Rs 379
+  cec8ec1a  merch      paid      succeeded Rs 379  handed_over
+      Demo Cap (M) x1 @ Rs 379
+  ffb534c7  merch      paid      succeeded Rs 899  paid
+      SSA Hoodie (M) x1 @ Rs 899
+
+== 10. POST /orders/merch/checkout  for the last 2 caps  (409 OUT_OF_STOCK, stock is 1)
+{
+    "error": {
+        "code": "OUT_OF_STOCK",
+        "message": "Only 1 left of Demo Cap (M)",
+        "details": {
+            "variant_id": "a4acde8d-a66e-4ea7-ac5b-5b789d852416",
+            "product_name": "Demo Cap",
+            "size": "M",
+            "available": 1,
+            "requested": 2
+        }
+    }
+}
+
+== 11. GET /admin/merch/orders  (admin: the fulfilment board)
+  counts: {'paid': 7, 'packed': 4, 'handed_over': 3}
+  3245c0b1  Aditi Rao    paid        campus_delivery  Demo Cap (M) x1              Rs 379
+  cec8ec1a  Aditi Rao    handed_over campus_delivery  Demo Cap (M) x1              Rs 379
+
+== 12. PATCH /admin/merch/orders/{id}  paid -> packed
+  3245c0b1 -> packed
+  packed_at=2026-10-10T07:16:14.400638Z handed_over_at=None
+
+== 13. PATCH ... packed -> handed_over
+  3245c0b1 -> handed_over
+  packed_at=2026-10-10T07:16:14.400638Z handed_over_at=2026-10-10T07:16:14.845713Z
+
+== 14. PATCH ... handed_over -> paid  (409 INVALID_TRANSITION: one step at a time, forwards only)
+{
+    "error": {
+        "code": "INVALID_TRANSITION",
+        "message": "Cannot move a merch order from handed_over to paid",
+        "details": {
+            "from": "handed_over",
+            "to": "paid",
+            "allowed": null
+        }
+    }
+}
+
+== 15. POST /variants/{id}/stock-adjust  (admin: +5 restock)
+{
+    "id": "a4acde8d-a66e-4ea7-ac5b-5b789d852416",
+    "size": "M",
+    "color": "Navy",
+    "sku": "SSA-CAP-M",
+    "stock": 6,
+    "stock_status": "in_stock",
+    "is_active": true
+}
+
+== 16. POST /variants/{id}/stock-adjust  (admin: -100, refused before the CHECK constraint ever fires)
+{
+    "error": {
+        "code": "NEGATIVE_STOCK",
+        "message": "That change would take the stock below zero",
+        "details": {
+            "variant_id": "a4acde8d-a66e-4ea7-ac5b-5b789d852416",
+            "stock": 6,
+            "delta": -100
+        }
+    }
+}
+
+== 17. GET /variants/{id}/stock-movements  (admin: initial, sale, restock - and nothing else)
+  6 movement(s), newest first
+  2026-10-10T07:16:15   +5  restock    by Aarav Menon    Second delivery from the supplier
+  2026-10-10T07:16:10   -1  sale       by Aditi Rao      
+  2026-10-10T07:16:08   -4  adjustment by Aarav Menon    Demo reset
+  2026-10-10T07:15:23   +5  restock    by Aarav Menon    Second delivery from the supplier
+  2026-10-10T07:15:14   -1  sale       by Aditi Rao      
+  2026-10-10T07:15:10   +2  initial    by Aarav Menon    
+
+== 18. GET /admin/merch/stock-summary  (admin: what we hold, what sold, what is only reserved)
+  - Demo Cap               stock   6  sold   2  reserved   0  (0 low, 0 out)
+      M    stock   6  sold   2  reserved   0
+  - Old Mug                stock   4  sold   0  reserved   0  (1 low, 0 out)
+      ONE  stock   4  sold   0  reserved   0 LOW
+  - SSA Hoodie             stock  16  sold   9  reserved   0  (4 low, 2 out)
+      S    stock   0  sold   0  reserved   0 OUT
+      M    stock   4  sold   4  reserved   0 LOW
+      L    stock   8  sold   2  reserved   0
+      XL   stock   4  sold   2  reserved   0 LOW
+      XXL  stock   0  sold   1  reserved   0 OUT
+  - SSA T-Shirt            stock  48  sold   7  reserved   0  (1 low, 0 out)
+      S    stock   9  sold   1  reserved   0
+      M    stock  12  sold   3  reserved   0
+      L    stock  13  sold   2  reserved   0
+      XL   stock   9  sold   1  reserved   0
+      XXL  stock   5  sold   0  reserved   0 LOW
+  demand by size: S sold 1 pending 0 | M sold 9 pending 0 | L sold 4 pending 0 | XL sold 3 pending 0 | XXL sold 1 pending 0 | ONE sold 0 pending 0
+  totals: stock 74 sold 18 reserved 0
+
+== 19. the money trail and the stock invariant  (direct SQL, no debug endpoint: this is a read a DBA would do)
+  ledger rows with source=merch, newest first:
+    2026-10-10 07:16:12 in   Rs       379  order 3245c0b1-d635-45bf-8c1d-99f8a09e720d  Merch sale - Demo Cap (M) x1
+    2026-10-10 07:15:16 in   Rs       379  order cec8ec1a-9564-4775-a37c-fb52d8f4f086  Merch sale - Demo Cap (M) x1
+    2026-10-10 07:03:02 in   Rs     1,273  order 330dc2b6-f343-4271-a44b-5b912e902fcd  Merch sale - SSA Hoodie (M) x1, SSA T-Shirt (XL) x1
+    2026-10-10 07:03:00 in   Rs     1,323  order afeb631d-9032-4bee-adfb-ec1e4127111c  Merch sale - SSA Hoodie (XXL) x1, SSA T-Shirt (S) x1
+    2026-10-10 07:02:57 in   Rs       424  order 6dd5c985-fac5-4a52-91b8-f88c26f36303  Merch sale - SSA T-Shirt (L) x1
+  stock invariant, initial + SUM(delta) == stock, for every variant:
+    12/12 variants reconcile
+
+== 20. script/check_db.py  (DATABASE_URL, the pooler: server, tables, RLS)
+SSA Hub - database check
+----------------------------------------------------------------
+  DATABASE_URL    aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+  DIRECT_URL      aws-0-ap-south-1.pooler.supabase.com
+  mode            transaction pooler
+  server          PostgreSQL 17.11 on aarch64-unknown-linux-gnu
+  connected as    postgres @ postgres
+  backend session real port 5432 (pooled) - no session state, no advisory locks
+
+  table                            rls
+  -------------------------------- -----
+  announcement_deliveries          on
+  announcement_revisions           on
+  announcements                    on
+  events                           on
+  membership_plans                 on
+  memberships                      on
+  merch_orders                     on
+  order_items                      on
+  orders                           on
+  payments                         on
+  product_variants                 on
+  products                         on
+  reminders                        on
+  stock_movements                  on
+  ticket_types                     on
+  tickets                          on
+  transactions                     on
+  users                            on
+----------------------------------------------------------------
+  OK: RLS enabled on all 18 public tables
+
+== done
+One product, one size, one reservation, one payment, one fulfilment row, one audit trail - and
+RLS on every public table. Swagger UI (tags: Products, Merch Orders, Merch Admin): http://127.0.0.1:8000/docs

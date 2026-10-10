@@ -21,7 +21,9 @@ SSA Hub — one platform for a student club: members, events/tickets, announceme
 - Layering: `routers` (HTTP only) → `services` (business rules, transactions) → `models`. No business logic in routers.
 - Auth: JWT (HS256) + bcrypt; dependencies `require_role(...)`. Every non-public route must be protected.
 - **Concurrency-safe writes:** capacity/stock via conditional `UPDATE ... WHERE ...` inside a transaction; payment success handler idempotent.
-- Consistent error shape `{error:{code,message,details}}`; use HTTP 409 for conflicts (SOLD_OUT, ALREADY_USED).
+- **Row Level Security:** every new table migration must also `ENABLE ROW LEVEL SECURITY` (with no policies). Supabase publishes the `public` schema over its own REST API; RLS-on-with-no-policies is what keeps that door shut. Never use `FORCE ROW LEVEL SECURITY` — the backend is the table owner and would lock itself out. `scripts/check_db.py` fails if any public table has RLS off.
+- **No advisory locks or session-level state** anywhere: Supabase's transaction pooler (port 6543) may hand each statement to a different backend. Row locking inside one transaction (`SELECT ... FOR UPDATE SKIP LOCKED`) is fine.
+- Consistent error shape `{error:{code,message,details}}`; use HTTP 409 for conflicts (SOLD_OUT, ALREADY_USED, PIN_LIMIT_REACHED).
 - Every phase must add: pytest tests for the business rules, `scripts/demo_phaseN.sh`, and seed data additions in `scripts/seed.py`.
 - Type hints everywhere; `ruff` + `black` clean.
 - Commands: `uvicorn app.main:app --reload` · `alembic upgrade head` · `pytest -q` · `python scripts/seed.py`.

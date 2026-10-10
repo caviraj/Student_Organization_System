@@ -1,60 +1,118 @@
-"""Test harness: in-memory SQLite, one session per test, fast bcrypt."""
+"""Test harness: a real Postgres database of its own (TEST_DATABASE_URL), one session per test.
+
+The suite runs against Postgres, not SQLite, because that is what the app ships on - the pooler,
+the JSONB columns, the enum CHECK constraints and the row locks all behave differently from
+SQLite. The database is built by running the actual Alembic migrations (never `create_all`), so a
+migration that drifts from the models fails here.
+
+Safety: conftest refuses to start unless TEST_DATABASE_URL is set and points somewhere other than
+DATABASE_URL. Every table is truncated between tests - against the real database that would be
+data loss, so the guard is the difference between a test run and an incident.
+"""
 
 import os
+from pathlib import Path
 
 # Must be set before app.core.config is imported.
-os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["JWT_SECRET"] = "test-secret-long-enough-for-hs256-32-bytes"
 os.environ["BCRYPT_ROUNDS"] = "4"
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta  # noqa: E402
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+import pytest  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine, select, text  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
-from app.core.deps import get_db
-from app.core.security import hash_password
-from app.main import app
-from app.models import Base, Event, Membership, MembershipPlan, TicketType, User
+from app.core.config import settings  # noqa: E402
+from app.core.db import duplicate_database_reason, engine_kwargs  # noqa: E402
+from app.core.deps import get_db  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import Event, Membership, MembershipPlan, TicketType, User  # noqa: E402
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+_reason = duplicate_database_reason(settings.TEST_DATABASE_URL, settings.DATABASE_URL)
+if _reason:
+    raise RuntimeError(_reason)
+
+TEST_URL = settings.TEST_DATABASE_URL
 
 PASSWORD = "Passw0rd!"
 _PASSWORD_HASH = hash_password(PASSWORD)  # hashed once: bcrypt is deliberately slow
 
-engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+engine = create_engine(TEST_URL, **engine_kwargs(TEST_URL))
 # expire_on_commit: one session serves the whole test, while production gets a fresh one per
 # request. Without this the session keeps handing back rows that a service-level UPDATE has
 # already changed behind its back (sold_count, capacity, ticket status).
 TestingSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=True)
 
 
+def _migrate() -> None:
+    """Build the test schema with the real migrations. ALEMBIC_DATABASE_URL is what stops a test
+    run from ever touching the database Alembic would otherwise choose."""
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    os.environ["ALEMBIC_DATABASE_URL"] = TEST_URL
+    command.upgrade(config, "head")
+
+
+def _truncate_all(target_engine) -> None:
+    """Discovered, not hard-coded, so a new Phase's tables are cleaned without editing this."""
+    with target_engine.begin() as conn:
+        names = (
+            conn.execute(
+                text("select tablename from pg_tables where schemaname = 'public' and tablename <> 'alembic_version'")
+            )
+            .scalars()
+            .all()
+        )
+        if names:
+            conn.execute(text("TRUNCATE TABLE " + ", ".join(f'"{name}"' for name in names) + " RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture(scope="session")
+def pg_engine():
+    _migrate()
+    _truncate_all(engine)  # an earlier run that died mid-test must not leak rows into this one
+    yield engine
+    engine.dispose()
+
+
 @pytest.fixture(autouse=True)
-def _schema():
-    Base.metadata.create_all(engine)
+def _clean(pg_engine):
+    """Truncate after every test: the next one starts from an empty database."""
     yield
-    Base.metadata.drop_all(engine)
+    _truncate_all(pg_engine)
 
 
 @pytest.fixture
-def db() -> Session:
+def db(pg_engine) -> Session:
     session = TestingSession()
     yield session
     session.close()
 
 
 @pytest.fixture
-def db2() -> Session:
-    """A second session on the same in-memory DB, so a test can hold a stale read."""
+def db2(pg_engine) -> Session:
+    """A second session on the same database, so a test can hold a stale read."""
     session = TestingSession()
     yield session
     session.close()
 
 
 @pytest.fixture
-def client(db: Session) -> TestClient:
+def client(db: Session, monkeypatch) -> TestClient:
     app.dependency_overrides[get_db] = lambda: db
+    # POST /announcements kicks the delivery worker through BackgroundTasks. Unpatched it would
+    # open its own session on the app's engine - the real database. Point it at the test session.
+    from app.jobs import scheduler
+    from app.services.delivery_worker import process_queued_deliveries
+
+    monkeypatch.setattr(scheduler, "run_deliveries_once", lambda: process_queued_deliveries(db))
     # Not used as a context manager: that would start the APScheduler job.
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -63,12 +121,13 @@ def client(db: Session) -> TestClient:
 # --- helpers ----------------------------------------------------------------------
 @pytest.fixture
 def make_user(db):
-    def _make(email: str, role: str = "member", full_name: str | None = None) -> User:
+    def _make(email: str, role: str = "member", full_name: str | None = None, **extra) -> User:
         user = User(
             email=email,
             password_hash=_PASSWORD_HASH,
             full_name=full_name or email.split("@")[0].title(),
             role=role,
+            **extra,
         )
         db.add(user)
         db.commit()
