@@ -55,10 +55,11 @@ export interface MembershipPlan {
   name: string;
   description?: string | null;
   price: number; // in integer paise!
-  duration_days: number;
-  perks: string[];
+  duration_months: number;
+  /** What the plan is worth to a member: both discounts are applied at purchase time. */
+  ticket_discount_pct: number;
+  merch_discount_pct: number;
   is_active: boolean;
-  created_at: string;
 }
 
 export interface RegisterPayload {

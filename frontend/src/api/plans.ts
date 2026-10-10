@@ -5,8 +5,9 @@ export interface CreatePlanPayload {
   name: string;
   description?: string | null;
   price: number; // paise
-  duration_days: number;
-  perks: string[];
+  duration_months: number;
+  ticket_discount_pct?: number;
+  merch_discount_pct?: number;
   is_active?: boolean;
 }
 
@@ -14,9 +15,21 @@ export interface UpdatePlanPayload {
   name?: string;
   description?: string | null;
   price?: number; // paise
-  duration_days?: number;
-  perks?: string[];
+  duration_months?: number;
+  ticket_discount_pct?: number;
+  merch_discount_pct?: number;
   is_active?: boolean;
+}
+
+/** A plan's perks are its discounts - the contract has no free-text perks list (DESIGN.md 5). */
+export function planPerks(
+  plan: Pick<MembershipPlan, 'ticket_discount_pct' | 'merch_discount_pct'>
+): string[] {
+  return [
+    'Standard SSA Hub member privileges',
+    ...(plan.ticket_discount_pct > 0 ? [`${plan.ticket_discount_pct}% off event tickets`] : []),
+    ...(plan.merch_discount_pct > 0 ? [`${plan.merch_discount_pct}% off club merchandise`] : []),
+  ];
 }
 
 export const plansApi = {

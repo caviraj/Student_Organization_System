@@ -13,10 +13,10 @@ const plan: MembershipPlan = {
   name: 'Standard',
   description: 'One year of membership',
   price: 50000,
-  duration_days: 365,
-  perks: ['Event discounts'],
+  duration_months: 12,
+  ticket_discount_pct: 20,
+  merch_discount_pct: 10,
   is_active: true,
-  created_at: '2026-01-01T00:00:00Z',
 };
 
 // Regression: /plans answers with a page envelope ({items,...}), not a bare array. The page used to

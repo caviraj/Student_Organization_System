@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { plansApi } from '../../api/plans';
+import { plansApi, planPerks } from '../../api/plans';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -25,8 +25,9 @@ export function AdminPlans() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [priceRupees, setPriceRupees] = useState('500');
-  const [durationDays, setDurationDays] = useState('365');
-  const [perksText, setPerksText] = useState('Event access\nVoting rights\nMember badge');
+  const [durationMonths, setDurationMonths] = useState('12');
+  const [ticketDiscount, setTicketDiscount] = useState('0');
+  const [merchDiscount, setMerchDiscount] = useState('0');
   const [formError, setFormError] = useState<string | null>(null);
 
   const { data: plans, isLoading, error, refetch } = useQuery({
@@ -41,22 +42,18 @@ export function AdminPlans() {
         throw new Error('Price must be greater than zero');
       }
       const pricePaise = Math.round(parsedRupees * 100);
-      const days = parseInt(durationDays, 10);
-      if (isNaN(days) || days <= 0) {
-        throw new Error('Duration days must be a positive integer');
+      const months = parseInt(durationMonths, 10);
+      if (isNaN(months) || months <= 0) {
+        throw new Error('Duration must be a positive number of months');
       }
-
-      const perks = perksText
-        .split('\n')
-        .map((p) => p.trim())
-        .filter(Boolean);
 
       return plansApi.createPlan({
         name: name.trim(),
         description: description.trim(),
         price: pricePaise,
-        duration_days: days,
-        perks,
+        duration_months: months,
+        ticket_discount_pct: parseInt(ticketDiscount, 10) || 0,
+        merch_discount_pct: parseInt(merchDiscount, 10) || 0,
       });
     },
     onSuccess: () => {
@@ -81,8 +78,9 @@ export function AdminPlans() {
         name: updated.data.name,
         description: updated.data.description,
         price: updated.data.price,
-        duration_days: updated.data.duration_days,
-        perks: updated.data.perks,
+        duration_months: updated.data.duration_months,
+        ticket_discount_pct: updated.data.ticket_discount_pct,
+        merch_discount_pct: updated.data.merch_discount_pct,
         is_active: updated.data.is_active,
       }),
     onSuccess: () => {
@@ -100,8 +98,9 @@ export function AdminPlans() {
     setName('');
     setDescription('');
     setPriceRupees('500');
-    setDurationDays('365');
-    setPerksText('Event access\nVoting rights\nMember badge');
+    setDurationMonths('12');
+    setTicketDiscount('0');
+    setMerchDiscount('0');
     setFormError(null);
   };
 
@@ -121,15 +120,15 @@ export function AdminPlans() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
             <Layers className="w-3.5 h-3.5" />
             Membership Configuration
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Membership Plans
           </h1>
-          <p className="text-sm text-slate-400">
-            Configure pricing tiers, duration, perks, and active enrollment status.
+          <p className="text-sm text-slate-600">
+            Configure pricing tiers, duration, member discounts, and active enrollment status.
           </p>
         </div>
 
@@ -168,7 +167,7 @@ export function AdminPlans() {
       {/* Empty State */}
       {!isLoading && !error && (!plans || plans.length === 0) && (
         <EmptyState
-          icon={<ShieldCheck className="w-12 h-12 text-slate-500" />}
+          icon={<ShieldCheck className="w-12 h-12 text-slate-400" />}
           title="No Membership Plans Configured"
           description="Create your first membership plan to allow students to join."
           actionLabel="Create Plan"
@@ -182,15 +181,15 @@ export function AdminPlans() {
           {plans.map((plan) => (
             <Card
               key={plan.id}
-              className={`flex flex-col border-slate-800 bg-slate-900/80 transition-all ${
-                plan.is_active ? 'border-slate-700' : 'opacity-60 border-dashed'
+              className={`flex flex-col transition-all ${
+                plan.is_active ? '' : 'opacity-60 border-dashed'
               }`}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <CardTitle className="text-xl font-bold text-white">{plan.name}</CardTitle>
-                    <CardDescription className="text-xs text-slate-400 mt-1 line-clamp-2">
+                    <CardTitle className="text-xl font-bold">{plan.name}</CardTitle>
+                    <CardDescription className="text-xs mt-1 line-clamp-2">
                       {plan.description || 'No description provided.'}
                     </CardDescription>
                   </div>
@@ -199,24 +198,24 @@ export function AdminPlans() {
               </CardHeader>
 
               <CardContent className="flex-1 space-y-4">
-                <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-baseline justify-between">
-                  <span className="text-2xl font-black text-white">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-baseline justify-between">
+                  <span className="text-2xl font-black text-slate-900">
                     {formatINR(plan.price)}
                   </span>
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
-                    {plan.duration_days} days
+                    {plan.duration_months} month{plan.duration_months > 1 ? 's' : ''}
                   </span>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
                     Included Perks:
                   </h4>
-                  <ul className="space-y-1.5 text-xs text-slate-300">
-                    {plan.perks?.map((perk, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <ul className="space-y-1.5 text-xs text-slate-600">
+                    {planPerks(plan).map((perk) => (
+                      <li key={perk} className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span className="truncate">{perk}</span>
                       </li>
                     ))}
@@ -224,7 +223,7 @@ export function AdminPlans() {
                 </div>
               </CardContent>
 
-              <div className="p-4 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+              <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -253,7 +252,7 @@ export function AdminPlans() {
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         title="Create Membership Plan"
-        description="Add a new subscription tier with custom duration and pricing."
+        description="Add a new subscription tier with custom duration, pricing and member discounts."
       >
         <form
           onSubmit={(e) => {
@@ -263,7 +262,7 @@ export function AdminPlans() {
           className="space-y-4"
         >
           {formError && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
               {formError}
             </div>
           )}
@@ -280,11 +279,12 @@ export function AdminPlans() {
           />
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label htmlFor="plan-description" className="block text-sm font-medium text-slate-700 mb-1.5">
               Description
             </label>
             <textarea
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[70px]"
+              id="plan-description"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 min-h-[70px]"
               placeholder="Brief description of the tier..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -303,29 +303,43 @@ export function AdminPlans() {
             />
 
             <Input
-              label="Duration (in Days)"
+              label="Duration (in Months)"
               type="number"
-              placeholder="365"
-              value={durationDays}
-              onChange={(e) => setDurationDays(e.target.value)}
-              hint="e.g. 365 = 1 year"
+              min={1}
+              max={60}
+              placeholder="12"
+              value={durationMonths}
+              onChange={(e) => setDurationMonths(e.target.value)}
+              hint="1-60 months; e.g. 12 = 1 year"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Perks (one per line)
-            </label>
-            <textarea
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[90px] font-mono text-xs"
-              value={perksText}
-              onChange={(e) => setPerksText(e.target.value)}
-              placeholder="Event passes&#10;Discounts&#10;Voting access"
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Ticket Discount (%)"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="0"
+              value={ticketDiscount}
+              onChange={(e) => setTicketDiscount(e.target.value)}
+              hint="Applied at event checkout"
+            />
+
+            <Input
+              label="Merch Discount (%)"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="0"
+              value={merchDiscount}
+              onChange={(e) => setMerchDiscount(e.target.value)}
+              hint="Applied at shop checkout"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
             <Button
               type="button"
               variant="ghost"
@@ -350,15 +364,16 @@ export function AdminPlans() {
           isOpen={!!editPlan}
           onClose={() => setEditPlan(null)}
           title={`Edit Plan: ${editPlan.name}`}
-          description="Update plan perks or description."
+          description="Update the plan's description, duration and member discounts."
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label htmlFor="edit-plan-description" className="block text-sm font-medium text-slate-700 mb-1.5">
                 Description
               </label>
               <textarea
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[70px]"
+                id="edit-plan-description"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 min-h-[70px]"
                 value={editPlan.description || ''}
                 onChange={(e) =>
                   setEditPlan({ ...editPlan, description: e.target.value })
@@ -366,23 +381,40 @@ export function AdminPlans() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Perks (comma-separated)
-              </label>
-              <textarea
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[80px]"
-                value={editPlan.perks.join(', ')}
+            <div className="grid grid-cols-3 gap-3">
+              <Input
+                label="Months"
+                type="number"
+                min={1}
+                value={String(editPlan.duration_months)}
                 onChange={(e) =>
-                  setEditPlan({
-                    ...editPlan,
-                    perks: e.target.value.split(',').map((p) => p.trim()),
-                  })
+                  setEditPlan({ ...editPlan, duration_months: parseInt(e.target.value, 10) || 0 })
+                }
+                required
+              />
+              <Input
+                label="Ticket %"
+                type="number"
+                min={0}
+                max={100}
+                value={String(editPlan.ticket_discount_pct)}
+                onChange={(e) =>
+                  setEditPlan({ ...editPlan, ticket_discount_pct: parseInt(e.target.value, 10) || 0 })
+                }
+              />
+              <Input
+                label="Merch %"
+                type="number"
+                min={0}
+                max={100}
+                value={String(editPlan.merch_discount_pct)}
+                onChange={(e) =>
+                  setEditPlan({ ...editPlan, merch_discount_pct: parseInt(e.target.value, 10) || 0 })
                 }
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
               <Button variant="ghost" onClick={() => setEditPlan(null)}>
                 Cancel
               </Button>
@@ -394,7 +426,9 @@ export function AdminPlans() {
                     id: editPlan.id,
                     data: {
                       description: editPlan.description,
-                      perks: editPlan.perks,
+                      duration_months: editPlan.duration_months,
+                      ticket_discount_pct: editPlan.ticket_discount_pct,
+                      merch_discount_pct: editPlan.merch_discount_pct,
                     },
                   })
                 }

@@ -1,37 +1,38 @@
 import type { MembershipPlan, UserMe, Membership, RenewalDueItem } from '../types/api';
-import type { Announcement, AnnouncementDelivery } from '../types/announcements';
+import type { AnnouncementDelivery, AnnouncementDetail } from '../types/announcements';
 import type { Product, MerchOrder } from '../features/shop/types';
 
+// Mirrors backend/scripts/seed.py PLAN rows, so the mock feed and a seeded database agree.
 export const mockPlans: MembershipPlan[] = [
   {
     id: 'plan_basic_001',
-    name: 'Basic Annual',
-    description: 'Essential membership giving access to all campus workshops and general body meetings.',
+    name: 'Basic',
+    description: 'Dues + member pricing. 10% off tickets, 5% off merch.',
     price: 50000, // ₹500 in paise
-    duration_days: 365,
-    perks: ['Event entry pass', 'SSA Digital ID Card', 'Voting rights in GBM'],
+    duration_months: 12,
+    ticket_discount_pct: 10,
+    merch_discount_pct: 5,
     is_active: true,
-    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'plan_standard_002',
-    name: 'Standard Scholar',
-    description: 'Our most popular plan with priority event registration and exclusive merch discounts.',
+    name: 'Standard',
+    description: 'Most popular. 20% off tickets, 10% off merch.',
     price: 90000, // ₹900 in paise
-    duration_days: 365,
-    perks: ['All Basic perks', 'Priority registration for high-demand fests', '15% Merch discount', 'Access to member lounge'],
+    duration_months: 12,
+    ticket_discount_pct: 20,
+    merch_discount_pct: 10,
     is_active: true,
-    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'plan_premium_003',
-    name: 'Premium Patron',
-    description: 'Full-access VIP pass for passionate student leaders and innovators.',
+    name: 'Premium',
+    description: 'Best value. 30% off tickets, 15% off merch.',
     price: 150000, // ₹1500 in paise
-    duration_days: 365,
-    perks: ['All Standard perks', 'Free Annual Fest T-shirt', 'Exclusive leadership networking dinners', 'Certificate of Club Fellowship'],
+    duration_months: 12,
+    ticket_discount_pct: 30,
+    merch_discount_pct: 15,
     is_active: true,
-    created_at: '2026-01-01T00:00:00Z',
   },
 ];
 
@@ -408,7 +409,7 @@ export const mockTickets: TicketItem[] = [
   },
 ];
 
-export const mockAnnouncements: Announcement[] = [
+export const mockAnnouncements: AnnouncementDetail[] = [
   {
     id: 'ann_001',
     title: 'General Body Meeting & Annual Roadmapping',
@@ -417,10 +418,10 @@ export const mockAnnouncements: Announcement[] = [
     audience: 'all',
     event_id: null,
     is_pinned: true,
-    author_id: 'usr_admin_01',
     author_name: 'Dr. Sarah Connor',
     published_at: '2026-10-09T10:00:00Z',
     revision_note: null,
+    edited_at: null,
   },
   {
     id: 'ann_002',
@@ -430,10 +431,10 @@ export const mockAnnouncements: Announcement[] = [
     audience: 'members',
     event_id: null,
     is_pinned: false,
-    author_id: 'usr_org_07',
     author_name: 'Ananya Roy',
     published_at: '2026-10-08T15:30:00Z',
     revision_note: null,
+    edited_at: null,
   },
   {
     id: 'ann_003',
@@ -443,10 +444,10 @@ export const mockAnnouncements: Announcement[] = [
     audience: 'event',
     event_id: 'evt_hackathon_001',
     is_pinned: false,
-    author_id: 'usr_org_07',
     author_name: 'Ananya Roy',
     published_at: '2026-10-07T09:00:00Z',
     revision_note: 'Updated venue to Tech Lab 4A after facility alert',
+    edited_at: '2026-10-07T09:20:00Z',
   },
   {
     id: 'ann_004',
@@ -456,10 +457,10 @@ export const mockAnnouncements: Announcement[] = [
     audience: 'all',
     event_id: null,
     is_pinned: false,
-    author_id: 'usr_admin_01',
     author_name: 'Dr. Sarah Connor',
     published_at: '2026-10-05T12:00:00Z',
     revision_note: null,
+    edited_at: null,
   },
   {
     id: 'ann_005',
@@ -469,10 +470,10 @@ export const mockAnnouncements: Announcement[] = [
     audience: 'members',
     event_id: null,
     is_pinned: false,
-    author_id: 'usr_org_07',
     author_name: 'Ananya Roy',
     published_at: '2026-10-02T14:00:00Z',
     revision_note: null,
+    edited_at: null,
   },
 ];
 
