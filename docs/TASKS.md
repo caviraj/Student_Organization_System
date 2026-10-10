@@ -134,6 +134,29 @@ in CI rather than a developer's `TEST_DATABASE_URL`. Both are Milestone 2 operat
 | 6 | ☑ | ☐ | **BE:** `docs/demos/phase6/` (`demo_phase6.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase6.sh` · **FE:** not built | (see tag audit) |
 | 7 | ☑ | ☐ | **BE:** `docs/API_HANDOFF.md` · `docs/ARCHITECTURE.md` · `docs/DEMO_SCRIPT.md` · `docs/M2_BACKLOG.md` · `docs/demos/phase7/` (`REPORT.md`, `pytest.txt`, `smoke_e2e.txt`, `demo_phase1..6.txt`) · run `python backend/scripts/smoke_e2e.py` · **FE:** no phase-7 pass yet | `backend-m1-done` |
 
+### M2 §1 — Real payments (Razorpay) — 2026-10-10
+
+The checkout no longer simulates anything. `PAYMENTS_PROVIDER=mock|razorpay` selects the provider,
+exactly as `EMAIL_PROVIDER` and `STORAGE_PROVIDER` already do; production refuses to boot with a
+`rzp_test_` key, and `POST /payments/{order_id}/mock-confirm` answers 409 `SIMULATED_PAYMENT_DISABLED`
+whenever the provider is not `mock`, so the free-money endpoint cannot exist in a live deployment.
+
+- **Contract:** three new endpoints in DESIGN.md §5 — `GET /payments/{order_id}` (the checkout reads
+  the amount and the gateway order id from the API instead of the router state, which a reload or a
+  return from a bank page used to lose), `POST /payments/{order_id}/verify` (the widget's callback,
+  signature-checked) and `POST /payments/webhook` (public, signature-verified, reads the raw body
+  before anything parses it).
+- **No migration.** `provider_ref` already carried a unique index, so it holds the gateway order id;
+  idempotency stays the existing conditional claim `UPDATE orders SET status='paid' WHERE id=:id AND
+  status='pending'`. The loser of the race replays the stored result, which is why a retried webhook
+  settles once. This is why §1's "idempotency by `provider_payment_id`" was not implemented as a new
+  column — the guarantee is the same and the schema is untouched.
+- **Verified live** against Razorpay test keys (order `order_TmDdKNS77PPplU`, ₹500, `receipt` = our
+  order UUID): signed webhook settled the order and activated the membership, an identical replay
+  settled it once more with no second ledger row, a wrong signature was refused with 400.
+- **Not done: refunds** (§1, last bullet). They need an admin UI and `direction:"out"` /
+  `source:"refund"` ledger rows; the ledger's immutability rules already say how.
+
 ### Tag audit — 2026-10-10, after integrating `fe/*` into `main`
 
 The two workstreams reused the **same tag names** for different gates, and the table above now
