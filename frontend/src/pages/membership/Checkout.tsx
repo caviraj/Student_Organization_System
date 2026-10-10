@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
 import { formatINR } from '../../lib/formatINR';
 import type { CheckoutResponse } from '../../types/api';
+import type { TicketCheckoutResponse } from '../../types/events';
 import { CreditCard, CheckCircle2, XCircle, ArrowLeft, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 export function Checkout() {
@@ -17,7 +18,15 @@ export function Checkout() {
   const toast = useToast();
   const { refreshUser } = useAuth();
 
-  const checkoutData = (location.state as { checkoutData?: CheckoutResponse })?.checkoutData;
+  const checkoutData = (location.state as {
+    checkoutData?: (CheckoutResponse & Partial<TicketCheckoutResponse>) | TicketCheckoutResponse;
+  })?.checkoutData;
+
+  const isTicketCheckout = Boolean(
+    (checkoutData as TicketCheckoutResponse)?.event_title ||
+    (checkoutData as TicketCheckoutResponse)?.ticket_type_name
+  );
+  const ticketData = checkoutData as TicketCheckoutResponse | undefined;
 
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,10 +49,17 @@ export function Checkout() {
       if (isPaid) {
         setPaymentStatus('success');
         await refreshUser();
-        toast.show('Payment confirmed! Membership activated successfully.', 'success');
-        setTimeout(() => {
-          navigate('/me');
-        }, 1800);
+        if (isTicketCheckout) {
+          toast.show('Payment confirmed! Tickets issued successfully.', 'success');
+          setTimeout(() => {
+            navigate('/me/tickets');
+          }, 1800);
+        } else {
+          toast.show('Payment confirmed! Membership activated successfully.', 'success');
+          setTimeout(() => {
+            navigate('/me');
+          }, 1800);
+        }
       } else {
         setPaymentStatus('failed');
         setErrorMessage(data.message || 'Payment simulation failed.');
@@ -70,10 +86,10 @@ export function Checkout() {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => navigate('/join')}
+        onClick={() => (isTicketCheckout ? navigate('/events') : navigate('/join'))}
         className="mb-6 text-slate-400 hover:text-white"
       >
-        <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Plans
+        <ArrowLeft className="w-4 h-4 mr-1.5" /> {isTicketCheckout ? 'Back to Events' : 'Back to Plans'}
       </Button>
 
       <Card className="border-slate-800 bg-slate-900/90 shadow-2xl relative overflow-hidden">
@@ -84,9 +100,13 @@ export function Checkout() {
           <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <CreditCard className="w-7 h-7" />
           </div>
-          <CardTitle className="text-2xl font-bold text-white">Payment Checkout</CardTitle>
+          <CardTitle className="text-2xl font-bold text-white">
+            {isTicketCheckout ? 'Ticket Checkout' : 'Payment Checkout'}
+          </CardTitle>
           <CardDescription className="text-slate-400">
-            Complete your student club membership purchase
+            {isTicketCheckout
+              ? 'Complete your event admission ticket order'
+              : 'Complete your student club membership purchase'}
           </CardDescription>
         </CardHeader>
 
@@ -99,12 +119,44 @@ export function Checkout() {
                 {currentOrderId}
               </span>
             </div>
-            {checkoutData?.plan_name && (
+
+            {isTicketCheckout && ticketData?.event_title && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Membership Tier</span>
-                <span className="font-medium text-white">{checkoutData.plan_name}</span>
+                <span className="text-slate-400">Event</span>
+                <span className="font-medium text-white truncate max-w-[260px] text-right">
+                  {ticketData.event_title}
+                </span>
               </div>
             )}
+
+            {isTicketCheckout && ticketData?.ticket_type_name && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Ticket Tier</span>
+                <span className="font-medium text-white">{ticketData.ticket_type_name}</span>
+              </div>
+            )}
+
+            {isTicketCheckout && typeof ticketData?.quantity === 'number' && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Quantity</span>
+                <span className="font-medium text-white">{ticketData.quantity} ticket{ticketData.quantity > 1 ? 's' : ''}</span>
+              </div>
+            )}
+
+            {isTicketCheckout && typeof ticketData?.unit_price === 'number' && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Price per ticket</span>
+                <span className="font-medium text-slate-300">{formatINR(ticketData.unit_price)}</span>
+              </div>
+            )}
+
+            {!isTicketCheckout && (checkoutData as CheckoutResponse)?.plan_name && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Membership Tier</span>
+                <span className="font-medium text-white">{(checkoutData as CheckoutResponse).plan_name}</span>
+              </div>
+            )}
+
             <div className="flex justify-between items-center text-sm">
               <span className="text-slate-400">Payment Gateway</span>
               <span className="text-slate-300 font-medium flex items-center gap-1.5">
@@ -126,9 +178,13 @@ export function Checkout() {
               <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
               <h4 className="font-bold text-white text-lg">Payment Successful!</h4>
               <p className="text-xs text-emerald-300 mt-1">
-                Your role has been upgraded to Member and your membership card has been issued.
+                {isTicketCheckout
+                  ? 'Your event tickets have been issued and QR access passes generated.'
+                  : 'Your role has been upgraded to Member and your membership card has been issued.'}
               </p>
-              <p className="text-xs text-slate-400 mt-3">Redirecting to your Digital ID Card...</p>
+              <p className="text-xs text-slate-400 mt-3">
+                {isTicketCheckout ? 'Redirecting to My Tickets...' : 'Redirecting to your Digital ID Card...'}
+              </p>
             </div>
           )}
 

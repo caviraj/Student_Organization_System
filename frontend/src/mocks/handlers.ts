@@ -1,9 +1,22 @@
 import { http, HttpResponse } from 'msw';
-import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue } from './data';
+import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets } from './data';
 import type { UserMe, MembershipPlan } from '../types/api';
+import type { EventDetail, TicketItem, TicketCheckoutResponse } from '../types/events';
 
 let activeUserEmail = 'member@ssa.org';
 const plansState: MembershipPlan[] = [...mockPlans];
+export const eventsState: EventDetail[] = JSON.parse(JSON.stringify(mockEvents));
+export const ticketsState: TicketItem[] = JSON.parse(JSON.stringify(mockTickets));
+export const ticketOrdersState: Record<string, {
+  order_id: string;
+  payment_id: string;
+  amount: number;
+  ticket_type_id: string;
+  quantity: number;
+  user_email: string;
+  user_name: string;
+}> = {};
+
 
 export const handlers = [
   // 1. Auth Register
@@ -220,6 +233,65 @@ export const handlers = [
     const { orderId } = params;
     const body = (await request.json()) as { outcome: 'success' | 'fail' };
 
+    const ticketOrder = ticketOrdersState[String(orderId)];
+    if (ticketOrder) {
+      if (body.outcome === 'fail') {
+        return HttpResponse.json({
+          order_id: String(orderId),
+          payment_id: ticketOrder.payment_id,
+          order_status: 'failed',
+          payment_status: 'failed',
+          provider_ref: `txn_fail_${Date.now()}`,
+        });
+      }
+
+      // Success for ticket order
+      let foundEvent: EventDetail | undefined;
+      let foundType: any;
+      for (const ev of eventsState) {
+        const tt = ev.ticket_types.find((t) => t.id === ticketOrder.ticket_type_id);
+        if (tt) {
+          foundEvent = ev;
+          foundType = tt;
+          break;
+        }
+      }
+
+      if (foundType && foundEvent) {
+        foundType.sold_count = (foundType.sold_count || 0) + ticketOrder.quantity;
+        foundType.seats_left = Math.max(0, (foundType.seats_left ?? foundType.capacity) - ticketOrder.quantity);
+
+        for (let i = 0; i < ticketOrder.quantity; i++) {
+          const randCode = `${foundEvent.title.replace(/[^A-Za-z]/g, '').substring(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+          ticketsState.unshift({
+            id: `tkt_${Math.random().toString(36).substring(2, 9)}`,
+            order_id: String(orderId),
+            event_id: foundEvent.id,
+            event_title: foundEvent.title,
+            venue: foundEvent.venue,
+            starts_at: foundEvent.starts_at,
+            ends_at: foundEvent.ends_at,
+            ticket_type_name: foundType.name,
+            code: randCode,
+            status: 'valid',
+            price_paid: Math.round(ticketOrder.amount / ticketOrder.quantity),
+            is_member_price: ticketOrder.amount < foundType.non_member_price * ticketOrder.quantity,
+            user_name: ticketOrder.user_name,
+            user_email: ticketOrder.user_email,
+            checked_in_at: null,
+          });
+        }
+      }
+
+      return HttpResponse.json({
+        order_id: String(orderId),
+        payment_id: ticketOrder.payment_id,
+        order_status: 'completed',
+        payment_status: 'succeeded',
+        provider_ref: `txn_mock_${Date.now()}`,
+      });
+    }
+
     if (body.outcome === 'fail') {
       return HttpResponse.json({
         order_id: String(orderId),
@@ -365,4 +437,439 @@ export const handlers = [
       page_size: 10,
     });
   }),
+
+  // ==========================================
+  // PHASE 2: EVENTS, TICKETS, CHECK-IN, REPORTS
+  // ==========================================
+
+  // 14. Events List (Public & Manage)
+  http.get('*/api/v1/events', ({ request }) => {
+    const url = new URL(request.url);
+    const statusParam = url.searchParams.get('status');
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(url.searchParams.get('page_size') || '20', 10);
+
+    let filtered = [...eventsState];
+    if (statusParam) {
+      filtered = filtered.filter((e) => e.status === statusParam);
+    }
+
+    filtered = filtered.map((e) => {
+      const prices = (e.ticket_types || []).flatMap((t) => [t.member_price, t.non_member_price]);
+      const minP = prices.length > 0 ? Math.min(...prices) : 0;
+      return {
+        ...e,
+        min_price: minP,
+      };
+    });
+
+    const start = (page - 1) * pageSize;
+    const paginated = filtered.slice(start, start + pageSize);
+
+    return HttpResponse.json({
+      items: paginated,
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+    });
+  }),
+
+  // 15. Event Detail
+  http.get('*/api/v1/events/:id', ({ params }) => {
+    const { id } = params;
+    const event = eventsState.find((e) => e.id === id);
+
+    if (!event) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Event not found or has been removed.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const ticketTypesWithSeats = event.ticket_types.map((t) => {
+      const sold = t.sold_count || 0;
+      return {
+        ...t,
+        sold_count: sold,
+        seats_left: Math.max(0, t.capacity - sold),
+      };
+    });
+
+    const prices = ticketTypesWithSeats.flatMap((t) => [t.member_price, t.non_member_price]);
+
+    return HttpResponse.json({
+      ...event,
+      ticket_types: ticketTypesWithSeats,
+      min_price: prices.length > 0 ? Math.min(...prices) : 0,
+    });
+  }),
+
+  // 16. Event Create (Organizer+)
+  http.post('*/api/v1/events', async ({ request }) => {
+    const body = (await request.json()) as any;
+
+    const newEvent: EventDetail = {
+      id: `evt_${Math.random().toString(36).substring(2, 9)}`,
+      title: body.title,
+      description: body.description,
+      venue: body.venue,
+      starts_at: body.starts_at,
+      ends_at: body.ends_at,
+      banner_url: body.banner_url || null,
+      status: body.status || 'draft',
+      created_at: new Date().toISOString(),
+      ticket_types: [],
+      min_price: 0,
+    };
+
+    eventsState.unshift(newEvent);
+
+    return HttpResponse.json(newEvent, { status: 201 });
+  }),
+
+  // 17. Event Update (Organizer+)
+  http.patch('*/api/v1/events/:id', async ({ params, request }) => {
+    const { id } = params;
+    const body = (await request.json()) as any;
+
+    const index = eventsState.findIndex((e) => e.id === id);
+    if (index === -1) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Event not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    eventsState[index] = {
+      ...eventsState[index],
+      ...body,
+    };
+
+    return HttpResponse.json(eventsState[index]);
+  }),
+
+  // 18. Create Ticket Type (Organizer+)
+  http.post('*/api/v1/events/:id/ticket-types', async ({ params, request }) => {
+    const { id } = params;
+    const body = (await request.json()) as any;
+
+    const event = eventsState.find((e) => e.id === id);
+    if (!event) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Event not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const newType = {
+      id: `tt_${Math.random().toString(36).substring(2, 9)}`,
+      event_id: String(id),
+      name: body.name,
+      member_price: body.member_price,
+      non_member_price: body.non_member_price,
+      capacity: body.capacity,
+      sold_count: 0,
+      seats_left: body.capacity,
+      sale_starts_at: body.sale_starts_at || null,
+      sale_ends_at: body.sale_ends_at || null,
+    };
+
+    event.ticket_types.push(newType);
+
+    return HttpResponse.json(newType, { status: 201 });
+  }),
+
+  // 19. Ticket Checkout
+  http.post('*/api/v1/tickets/checkout', async ({ request }) => {
+    const body = (await request.json()) as { ticket_type_id: string; quantity: number };
+
+    let foundEvent: EventDetail | undefined;
+    let foundType: any;
+
+    for (const ev of eventsState) {
+      const tt = ev.ticket_types.find((t) => t.id === body.ticket_type_id);
+      if (tt) {
+        foundEvent = ev;
+        foundType = tt;
+        break;
+      }
+    }
+
+    if (!foundEvent || !foundType) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'TICKET_TYPE_NOT_FOUND',
+            message: 'Requested ticket tier does not exist.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const seatsLeft = foundType.seats_left ?? (foundType.capacity - (foundType.sold_count || 0));
+
+    if (seatsLeft <= 0 || seatsLeft < body.quantity) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'SOLD_OUT',
+            message: 'Requested ticket tier is sold out or does not have enough seats left.',
+            details: {
+              available: Math.max(0, seatsLeft),
+              requested: body.quantity,
+            },
+          },
+        },
+        { status: 409 }
+      );
+    }
+
+    const currentUser = mockUsers[activeUserEmail] || mockUsers['member@ssa.org'];
+    const isMember = currentUser.membership?.status === 'active';
+    const unitPrice = isMember ? foundType.member_price : foundType.non_member_price;
+    const totalPaise = unitPrice * body.quantity;
+
+    // Free ticket flow
+    if (totalPaise === 0) {
+      foundType.sold_count = (foundType.sold_count || 0) + body.quantity;
+      foundType.seats_left = Math.max(0, seatsLeft - body.quantity);
+
+      for (let i = 0; i < body.quantity; i++) {
+        const randCode = `${foundEvent.title.replace(/[^A-Za-z]/g, '').substring(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        ticketsState.unshift({
+          id: `tkt_${Math.random().toString(36).substring(2, 9)}`,
+          order_id: `ord_free_${Date.now()}_${i}`,
+          event_id: foundEvent.id,
+          event_title: foundEvent.title,
+          venue: foundEvent.venue,
+          starts_at: foundEvent.starts_at,
+          ends_at: foundEvent.ends_at,
+          ticket_type_name: foundType.name,
+          code: randCode,
+          status: 'valid',
+          price_paid: 0,
+          is_member_price: isMember,
+          user_name: currentUser.full_name,
+          user_email: currentUser.email,
+          checked_in_at: null,
+        });
+      }
+
+      const res: TicketCheckoutResponse = {
+        order_id: `ord_free_${Date.now()}`,
+        payment_id: 'free_claim',
+        amount: 0,
+        provider: 'free_checkout',
+        status: 'completed',
+        event_title: foundEvent.title,
+        ticket_type_name: foundType.name,
+        quantity: body.quantity,
+        unit_price: 0,
+        is_member_price: isMember,
+      };
+
+      return HttpResponse.json(res);
+    }
+
+    // Paid ticket flow
+    const orderId = `ord_tkt_${Math.random().toString(36).substring(2, 10)}`;
+    const paymentId = `pay_${Math.random().toString(36).substring(2, 10)}`;
+
+    ticketOrdersState[orderId] = {
+      order_id: orderId,
+      payment_id: paymentId,
+      amount: totalPaise,
+      ticket_type_id: foundType.id,
+      quantity: body.quantity,
+      user_email: currentUser.email,
+      user_name: currentUser.full_name,
+    };
+
+    const res: TicketCheckoutResponse = {
+      order_id: orderId,
+      payment_id: paymentId,
+      amount: totalPaise,
+      provider: 'mock_cashfree',
+      status: 'pending',
+      event_title: foundEvent.title,
+      ticket_type_name: foundType.name,
+      quantity: body.quantity,
+      unit_price: unitPrice,
+      is_member_price: isMember,
+    };
+
+    return HttpResponse.json(res);
+  }),
+
+  // 20. My Tickets
+  http.get('*/api/v1/tickets/me', () => {
+    const currentUser = mockUsers[activeUserEmail] || mockUsers['member@ssa.org'];
+    const userTickets = ticketsState.filter(
+      (t) => t.user_email === currentUser.email || currentUser.email === 'member@ssa.org'
+    );
+
+    return HttpResponse.json(userTickets);
+  }),
+
+  // 21. Check-in Endpoint (Door Scanner)
+  http.post('*/api/v1/checkin', async ({ request }) => {
+    const body = (await request.json()) as { code: string; event_id: string };
+
+    const searchCode = (body.code || '').trim().toUpperCase();
+    const ticket = ticketsState.find((t) => t.code.toUpperCase() === searchCode);
+
+    if (!ticket) {
+      return HttpResponse.json({
+        result: 'INVALID',
+        ticket: null,
+      });
+    }
+
+    if (ticket.event_id !== body.event_id) {
+      return HttpResponse.json({
+        result: 'WRONG_EVENT',
+        ticket,
+      });
+    }
+
+    if (ticket.status === 'used') {
+      return HttpResponse.json({
+        result: 'ALREADY_USED',
+        ticket,
+        checked_in_at: ticket.checked_in_at || 'Earlier today',
+      });
+    }
+
+    // Valid check-in
+    ticket.status = 'used';
+    const nowIso = new Date().toISOString();
+    ticket.checked_in_at = nowIso;
+
+    return HttpResponse.json({
+      result: 'VALID',
+      ticket,
+      checked_in_at: nowIso,
+    });
+  }),
+
+  // 22. Event Report (Organizer+)
+  http.get('*/api/v1/events/:id/report', ({ params }) => {
+    const { id } = params;
+    const event = eventsState.find((e) => e.id === id);
+
+    if (!event) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Event not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const eventTickets = ticketsState.filter((t) => t.event_id === id);
+    const totalCapacity = event.ticket_types.reduce((acc, t) => acc + t.capacity, 0);
+
+    const soldCount = eventTickets.length;
+    const checkedInCount = eventTickets.filter((t) => t.status === 'used').length;
+    const noShows = Math.max(0, soldCount - checkedInCount);
+    const seatsLeft = Math.max(0, totalCapacity - soldCount);
+    const rate = soldCount > 0 ? Number(((checkedInCount / soldCount) * 100).toFixed(1)) : 0;
+
+    const memberRevenue = eventTickets
+      .filter((t) => t.is_member_price)
+      .reduce((acc, t) => acc + t.price_paid, 0);
+
+    const nonMemberRevenue = eventTickets
+      .filter((t) => !t.is_member_price)
+      .reduce((acc, t) => acc + t.price_paid, 0);
+
+    return HttpResponse.json({
+      sold: soldCount,
+      seats_left: seatsLeft,
+      checked_in: checkedInCount,
+      no_shows: noShows,
+      attendance_rate: rate,
+      revenue: {
+        member: memberRevenue,
+        non_member: nonMemberRevenue,
+        total: memberRevenue + nonMemberRevenue,
+      },
+    });
+  }),
+
+  // 23. Event Attendees (Organizer+)
+  http.get('*/api/v1/events/:id/attendees', ({ params, request }) => {
+    const { id } = params;
+    const event = eventsState.find((e) => e.id === id);
+
+    if (!event) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Event not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const url = new URL(request.url);
+    const search = (url.searchParams.get('search') || '').toLowerCase();
+    const status = url.searchParams.get('status');
+
+    let attendees = ticketsState
+      .filter((t) => t.event_id === id)
+      .map((t) => ({
+        id: t.id,
+        ticket_code: t.code,
+        user_name: t.user_name || 'Attendee',
+        user_email: t.user_email || 'attendee@ssa.org',
+        ticket_type_name: t.ticket_type_name,
+        price_paid: t.price_paid,
+        is_member_price: t.is_member_price,
+        status: t.status,
+        checked_in_at: t.checked_in_at,
+      }));
+
+    if (status) {
+      attendees = attendees.filter((a) => a.status === status);
+    }
+
+    if (search) {
+      attendees = attendees.filter(
+        (a) =>
+          a.user_name.toLowerCase().includes(search) ||
+          a.user_email.toLowerCase().includes(search) ||
+          a.ticket_code.toLowerCase().includes(search)
+      );
+    }
+
+    return HttpResponse.json({
+      items: attendees,
+      total: attendees.length,
+      page: 1,
+      page_size: 50,
+    });
+  }),
 ];
+

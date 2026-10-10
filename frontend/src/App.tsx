@@ -6,6 +6,14 @@ import { RequireAuth } from './components/auth/RequireAuth';
 import { RequireRole } from './components/auth/RequireRole';
 import { Layout } from './components/layout/Layout';
 
+import { EventsList } from './pages/events/EventsList';
+import { EventDetail } from './pages/events/EventDetail';
+import { MyTickets } from './pages/tickets/MyTickets';
+import { DoorScanner } from './pages/staff/DoorScanner';
+import { ManageEvents } from './pages/manage/ManageEvents';
+import { EventForm } from './pages/manage/EventForm';
+import { EventReport } from './pages/manage/EventReport';
+
 // Pages
 import { Home } from './pages/Home';
 import { Login } from './pages/auth/Login';
@@ -56,6 +64,8 @@ export function App() {
               <Route path="/" element={<Layout />}>
                 {/* Public Routes */}
                 <Route index element={<Home />} />
+                <Route path="events" element={<EventsList />} />
+                <Route path="events/:id" element={<EventDetail />} />
                 <Route path="login" element={<Login />} />
                 <Route path="register" element={<Register />} />
                 <Route path="join" element={<Join />} />
@@ -77,14 +87,74 @@ export function App() {
                     </RequireAuth>
                   }
                 />
+                <Route
+                  path="me/tickets"
+                  element={
+                    <RequireAuth>
+                      <MyTickets />
+                    </RequireAuth>
+                  }
+                />
 
-                {/* Staff Route (Volunteer & above) */}
+                {/* Staff Routes (Volunteer & above) */}
                 <Route
                   path="staff/verify-member"
                   element={
                     <RequireAuth>
                       <RequireRole minRole="volunteer">
                         <VerifyMember />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="staff/scan"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="volunteer">
+                        <DoorScanner />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+
+                {/* Organizer Event Management Routes */}
+                <Route
+                  path="manage/events"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <ManageEvents />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="manage/events/new"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <EventForm />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="manage/events/:id/edit"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <EventForm />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="manage/events/:id/report"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <EventReport />
                       </RequireRole>
                     </RequireAuth>
                   }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { membershipsApi } from '../../api/memberships';
+import { ticketsApi } from '../../api/tickets';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -21,6 +22,7 @@ import {
   Clock,
   Printer,
   UserCheck,
+  Ticket,
 } from 'lucide-react';
 
 export function MemberDashboard() {
@@ -31,6 +33,11 @@ export function MemberDashboard() {
   const { data: card, isLoading, error, refetch } = useQuery({
     queryKey: ['myMemberCard'],
     queryFn: membershipsApi.getMyCard,
+  });
+
+  const { data: myTickets } = useQuery({
+    queryKey: ['myTickets'],
+    queryFn: ticketsApi.getMyTickets,
   });
 
   const handlePrint = () => {
@@ -264,6 +271,65 @@ export function MemberDashboard() {
                   <span>Priority registration slots for competitive hackathons.</span>
                 </li>
               </ul>
+            </CardContent>
+          </Card>
+
+          {/* Quick Tickets Preview Card */}
+          <Card className="border-slate-800 bg-slate-900/70">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                  <Ticket className="w-4 h-4 text-emerald-400" />
+                  My Event Tickets
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-400">
+                  {myTickets && myTickets.filter(t => t.status === 'valid').length > 0
+                    ? `${myTickets.filter(t => t.status === 'valid').length} valid entry pass(es) ready`
+                    : 'Manage your event reservations & QR entry passes'}
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate('/me/tickets')}
+                className="text-xs text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              >
+                View Tickets <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </CardHeader>
+
+            <CardContent>
+              {myTickets && myTickets.filter(t => t.status === 'valid').length > 0 ? (
+                <div className="space-y-2">
+                  {myTickets.filter(t => t.status === 'valid').slice(0, 2).map(t => (
+                    <div
+                      key={t.id}
+                      onClick={() => navigate('/me/tickets')}
+                      className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between text-xs hover:border-slate-700 cursor-pointer transition-colors"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="font-semibold text-white truncate">{t.event_title}</p>
+                        <p className="text-[11px] text-slate-400">{t.ticket_type_name} • {t.venue}</p>
+                      </div>
+                      <span className="font-mono text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">
+                        {t.code}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  No upcoming event tickets booked yet.
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-emerald-400 p-0 ml-1.5 h-auto text-xs"
+                    onClick={() => navigate('/events')}
+                  >
+                    Explore events
+                  </Button>
+                </p>
+              )}
             </CardContent>
           </Card>
 

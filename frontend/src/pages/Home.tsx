@@ -59,6 +59,15 @@ export function Home() {
                 </Link>
               </>
             )}
+            <Link to="/events">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="bg-amber-400 hover:bg-amber-300 text-slate-900 border-none font-bold"
+              >
+                Browse Events
+              </Button>
+            </Link>
             <Link to="/join">
               <Button
                 variant="ghost"

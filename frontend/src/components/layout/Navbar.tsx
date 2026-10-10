@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { hasMinimumRole } from '../../types/api';
 import { RoleBadge } from '../ui/StatusChip';
 import { Button } from '../ui/Button';
-import { Menu, X, LogOut, ShieldCheck, Sparkles } from 'lucide-react';
+import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar } from 'lucide-react';
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -25,6 +25,7 @@ export function Navbar() {
     }`;
 
   const isStaff = user ? hasMinimumRole(user.role, 'volunteer') : false;
+  const isOrganizer = user ? hasMinimumRole(user.role, 'organizer') : false;
   const isAdmin = user?.role === 'admin';
 
   return (
@@ -50,21 +51,46 @@ export function Navbar() {
             <NavLink to="/" className={linkClass} end>
               Home
             </NavLink>
+            <NavLink to="/events" className={linkClass}>
+              Events
+            </NavLink>
             <NavLink to="/join" className={linkClass}>
               Plans & Perks
             </NavLink>
 
             {isAuthenticated && (
-              <NavLink to="/me" className={linkClass}>
-                My Card
-              </NavLink>
+              <>
+                <NavLink to="/me" className={linkClass}>
+                  My Card
+                </NavLink>
+                <NavLink to="/me/tickets" className={linkClass}>
+                  My Tickets
+                </NavLink>
+              </>
             )}
 
             {isStaff && (
-              <NavLink to="/staff/verify-member" className={linkClass}>
+              <div className="flex items-center gap-1 pl-1 border-l border-slate-200/80">
+                <NavLink to="/staff/verify-member" className={linkClass}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                    Member Scanner
+                  </span>
+                </NavLink>
+                <NavLink to="/staff/scan" className={linkClass}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4 text-indigo-600" />
+                    Door Scanner
+                  </span>
+                </NavLink>
+              </div>
+            )}
+
+            {isOrganizer && (
+              <NavLink to="/manage/events" className={linkClass}>
                 <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                  Scanner
+                  <Calendar className="w-4 h-4 text-indigo-600" />
+                  Manage Events
                 </span>
               </NavLink>
             )}
@@ -158,6 +184,13 @@ export function Navbar() {
               Home
             </NavLink>
             <NavLink
+              to="/events"
+              className={linkClass}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Events
+            </NavLink>
+            <NavLink
               to="/join"
               className={linkClass}
               onClick={() => setMobileMenuOpen(false)}
@@ -166,23 +199,59 @@ export function Navbar() {
             </NavLink>
 
             {isAuthenticated && (
-              <NavLink
-                to="/me"
-                className={linkClass}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                My Membership Card
-              </NavLink>
+              <>
+                <NavLink
+                  to="/me"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Membership Card
+                </NavLink>
+                <NavLink
+                  to="/me/tickets"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Event Tickets
+                </NavLink>
+              </>
             )}
 
             {isStaff && (
-              <NavLink
-                to="/staff/verify-member"
-                className={linkClass}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Staff Verification Scanner
-              </NavLink>
+              <div className="pt-2 mt-2 border-t border-slate-100 flex flex-col gap-1">
+                <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Staff Scanners
+                </span>
+                <NavLink
+                  to="/staff/verify-member"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Member Card Scanner
+                </NavLink>
+                <NavLink
+                  to="/staff/scan"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Door Ticket Scanner
+                </NavLink>
+              </div>
+            )}
+
+            {isOrganizer && (
+              <div className="pt-2 mt-2 border-t border-slate-100 flex flex-col gap-1">
+                <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Organizer
+                </span>
+                <NavLink
+                  to="/manage/events"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Manage Events
+                </NavLink>
+              </div>
             )}
 
             {isAdmin && (
