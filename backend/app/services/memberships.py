@@ -190,7 +190,7 @@ def confirm_membership_payment(db: Session, order: Order, payment: Payment, outc
 
     payments.settle(db, payment, "success")
     membership = activate(db, order)
-    ledger.record_transaction(
+    ledger.add_transaction(
         db,
         direction="in",
         amount=order.total,

@@ -433,7 +433,7 @@ def confirm_merch_payment(db: Session, order: Order, payment: Payment, outcome: 
 
     payments.settle(db, payment, "success")
     fulfil_merch_order(db, order)
-    ledger.record_transaction(
+    ledger.add_transaction(
         db,
         direction="in",
         amount=order.total,

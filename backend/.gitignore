@@ -7,3 +7,6 @@ __pycache__/
 *.db
 *.sqlite3
 .coverage
+
+# Local receipt storage (STORAGE_PROVIDER=local). Receipts are private - never commit them.
+var/

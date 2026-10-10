@@ -11,27 +11,32 @@ data loss, so the guard is the difference between a test run and an incident.
 """
 
 import os
+import tempfile
 from pathlib import Path
 
 # Must be set before app.core.config is imported.
 os.environ["JWT_SECRET"] = "test-secret-long-enough-for-hs256-32-bytes"
 os.environ["BCRYPT_ROUNDS"] = "4"
+# Receipts go to a throwaway directory: a test must never need a Supabase account, and must never
+# write into the repo. STORAGE_PROVIDER=local also keeps the service-role key out of the suite.
+os.environ["STORAGE_PROVIDER"] = "local"
+os.environ["LOCAL_STORAGE_DIR"] = tempfile.mkdtemp(prefix="ssa-test-receipts-")
 
-from datetime import UTC, date, datetime, timedelta  # noqa: E402
+from datetime import UTC, date, datetime, timedelta
 
-import pytest  # noqa: E402
-from alembic import command  # noqa: E402
-from alembic.config import Config  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, select, text  # noqa: E402
-from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+import pytest
+from alembic.config import Config
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import settings  # noqa: E402
-from app.core.db import duplicate_database_reason, engine_kwargs  # noqa: E402
-from app.core.deps import get_db  # noqa: E402
-from app.core.security import hash_password  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Event, Membership, MembershipPlan, TicketType, User  # noqa: E402
+from alembic import command
+from app.core.config import settings
+from app.core.db import duplicate_database_reason, engine_kwargs
+from app.core.deps import get_db
+from app.core.security import hash_password
+from app.main import app
+from app.models import Event, Fundraiser, Membership, MembershipPlan, Task, TicketType, User
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -224,6 +229,59 @@ def make_ticket_type(db):
         db.commit()
         db.refresh(ticket_type)
         return ticket_type
+
+    return _make
+
+
+@pytest.fixture
+def make_fundraiser(db):
+    """A fundraiser row, written straight to the table: the fixtures here build state, they do not
+    test the service. Its `event_date` defaults to 10 days out, like the seeded bake sale."""
+
+    def _make(owner: User, *, title: str = "Spring Bake Sale", goal: int = 500000, days: int = 10, status: str = "planning", **extra) -> Fundraiser:
+        fundraiser = Fundraiser(
+            title=title,
+            goal_amount=goal,
+            event_date=date.today() + timedelta(days=days),
+            status=status,
+            owner_id=owner.id,
+            **extra,
+        )
+        db.add(fundraiser)
+        db.commit()
+        db.refresh(fundraiser)
+        return fundraiser
+
+    return _make
+
+
+@pytest.fixture
+def make_task(db):
+    def _make(
+        fundraiser: Fundraiser,
+        *,
+        title: str = "Bake 200 cookies",
+        status: str = "todo",
+        due_in_days: int | None = None,
+        assignee: User | None = None,
+        category: str = "other",
+        position: int = 0,
+        **extra,
+    ) -> Task:
+        task = Task(
+            fundraiser_id=fundraiser.id,
+            title=title,
+            status=status,
+            category=category,
+            position=position,
+            assignee_id=assignee.id if assignee else None,
+            due_date=None if due_in_days is None else date.today() + timedelta(days=due_in_days),
+            **extra,
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        return task
 
     return _make
 

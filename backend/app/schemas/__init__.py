@@ -722,3 +722,495 @@ class StockSummaryOut(BaseModel):
         default=[], description="Reorder view: what each size actually moves"
     )
     totals: VariantStockTotals
+
+
+# --- fundraisers & tasks (Phase 5) -------------------------------------------------
+FundraiserStatus = Literal["planning", "active", "done"]
+TaskStatus = Literal["todo", "doing", "done"]
+TaskCategory = Literal["baking", "supplies", "table_duty", "promotion", "other"]
+FundraiserHealth = Literal["on_track", "at_risk", "behind", "completed"]
+
+
+class PersonRef(BaseModel):
+    """The smallest useful description of a person, for assignee/owner/logged_by fields."""
+
+    id: UUID
+    full_name: str
+    role: str
+
+
+class FundraiserCreateIn(BaseModel):
+    title: str = Field(min_length=3, max_length=100, examples=["Spring Bake Sale"])
+    description: str | None = Field(default=None, examples=["Cakes, cookies and cold coffee on the quad."])
+    goal_amount: int = Field(gt=0, examples=[500000], description="Integer paise")
+    event_date: date = Field(examples=["2026-10-20"], description="Cannot be in the past unless status is done")
+    owner_id: UUID | None = Field(default=None, description="Defaults to you; must be an organizer or above")
+    status: FundraiserStatus = Field(default="planning")
+
+
+class FundraiserUpdateIn(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=100)
+    description: str | None = None
+    goal_amount: int | None = Field(default=None, gt=0, description="Integer paise")
+    event_date: date | None = None
+    status: FundraiserStatus | None = Field(default=None, description="planning -> active -> done, one step at a time")
+    owner_id: UUID | None = None
+
+
+class FundraiserTaskCounts(BaseModel):
+    total: int
+    todo: int
+    doing: int
+    done: int
+    overdue: int = Field(description="Past due_date and not done")
+    due_soon: int = Field(description="Due within 3 days and not done")
+    unassigned: int = Field(description="Not done and nobody's name on it")
+    percent_done: int = Field(description="0-100, whole percent; 0 when the board is empty")
+
+
+class CategoryProgressOut(BaseModel):
+    category: str
+    total: int
+    done: int
+
+
+class AssigneeProgressOut(BaseModel):
+    assignee_id: UUID | None = None
+    name: str | None = Field(default=None, description="Null for the unassigned bucket")
+    total: int
+    done: int
+
+
+class FundraiserProgressOut(BaseModel):
+    """Full progress, for the fundraiser detail page (DESIGN.md §5)."""
+
+    tasks: FundraiserTaskCounts
+    raised: int = Field(description="Integer paise, GROSS: the sum of this fundraiser's `in` ledger rows")
+    spent: int = Field(
+        default=0, description="Integer paise, reimbursed claims charged to this fundraiser (Phase 6)"
+    )
+    net_raised: int = Field(default=0, description="Integer paise, `raised - spent` (Phase 6)")
+    goal: int = Field(description="Integer paise")
+    percent_of_goal: int = Field(description="Whole percent; can exceed 100 when the goal is beaten")
+    days_to_event: int = Field(description="Negative once the date has passed")
+    health: FundraiserHealth
+    by_category: list[CategoryProgressOut] = []
+    by_assignee: list[AssigneeProgressOut] = []
+
+
+class FundraiserProgressSummary(BaseModel):
+    """The slice of progress a list card shows - same numbers, fewer of them."""
+
+    tasks_total: int
+    tasks_done: int
+    overdue: int
+    unassigned: int
+    percent_done: int
+    raised: int = Field(description="Integer paise, gross")
+    spent: int = Field(default=0, description="Integer paise, reimbursed claims charged to this fundraiser")
+    net_raised: int = Field(default=0, description="Integer paise, `raised - spent`")
+    goal: int = Field(description="Integer paise")
+    percent_of_goal: int
+    days_to_event: int
+    health: FundraiserHealth
+
+
+class FundraiserOut(BaseModel):
+    id: UUID
+    title: str
+    description: str | None = None
+    goal_amount: int = Field(description="Integer paise")
+    event_date: date
+    status: str
+    owner: PersonRef
+    completed_at: UtcDateTime | None = None
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+    progress: FundraiserProgressOut
+
+
+class FundraiserListItemOut(BaseModel):
+    id: UUID
+    title: str
+    description: str | None = None
+    goal_amount: int = Field(description="Integer paise")
+    event_date: date
+    status: str
+    owner: PersonRef
+    completed_at: UtcDateTime | None = None
+    created_at: UtcDateTime
+    progress: FundraiserProgressSummary
+
+
+class TaskCreateIn(BaseModel):
+    title: str = Field(min_length=3, max_length=120, examples=["Bake 200 cookies"])
+    description: str | None = None
+    category: TaskCategory = Field(default="other", examples=["baking"])
+    assignee_id: UUID | None = Field(default=None, examples=["3f1a2b4c-0000-4000-8000-000000000009"])
+    due_date: date | None = Field(default=None, description="Must not be after the fundraiser's event_date")
+    status: TaskStatus = Field(default="todo")
+
+
+class TaskUpdateIn(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=120)
+    description: str | None = None
+    category: TaskCategory | None = None
+    assignee_id: UUID | None = None
+    due_date: date | None = None
+    status: TaskStatus | None = None
+
+
+class TaskMoveIn(BaseModel):
+    status: TaskStatus = Field(examples=["doing"], description="Which column the card lands in")
+    position: int | None = Field(default=None, ge=0, description="0-based slot; clamped to the column, defaults to last")
+
+
+class TaskOut(BaseModel):
+    id: UUID
+    fundraiser_id: UUID | None = None
+    event_id: UUID | None = None
+    title: str
+    description: str | None = None
+    category: str
+    assignee_id: UUID | None = None
+    assignee: PersonRef | None = None
+    due_date: date | None = None
+    status: str
+    position: int
+    is_overdue: bool
+    completed_at: UtcDateTime | None = None
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+
+class TaskColumnsOut(BaseModel):
+    todo: list[TaskOut] = []
+    doing: list[TaskOut] = []
+    done: list[TaskOut] = []
+
+
+class TaskBoardOut(BaseModel):
+    """The kanban: the same cards twice, flat and bucketed, so a client can render either."""
+
+    items: list[TaskOut]
+    columns: TaskColumnsOut
+    counts: dict[str, int] = Field(description="Card count per column")
+
+
+class TaskActivityOut(BaseModel):
+    id: UUID
+    task_id: UUID | None = Field(default=None, description="Null once the task has been deleted")
+    actor: PersonRef | None = None
+    action: str
+    from_value: str | None = None
+    to_value: str | None = None
+    created_at: UtcDateTime
+
+
+class FundraiserVolunteerOut(BaseModel):
+    user: PersonRef
+    tasks_total: int
+    tasks_done: int
+    open_tasks: int
+
+
+class AssignableUserOut(BaseModel):
+    """A candidate assignee. Only volunteer and above: a member cannot be handed club work."""
+
+    id: UUID
+    full_name: str
+    email: EmailStr
+    role: str
+
+
+class IncomeCreateIn(BaseModel):
+    amount: int = Field(gt=0, le=10_000_000, examples=[150000], description="Integer paise, max Rs 1,00,000")
+    note: str | None = Field(default=None, max_length=255, examples=["Coffee stall, day 2"])
+    source_label: str | None = Field(
+        default=None, max_length=80, examples=["Cash box"], description="Optional label prefixed to the ledger note"
+    )
+    occurred_at: datetime | None = Field(
+        default=None, description="When the money was taken. Defaults to now; backdating is allowed up to 30 days"
+    )
+
+
+class IncomeOut(BaseModel):
+    id: UUID
+    amount: int = Field(description="Integer paise")
+    note: str | None = None
+    occurred_at: UtcDateTime
+    raised_total: int = Field(description="Integer paise, this fundraiser's total after this entry")
+    percent_of_goal: int
+    replayed: bool = Field(
+        default=False, description="True when this Idempotency-Key had already been used and nothing new was written"
+    )
+
+
+class IncomeListItemOut(BaseModel):
+    id: UUID
+    amount: int = Field(description="Integer paise")
+    note: str | None = None
+    occurred_at: UtcDateTime
+    logged_by: PersonRef | None = None
+    created_at: UtcDateTime
+
+
+# --- Phase 6: expenses ------------------------------------------------------------
+ExpenseCategory = Literal["supplies", "food", "printing", "venue", "travel", "marketing", "equipment", "other"]
+ReimbursementMethod = Literal["cash", "upi", "bank_transfer"]
+
+
+class ExpenseFundraiserRef(BaseModel):
+    """Just enough to render "Spring Bake Sale" next to a claim."""
+
+    id: UUID
+    title: str
+
+
+class ExpenseOut(BaseModel):
+    """A claim. There is no `receipt_path` here and there never will be: receipts leave through
+    `GET /expenses/{id}/receipt`, which mints a signed URL that expires (DESIGN.md §4 rule 14)."""
+
+    id: UUID
+    claimant: PersonRef
+    amount: int = Field(description="Integer paise")
+    description: str
+    category: str
+    incurred_on: date
+    event_id: UUID | None = None
+    fundraiser_id: UUID | None = None
+    fundraiser: ExpenseFundraiserRef | None = None
+    status: Literal["submitted", "approved", "rejected", "reimbursed", "withdrawn"]
+    has_receipt: bool
+    receipt_mime: str | None = None
+    receipt_size: int | None = None
+    reviewed_by: PersonRef | None = None
+    reviewed_at: UtcDateTime | None = None
+    review_note: str | None = None
+    reimbursed_by: UUID | None = None
+    reimbursed_at: UtcDateTime | None = None
+    reimbursement_method: ReimbursementMethod | None = None
+    reimbursement_reference: str | None = None
+    ledger_transaction_id: UUID | None = Field(
+        default=None, description="The `out` ledger row that paid this claim; null until reimbursed"
+    )
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+
+class ExpenseHistoryOut(BaseModel):
+    id: UUID
+    action: str
+    note: str | None = None
+    actor: PersonRef | None = None
+    created_at: UtcDateTime
+
+
+class ExpenseDetailOut(ExpenseOut):
+    history: list[ExpenseHistoryOut] = []
+
+
+class ExpensePatchIn(BaseModel):
+    amount: int | None = Field(default=None, ge=1, le=5_000_000, examples=[45000])
+    description: str | None = Field(default=None, min_length=5, max_length=300)
+    category: ExpenseCategory | None = None
+    incurred_on: date | None = None
+    event_id: UUID | None = None
+    fundraiser_id: UUID | None = None
+
+
+class ExpenseReviewIn(BaseModel):
+    decision: Literal["approve", "reject"]
+    note: str | None = Field(default=None, description="Required (min 5 chars) when rejecting", max_length=1000)
+
+
+class ExpenseReimburseIn(BaseModel):
+    method: ReimbursementMethod
+    reference: str | None = Field(default=None, max_length=120, examples=["UPI/2026/8891"])
+    allow_negative: bool = Field(
+        default=False, description="Admin only: pay even if it pushes the club balance below zero"
+    )
+
+
+class ExpenseReceiptOut(BaseModel):
+    url: str = Field(description="Short-lived signed URL. The storage path is never returned.")
+    expires_in: int = Field(description="Seconds until the URL stops working", examples=[600])
+    mime: str | None = None
+    size: int | None = None
+
+
+class ExpensePageOut(BaseModel):
+    items: list[ExpenseOut]
+    total: int
+    page: int
+    page_size: int
+    counts: dict[str, int] = Field(
+        default={}, description="`{submitted, approved, rejected, reimbursed, withdrawn}` over the same filter"
+    )
+    submitted_amount: int = Field(default=0, description="Integer paise waiting for a decision")
+    approved_unpaid_amount: int = Field(default=0, description="Integer paise approved but not yet paid out")
+
+
+# --- Phase 6: finance -------------------------------------------------------------
+class ReconcileCheckOut(BaseModel):
+    name: str
+    ledger_total: int = Field(description="Integer paise; the count of violations for the boolean checks")
+    source_total: int = Field(description="Integer paise recomputed from the table that caused the stream")
+    difference: int = Field(description="`ledger_total - source_total`; anything but zero is a problem")
+    ok: bool
+
+
+class ReconcileOut(BaseModel):
+    ok: bool
+    checks: list[ReconcileCheckOut]
+
+
+class SourceTotalOut(BaseModel):
+    source: str
+    in_: int = Field(alias="in", description="Integer paise")
+    out: int = Field(description="Integer paise")
+    net: int = Field(description="Integer paise, `in - out`")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CategoryTotalOut(BaseModel):
+    category: str
+    amount: int = Field(description="Integer paise, reimbursed in the window")
+
+
+class MonthTotalOut(BaseModel):
+    month: str = Field(description="`YYYY-MM`", examples=["2026-08"])
+    in_: int = Field(alias="in")
+    out: int
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PendingReimbursementsOut(BaseModel):
+    submitted_count: int
+    submitted_amount: int = Field(description="Integer paise")
+    approved_unpaid_count: int
+    approved_unpaid_amount: int = Field(description="Integer paise")
+
+
+class FinanceSummaryOut(BaseModel):
+    date_from: date | None = None
+    date_to: date | None = None
+    total_in: int = Field(description="Integer paise in the window")
+    total_out: int = Field(description="Integer paise out in the window")
+    balance: int = Field(description="Integer paise, `total_in - total_out` for the window")
+    by_source: list[SourceTotalOut] = []
+    by_category: list[CategoryTotalOut] = []
+    pending_reimbursements: PendingReimbursementsOut
+    by_month: list[MonthTotalOut] = []
+    counts: dict[str, int] = Field(default={}, description="`{transactions, expenses_reimbursed}`")
+
+
+class TransactionOut(BaseModel):
+    id: UUID
+    occurred_at: UtcDateTime
+    direction: Literal["in", "out"]
+    amount: int = Field(description="Integer paise, always positive")
+    signed_amount: int = Field(description="Integer paise, negative for money out")
+    source: str
+    label: str = Field(description="Human line for the ledger table", examples=["Ticket sales - Spring Gala (VIP x2)"])
+    note: str | None = None
+    ref_type: str | None = None
+    ref_id: UUID | None = None
+    event_id: UUID | None = None
+    event_title: str | None = None
+    fundraiser_id: UUID | None = None
+    fundraiser_title: str | None = None
+    actor: PersonRef | None = None
+    is_reversal: bool = False
+    reverses_id: UUID | None = None
+    running_balance: int | None = Field(
+        default=None, description="Integer paise; only filled when sorting `occurred_at` ascending"
+    )
+    created_at: UtcDateTime
+
+
+class DimensionTotalOut(BaseModel):
+    id: UUID
+    title: str
+    total_in: int = Field(description="Integer paise")
+    total_out: int = Field(description="Integer paise")
+    net: int = Field(description="Integer paise")
+    goal_amount: int | None = Field(default=None, description="Fundraisers only")
+
+
+class OutstandingReimbursementOut(BaseModel):
+    user: PersonRef
+    submitted_amount: int = Field(description="Integer paise")
+    approved_unpaid_amount: int = Field(description="Integer paise")
+    oldest_pending_date: date | None = None
+
+
+class TopExpenseOut(BaseModel):
+    id: UUID
+    claimant: PersonRef
+    amount: int
+    category: str
+    description: str
+    incurred_on: date
+    reimbursed_at: UtcDateTime | None = None
+
+
+class SemesterReportOut(BaseModel):
+    period: dict[str, date]
+    opening_balance: int = Field(description="Integer paise, balance before `from`")
+    income: dict
+    expenses: dict
+    closing_balance: int = Field(description="Integer paise, always `opening_balance + net_movement`")
+    net_movement: int = Field(description="Integer paise")
+    by_event: list[DimensionTotalOut] = []
+    by_fundraiser: list[DimensionTotalOut] = []
+    outstanding_reimbursements: list[OutstandingReimbursementOut] = []
+    top_expenses: list[TopExpenseOut] = []
+    reconciliation: ReconcileOut
+    generated_at: UtcDateTime
+
+
+class ManualEntryIn(BaseModel):
+    direction: Literal["in", "out"] | None = Field(
+        default=None, description="Optional; must agree with `source` when given"
+    )
+    amount: int = Field(gt=0, examples=[500000], description="Integer paise")
+    source: Literal["other_income", "other_expense"]
+    note: str = Field(min_length=5, max_length=300, examples=["Sponsor - campus bookstore"])
+    event_id: UUID | None = None
+    fundraiser_id: UUID | None = None
+    occurred_at: UtcDateTime | None = Field(
+        default=None, description="Backdatable up to 60 days; never the future, never a closed period"
+    )
+    allow_negative: bool = Field(default=False, description="Admin only, for `other_expense`")
+
+
+class ReverseIn(BaseModel):
+    reason: str = Field(min_length=5, max_length=300, examples=["Double-counted the second cash box"])
+
+
+class FinancePeriodOut(BaseModel):
+    id: UUID
+    name: str
+    start_date: date
+    end_date: date
+    status: Literal["closed", "reopened"]
+    closing_balance: int = Field(description="Integer paise, frozen at closing time")
+    closed_by: PersonRef | None = None
+    closed_at: UtcDateTime | None = None
+    reopened_by: UUID | None = None
+    reopened_at: UtcDateTime | None = None
+    reopen_reason: str | None = None
+
+
+class ClosePeriodIn(BaseModel):
+    name: str = Field(min_length=3, max_length=120, examples=["Semester 1 2026"])
+    start_date: date
+    end_date: date = Field(description="Must be in the past")
+    force: bool = Field(default=False, description="Admin only: close despite reconciliation or pending claims")
+
+
+class ReopenPeriodIn(BaseModel):
+    reason: str = Field(min_length=10, max_length=1000, examples=["Missed the printer invoice for October"])

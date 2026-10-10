@@ -1,4 +1,5 @@
-"""SSA Hub API — Phases 1-3 (Auth & Membership, Events & Tickets, Announcements)."""
+"""SSA Hub API — Phases 1-6 (Auth & Membership, Events & Tickets, Announcements, Merchandise,
+Fundraisers & Tasks, Expenses & Treasurer Finance)."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -14,6 +15,9 @@ from app.routers import (
     auth,
     checkin,
     events,
+    expenses,
+    finance,
+    fundraisers,
     members,
     memberships,
     merch_admin,
@@ -22,6 +26,7 @@ from app.routers import (
     plans,
     preferences,
     products,
+    tasks,
     tickets,
     users,
 )
@@ -87,6 +92,12 @@ for router in (
     products.variant_router,
     orders.router,
     merch_admin.router,
+    fundraisers.router,
+    fundraisers.income_router,
+    tasks.router,
+    expenses.router,
+    finance.router,
+    finance.periods_router,
 ):
     app.include_router(router, prefix=API_PREFIX)
 

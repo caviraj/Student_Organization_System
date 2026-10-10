@@ -1,6 +1,6 @@
 # SSA Hub — Backend
 
-FastAPI + SQLAlchemy 2.x + Alembic. Contract: `docs/DESIGN.md` §5. Phases 0–4 are implemented: foundation, auth & membership, events/tickets/check-in, announcements & the mailing list, and merchandise (products, stock, orders, fulfilment).
+FastAPI + SQLAlchemy 2.x + Alembic. Contract: `docs/DESIGN.md` §5. Phases 0–6 are implemented: foundation, auth & membership, events/tickets/check-in, announcements & the mailing list, merchandise (products, stock, orders, fulfilment), fundraisers (planning, the task board, progress, hand-logged income), and expenses & treasurer finance (receipt uploads, review, reimbursement, the finance dashboard, manual entries, reversals and finance periods).
 
 ## Run it
 
@@ -11,14 +11,15 @@ pip install -r requirements.txt
 cp .env.example .env                                # fill in the two database URLs and JWT_SECRET
 
 python -m alembic upgrade head                      # create the schema (Alembic is the only DDL path)
-python scripts/seed.py                              # staff + plans + members + events + announcements + merch
+python scripts/setup_storage.py                     # creates the private receipts bucket (Supabase only; no-op for local)
+python scripts/seed.py                              # staff + plans + members + events + announcements + merch + fundraisers + expenses
 python -m uvicorn app.main:app --reload             # http://127.0.0.1:8000
 ```
 
 - Swagger UI: <http://127.0.0.1:8000/docs> — every endpoint, tagged, with example bodies.
 - Health: `GET /health`.
 - End-to-end demos (migrate, seed, boot the server, walk the whole flow):
-  `bash scripts/demo_phase1.sh` · `bash scripts/demo_phase2.sh` · `bash scripts/demo_phase3.sh` · `bash scripts/demo_phase4.sh`
+  `bash scripts/demo_phase1.sh` · `bash scripts/demo_phase2.sh` · `bash scripts/demo_phase3.sh` · `bash scripts/demo_phase4.sh` · `bash scripts/demo_phase5.sh` · `bash scripts/demo_phase6.sh`
 
 ## Database (Supabase Postgres — two URLs, not interchangeable)
 
@@ -45,6 +46,26 @@ python scripts/check_db.py     # server version, which database, pooler or not, 
 ships with **RLS on and no policies**: Supabase publishes `public` over its own REST API, and that
 combination is what keeps it closed while the backend (the table owner) is unaffected.
 
+## Receipt storage (Phase 6)
+
+Receipts never touch the database: `expenses` stores a path, a mime type and a size, and the bytes
+live in a **private** bucket that only the backend can reach with `SUPABASE_SERVICE_ROLE_KEY`. That
+key bypasses RLS, so it is never logged, never returned and never committed — every response that
+needs a file hands out a **signed URL that expires in 10 minutes** instead, and the storage path
+itself is never returned to a client.
+
+| Variable | Meaning |
+| --- | --- |
+| `STORAGE_PROVIDER` | `supabase` (real) or `local` (dev and tests — a fake rooted at `LOCAL_STORAGE_DIR`) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | required when `STORAGE_PROVIDER=supabase` |
+| `RECEIPTS_BUCKET` | bucket name, default `receipts`; `scripts/setup_storage.py` creates it idempotently |
+
+Uploads are validated **before** they are stored: jpeg/png/webp/pdf only (checked by magic bytes,
+not by the client's `Content-Type`), 5 MB maximum, and the object key is
+`receipts/{claimant_id}/{expense_id}/{uuid4}.{ext}` — the client's filename is never used, so a
+path-traversal or collision trick has nothing to grab. The suite runs on the `local` provider, so no
+test needs network access or a real bucket.
+
 ## Tests
 
 ```bash
@@ -69,6 +90,7 @@ Password for all of them: `Passw0rd!`
 | treasurer | `treasurer@ssa.org` |
 | organizer | `organizer@ssa.org` |
 | volunteer | `volunteer@ssa.org` |
+| volunteer | `neha@ssa.org`, `rohit@ssa.org` (extra claimants, so one review queue has several owners) |
 | member | `member01@ssa.org` … `member20@ssa.org` |
 
 Seeding is idempotent — run it as often as you like.
@@ -83,16 +105,43 @@ app/schemas/       Pydantic v2 request/response models, kept separate from ORM m
 app/routers/       HTTP only: parse, call a service, shape the response
 app/services/      business rules — memberships, payments, ledger, reminders, accounts,
                    check-in, reports, announcements, mailer, delivery_worker, unsubscribe,
-                   pricing, inventory (seats + stock), merch (catalogue, checkout, fulfilment)
+                   pricing, inventory (seats + stock), merch (catalogue, checkout, fulfilment),
+                   fundraisers (lifecycle + progress + health), tasks (board, positions, activity),
+                   income (hand-logged ledger rows), storage (private receipts), expenses (claims,
+                   review, reimbursement), finance (summary, transactions, reports, periods)
 app/jobs/          APScheduler wiring for the daily expiry scan, the ticket sweep, the
                    merchandise sweep and the announcement delivery job
 alembic/           migrations (autogenerate wired to Base.metadata)
-scripts/           seed.py, check_db.py, demo_phase1.sh … demo_phase4.sh
-tests/             pytest (auth, membership, events/tickets/check-in, announcements, merchandise)
+scripts/           seed.py, check_db.py, setup_storage.py, demo_phase1.sh … demo_phase6.sh
+tests/             pytest (auth, membership, events/tickets/check-in, announcements, merchandise,
+                   fundraisers/tasks/income, expenses/receipts/finance)
 ```
 
 Money is **integer paise** everywhere — never a float. Errors are always
 `{"error": {"code", "message", "details"}}`.
+
+**Fundraisers** (Phase 5): a fundraiser runs `planning → active → done` and never backwards; a `done`
+board is read-only, but income stays open for 7 days after `completed_at`. Every card change goes
+through `services/tasks.update_task`/`move_task`, which is why the `task_activity` trail can never be
+forgotten. `progress.health` (`on_track`/`at_risk`/`behind`/`completed`) is computed from named
+constants in the service, so the frontend's colours have one source of truth. Income is the one
+ledger entry a human types, so it is the one that can be typed twice: an `Idempotency-Key` plus
+`unique(fundraiser_id, idempotency_key)` turns a double-click into a replay, and there is no PATCH or
+DELETE for an income row.
+
+**Expenses & finance** (Phase 6): every ledger row — ticket, merch, dues, fundraiser income, claim
+reimbursement, manual entry — is written by the one function in `services/ledger.py`, so there is
+exactly one place where the signed arithmetic lives (`balance = total_in − total_out`, with
+reversals cancelling the side they mirror). A claim moves `submitted → approved|rejected`, then
+`approved → reimbursed`; approving needs a receipt, the reviewer can never be the claimant
+(`SELF_REVIEW`, `409`, admins included), and the review decision takes a `SELECT … FOR UPDATE` so
+two treasurers racing on the same claim leave one winner and one `INVALID_STATE`. Reimbursement is
+one transaction that re-checks the balance (`INSUFFICIENT_FUNDS`), and exactly one ledger row per
+claim — a second call replays instead of paying twice. Ledger rows are **immutable**: a mistake is
+corrected by `POST /finance/transactions/{id}/reverse`, which writes a mirror row, never by an
+UPDATE. `reconcile()` is the audit: it asserts balance is not negative, that every reimbursed claim
+has exactly one matching ledger row, and that opening + net == closing; `scripts/seed.py` and the
+tests both fail loudly if it ever disagrees.
 
 **Merchandise** (Phase 4): stock lives on `product_variants` and every change to it writes a
 `stock_movements` row in the same transaction, so `SUM(delta) == stock` holds for every variant —

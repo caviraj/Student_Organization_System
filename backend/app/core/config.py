@@ -32,6 +32,20 @@ class Settings(BaseSettings):
     # Merch is members-only by default (PRD FR-4.1). Set false to let anyone order at list price.
     MERCH_MEMBERS_ONLY: bool = True
 
+    # Receipts (Phase 6). The bucket is PRIVATE and only this backend holds the key, so
+    # SUPABASE_SERVICE_ROLE_KEY must never be logged, returned, or committed - it bypasses RLS.
+    # `local` keeps the whole receipt flow working with no cloud account (dev and tests).
+    STORAGE_PROVIDER: str = "local"
+    SUPABASE_URL: str | None = None
+    SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    RECEIPTS_BUCKET: str = "receipts"
+    LOCAL_STORAGE_DIR: str = "var/storage"
+    # Signed URLs are minted per request and are good for ten minutes - long enough to open the
+    # link, short enough that a URL pasted into a group chat is dead by the time anyone clicks it.
+    RECEIPT_URL_TTL_SECONDS: int = 600
+    # A claim may be dated up to this far back; a semester's receipts do not arrive same-day.
+    EXPENSE_BACKDATE_DAYS: int = 90
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
