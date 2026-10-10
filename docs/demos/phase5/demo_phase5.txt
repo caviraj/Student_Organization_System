@@ -1,0 +1,328 @@
+
+== 0. migrate + seed  (Alembic + seed.py run on DIRECT_URL, the session pooler)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+SSA Hub - Phase 1-5 seed
+----------------------------------------------------------
+  staff created          0 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        0 (of 20)
+  memberships            20 total | 14 active | 7 expiring <=30d | 6 expired
+  paid orders            153
+  succeeded payments     143
+  ledger rows (dues)     20
+  reminders              9 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 14, 'expired': 0, 'reminders_created': 0}
+  events                 4 (already seeded)
+  ticket types           5
+  tickets issued         119 | 64 checked in | 55 still valid
+  ledger rows (tickets)  109 | Rs 52,800 (5280000 paise)
+  announcements          15 (1 pinned) (already seeded) | 6 revision rows
+  deliveries             email failed 1 | email sent 134 | inapp sent 249
+  opted out of email     7 users | bouncing@fail.test always fails
+  products               4 (3 active, 1 retired) | 12 variants (already seeded)
+  merch stock            74 units | 2 out of stock | 4 low
+  merch orders           14 | paid 6, packed 4, handed_over 4
+  ledger rows (merch)    14 | Rs 11,669 (1166920 paise)
+  stock movements        30 rows | invariant SUM(delta) == stock for 12/12 variants
+  fundraisers            4 (already seeded) | planning 1, active 1, done 2
+  tasks                  17 (8 done, 3 unassigned) | 19 activity rows
+  Spring Bake Sale       raised Rs 2,000 of Rs 5,000 (40%) | 3/8 tasks done | health at_risk
+  ledger rows (fundraiser) 4 | Rs 6,000 (600000 paise)
+----------------------------------------------------------
+  login as staff: admin@ssa.org / treasurer@ssa.org / organizer@ssa.org / volunteer@ssa.org
+  members: member01@ssa.org ... member20@ssa.org
+  password for all seeded accounts: Passw0rd!
+
+== starting uvicorn on :8000  (log: /tmp/ssa_uvicorn.log)
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+signed in as organizer@ssa.org, volunteer@ssa.org (staff) and member01@ssa.org (plain member)
+
+== 1. reset: clear this demo's own fundraiser so the numbers below repeat
+  removed 1 previous demo fundraiser(s) and their rows
+
+== 2. POST /fundraisers  (organizer): "Demo Bake Sale", goal Rs 3,000, event in 6 days
+{
+    "id": "f515091a-a838-42cc-a7a0-62141f566f22",
+    "title": "Demo Bake Sale",
+    "description": "Cakes and cookies outside the library, run by the second years.",
+    "goal_amount": 300000,
+    "event_date": "2026-10-16",
+    "status": "planning",
+    "owner": {
+        "id": "de2bda4f-71aa-4c24-92b5-562d81cf938a",
+        "full_name": "Om Prakash",
+        "role": "organizer"
+    },
+    "completed_at": null,
+    "created_at": "2026-10-10T08:02:16.581108Z",
+    "updated_at": "2026-10-10T08:02:16.581108Z",
+    "progress": {
+        "tasks": {
+            "total": 0,
+            "todo": 0,
+            "doing": 0,
+            "done": 0,
+            "overdue": 0,
+            "due_soon": 0,
+            "unassigned": 0,
+            "percent_done": 0
+        },
+        "raised": 0,
+        "goal": 300000,
+        "percent_of_goal": 0,
+        "days_to_event": 6,
+        "health": "at_risk",
+        "by_category": [],
+        "by_assignee": []
+    }
+}
+  status=planning and progress is all zeros - a plan is not a promise yet.
+
+== 3. PATCH /fundraisers/{id}  (planning -> active: the board opens for work)
+  Demo Bake Sale   active    event in 6   days   health=at_risk
+  tasks: 0 total | 0 todo 0 doing 0 done | 0 overdue | 0 due soon | 0 unassigned | 0% done
+  money: Rs 0 raised of Rs 3,000 goal (0%)
+
+== 4. GET /users/assignable  (organizer: who a card can be given to)
+  4 assignable (active, volunteer and above):
+      Aarav Menon      admin        admin@ssa.org
+      Om Prakash       organizer    organizer@ssa.org
+      Tara Iyer        treasurer    treasurer@ssa.org
+      Vidya Nair       volunteer    volunteer@ssa.org
+  VOLUNTEER_ID=597870bf-301c-4a0c-9dab-405c69d5e690  (volunteer@ssa.org)
+
+== 5. POST /fundraisers/{id}/tasks  x5  (organizer): the work, one card due yesterday
+  done   pos 0  Book the quad table              promotion  due 2026-10-07 Om Prakash
+  done   pos 1  Print posters and flyers         promotion  due 2026-10-08 Vidya Nair
+  doing  pos 0  Order flour, sugar and butter    supplies   due 2026-10-12 Vidya Nair
+  doing  pos 1  Bake 200 cookies                 baking     due 2026-10-12 Om Prakash
+  todo   pos 0  Collect the cake tins            supplies   due 2026-10-09 Vidya Nair
+  MINE_ID=95c3a592-e24c-4eff-a8c0-518cb4a3880d  (the overdrawn-looking todo card the volunteer moves in step 9)
+  A sixth card is refused before it is written - the database CHECK is the backstop:
+{
+    "error": {
+        "code": "DUE_AFTER_EVENT",
+        "message": "A task cannot be due after the day it is being prepared for",
+        "details": {
+            "due_date": "2026-10-30",
+            "event_date": "2026-10-16"
+        }
+    }
+}
+  ^ 422 DUE_AFTER_EVENT: work cannot be due after the day it is being prepared for.
+
+== 6. GET /fundraisers/{id}/tasks  (the board: flat items AND the columns a kanban renders)
+  counts: {'todo': 1, 'doing': 2, 'done': 2}
+  TODO:
+      [0] Collect the cake tins            supplies    due 2026-10-09  Vidya Nair  OVERDUE
+  DOING:
+      [0] Order flour, sugar and butter    supplies    due 2026-10-12  Vidya Nair
+      [1] Bake 200 cookies                 baking      due 2026-10-12  Om Prakash
+  DONE:
+      [0] Book the quad table              promotion   due 2026-10-07  Om Prakash
+      [1] Print posters and flyers         promotion   due 2026-10-08  Vidya Nair
+
+== 7. GET /fundraisers/{id}  (progress: 2/5 done, one card overdue -> health=at_risk)
+  Demo Bake Sale   active    event in 6   days   health=at_risk
+  tasks: 5 total | 1 todo 2 doing 2 done | 1 overdue | 2 due soon | 0 unassigned | 40% done
+  money: Rs 0 raised of Rs 3,000 goal (0%)
+      baking      1 card(s), 0 done
+      promotion   2 card(s), 2 done
+      supplies    2 card(s), 0 done
+      Vidya Nair       3 card(s), 1 done
+      Om Prakash       2 card(s), 1 done
+  at_risk, not behind: one overdue card is a warning, three is a fire (DESIGN.md §4 rule 13).
+
+== 8. GET /tasks/me  (volunteer: their own cards across EVERY board, overdue first)
+  8 card(s) assigned to me, overdue first
+  todo        Ask the library for a donation box OVERDUE due 2026-09-20
+  done        Order flour, sugar and butter           due 2026-10-07
+  done        Print posters and flyers                due 2026-10-08
+  todo        Collect the cake tins            OVERDUE due 2026-10-09
+  done        Buy the sweets and diyas                due 2026-10-10
+  doing       Collect the cake tins                   due 2026-10-11
+  doing       Order flour, sugar and butter           due 2026-10-12
+  todo        Bake 200 cookies                        due 2026-10-13
+  The seeded boards are in here too - this is the volunteer's whole workload, not one fundraiser's.
+
+== 9. PATCH /tasks/{id}  (the assignee moves their OWN card: todo -> doing -> done)
+  Collect the cake tins -> doing  completed_at=None
+  Collect the cake tins -> done  completed_at=2026-10-10T08:02:23.189486Z
+
+== 10. PATCH /tasks/{id}  (the same volunteer tries to RENAME it: 403 - they own the column, not the card)
+{
+    "error": {
+        "code": "FORBIDDEN",
+        "message": "An assignee may only move their own task between columns",
+        "details": {
+            "fields": [
+                "title"
+            ]
+        }
+    }
+}
+
+== 11. GET /tasks/{id}/activity  (every change, who made it, from what to what)
+  3 row(s), newest first
+  2026-10-10T08:02:23 status_changed doing                    -> done                     by Vidya Nair
+  2026-10-10T08:02:22 status_changed todo                     -> doing                    by Vidya Nair
+  2026-10-10T08:02:20 created        -                        -> Collect the cake tins    by Om Prakash
+
+== 12. GET /fundraisers/{id}  (progress after the move: 3/5 done, nothing overdue)
+  Demo Bake Sale   active    event in 6   days   health=on_track
+  tasks: 5 total | 0 todo 2 doing 3 done | 0 overdue | 2 due soon | 0 unassigned | 60% done
+  money: Rs 0 raised of Rs 3,000 goal (0%)
+      baking      1 card(s), 0 done
+      promotion   2 card(s), 2 done
+      supplies    2 card(s), 1 done
+      Vidya Nair       3 card(s), 2 done
+      Om Prakash       2 card(s), 1 done
+
+== 13. POST /fundraisers/{id}/income  (organizer, Rs 1,500 of pre-orders, Idempotency-Key sent)
+{
+    "id": "38752dff-6e32-46bc-bdf0-58e41840478a",
+    "amount": 150000,
+    "note": "Cash box - Pre-orders",
+    "occurred_at": "2026-10-10T08:02:24.373985Z",
+    "raised_total": 150000,
+    "percent_of_goal": 50,
+    "replayed": false
+}
+
+== 14. POST ... the SAME body, the SAME key  (a double-click: replayed=true, still one ledger row)
+38752dff-6e32-46bc-bdf0-58e41840478a
+{
+    "id": "38752dff-6e32-46bc-bdf0-58e41840478a",
+    "amount": 150000,
+    "note": "Cash box - Pre-orders",
+    "occurred_at": "2026-10-10T08:02:24.373985Z",
+    "raised_total": 150000,
+    "percent_of_goal": 50,
+    "replayed": true
+}
+  ^ replayed=true and the same id: raised_total is still Rs 1,500, not Rs 3,000.
+    There is no PATCH and no DELETE on an income row - a ledger you can rewrite is not a ledger.
+
+== 15. GET /fundraisers/{id}/income  (the cash book, with who logged each entry)
+  1 entr(ies), newest first
+  2026-10-10T08:02:24   Rs 1,500  Cash box - Pre-orders              logged by Om Prakash
+
+== 16. GET /fundraisers/{id}  (progress: raised Rs 1,500 of Rs 3,000 = 50%)
+  Demo Bake Sale   active    event in 6   days   health=on_track
+  tasks: 5 total | 0 todo 2 doing 3 done | 0 overdue | 2 due soon | 0 unassigned | 60% done
+  money: Rs 1,500 raised of Rs 3,000 goal (50%)
+      baking      1 card(s), 0 done
+      promotion   2 card(s), 2 done
+      supplies    2 card(s), 1 done
+      Vidya Nair       3 card(s), 2 done
+      Om Prakash       2 card(s), 1 done
+
+== 17. PATCH /fundraisers/{id}  done with a card still open  (409 OPEN_TASKS, with the count)
+{
+    "error": {
+        "code": "OPEN_TASKS",
+        "message": "2 task(s) are still open - finish them, or pass force=true to close anyway",
+        "details": {
+            "open_count": 2
+        }
+    }
+}
+
+== 18. PATCH /fundraisers/{id}?force=true  (the organizer decides anyway)
+  Demo Bake Sale   done      event in 6   days   health=completed
+  tasks: 5 total | 0 todo 2 doing 3 done | 0 overdue | 2 due soon | 0 unassigned | 60% done
+  money: Rs 1,500 raised of Rs 3,000 goal (50%)  - completed 2026-10-10T08:02:26
+      baking      1 card(s), 0 done
+      promotion   2 card(s), 2 done
+      supplies    2 card(s), 1 done
+      Vidya Nair       3 card(s), 2 done
+      Om Prakash       2 card(s), 1 done
+  completed_at is stamped, and the board is now read-only:
+{
+    "error": {
+        "code": "FUNDRAISER_CLOSED",
+        "message": "This fundraiser is done - its tasks are read-only",
+        "details": {
+            "fundraiser_id": "f515091a-a838-42cc-a7a0-62141f566f22",
+            "status": "done"
+        }
+    }
+}
+  ^ 409 FUNDRAISER_CLOSED. Cash counted on the day still arrives for seven days - income stays
+    open until completed_at + 7 days, which is why step 14 would still be accepted today.
+
+== 19. the ledger rows behind it all  (direct SQL, no debug endpoint: a read a DBA would do)
+  fundraiser f515091a-a838-42cc-a7a0-62141f566f22  status=done  goal=Rs 3,000  completed_at=2026-10-10 08:02:26.360564+00:00
+  ledger rows for this fundraiser (source=fundraiser):
+    2026-10-10 08:02:24 in   Rs    1,500  Cash box - Pre-orders          by Om Prakash       key=demo-bake-sale-preorders
+    rows sum to Rs 1,500 - the API reported raised_total=Rs 1,500
+  cards: 5 total, 2 still open (the number OPEN_TASKS quoted in step 17)
+  activity rows kept for this board: 7
+
+== 20. GET /fundraisers  (the list, newest first: progress is batched, not one query per row)
+  4 fundraiser(s)
+  Diwali Stall               done      completed 100% cards  125% goal  Rs 2,500 / Rs 2,000
+  Demo Bake Sale             done      completed  60% cards   50% goal  Rs 1,500 / Rs 3,000
+  Spring Bake Sale           active    at_risk    38% cards   40% goal  Rs 2,000 / Rs 5,000
+  Book Drive                 planning  at_risk     0% cards    0% goal  Rs 0 / Rs 3,000
+
+== 21. the permission wall  (guest 401, member 403, volunteer reads, organizer writes)
+  guest GET /fundraisers          -> 401
+  member GET /fundraisers         -> 403
+  volunteer GET /fundraisers      -> 200
+  member POST /fundraisers        -> 403
+  volunteer POST /fundraisers     -> 403
+
+== 22. script/check_db.py  (DATABASE_URL, the pooler: server, tables, RLS)
+SSA Hub - database check
+----------------------------------------------------------------
+  DATABASE_URL    aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+  DIRECT_URL      aws-0-ap-south-1.pooler.supabase.com
+  mode            transaction pooler
+  server          PostgreSQL 17.11 on aarch64-unknown-linux-gnu
+  connected as    postgres @ postgres
+  backend session real port 5432 (pooled) - no session state, no advisory locks
+
+  table                            rls
+  -------------------------------- -----
+  announcement_deliveries          on
+  announcement_revisions           on
+  announcements                    on
+  events                           on
+  fundraisers                      on
+  membership_plans                 on
+  memberships                      on
+  merch_orders                     on
+  order_items                      on
+  orders                           on
+  payments                         on
+  product_variants                 on
+  products                         on
+  reminders                        on
+  stock_movements                  on
+  task_activity                    on
+  tasks                            on
+  ticket_types                     on
+  tickets                          on
+  transactions                     on
+  users                            on
+----------------------------------------------------------------
+  OK: RLS enabled on all 21 public tables
+
+== 23. Swagger /docs carries the three new tags
+  tag Fundraisers        present=True  endpoints=7
+  tag Tasks              present=True  endpoints=7
+  tag Fundraiser Income  present=True  endpoints=2
+  new paths: /api/v1/fundraisers, /api/v1/fundraisers/{fundraiser_id}, /api/v1/fundraisers/{fundraiser_id}/income, /api/v1/fundraisers/{fundraiser_id}/tasks, /api/v1/fundraisers/{fundraiser_id}/volunteers, /api/v1/tasks, /api/v1/tasks/me, /api/v1/tasks/{task_id}, /api/v1/tasks/{task_id}/activity, /api/v1/tasks/{task_id}/move, /api/v1/users/assignable
+
+== done
+One fundraiser, five cards, one volunteer moving their own card, one ledger row from two
+identical requests, a full activity trail - and RLS on every public table.
+Swagger UI (tags: Fundraisers, Tasks, Fundraiser Income): http://127.0.0.1:8000/docs

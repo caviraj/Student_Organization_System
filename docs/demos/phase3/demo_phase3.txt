@@ -1,0 +1,707 @@
+
+== 0. migrate + seed  (Alembic + seed.py run on DIRECT_URL, the session pooler)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+SSA Hub - Phase 1-3 seed
+----------------------------------------------------------
+  staff created          0 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        0 (of 20)
+  memberships            20 total | 14 active | 7 expiring <=30d | 6 expired
+  paid orders            139
+  succeeded payments     129
+  ledger rows (dues)     20
+  reminders              9 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 14, 'expired': 0, 'reminders_created': 0}
+  events                 4 (already seeded)
+  ticket types           5
+  tickets issued         119 | 64 checked in | 55 still valid
+  ledger rows (tickets)  109 | Rs 52,800 (5280000 paise)
+  announcements          13 (1 pinned) (already seeded) | 5 revision rows
+  deliveries             email failed 1 | email sent 117 | inapp sent 221
+  opted out of email     6 users | bouncing@fail.test always fails
+----------------------------------------------------------
+  login as staff: admin@ssa.org / treasurer@ssa.org / organizer@ssa.org / volunteer@ssa.org
+  members: member01@ssa.org ... member20@ssa.org
+  password for all seeded accounts: Passw0rd!
+
+== starting uvicorn on :8000  (log: /tmp/ssa_uvicorn.log)
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+signed in as organizer@ssa.org, admin@ssa.org, member05@ssa.org and member06@ssa.org
+
+== 0b. POST /users/me/email-preferences  (member06 back on, so this demo repeats cleanly)
+{
+    "email": "member06@ssa.org",
+    "email_opt_in": true
+}
+Every run below ends with member06 opted out, so the demo resets that first - otherwise
+step 10 would show no change on a second run.
+
+== 1. POST /announcements  (organizer+: members-only, send_email=true)
+{
+    "id": "8b71a720-c594-4a14-8a4b-e335aff04722",
+    "title": "Members' AGM next Friday (1791614442)",
+    "category": "deadline",
+    "audience": "members",
+    "event_id": null,
+    "is_pinned": false,
+    "author_name": "Om Prakash",
+    "published_at": "2026-10-10T06:41:13.120011Z",
+    "edited_at": null,
+    "body": "The Annual General Meeting is next Friday at 4 PM in the Seminar Hall. Dues for the next year can be paid at the desk.",
+    "revision_note": null,
+    "delivery_summary": {
+        "inapp_queued": 14,
+        "email_queued": 9,
+        "skipped_opted_out": 5
+    }
+}
+delivery_summary is a QUEUE count, not a receipt - the worker has not run yet.
+
+== 2. wait 3s  (POST kicks the worker through BackgroundTasks; the 60s job is the safety net)
+
+== 3. GET /announcements/8b71a720-c594-4a14-8a4b-e335aff04722/deliveries  (admin): what actually went out
+{
+    "announcement_id": "8b71a720-c594-4a14-8a4b-e335aff04722",
+    "summary": {
+        "email": {
+            "queued": 0,
+            "sent": 9,
+            "failed": 0
+        },
+        "inapp": {
+            "queued": 0,
+            "sent": 14,
+            "failed": 0
+        },
+        "total_recipients": 23
+    },
+    "items": {
+        "items": [
+            {
+                "id": "d6577ed3-536a-4d45-947c-26a8b5874c42",
+                "user_id": "fd68965a-27d0-45d4-b499-3bfc4de9e07b",
+                "user_name": "Eshan Gupta",
+                "user_email": "member05@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.410597Z"
+            },
+            {
+                "id": "9aff3050-0ab2-44e2-b41c-ef24446839c8",
+                "user_id": "4d895920-47a3-4945-8a25-497bea7863d2",
+                "user_name": "Farah Khan",
+                "user_email": "member06@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412442Z"
+            },
+            {
+                "id": "65953d5a-3fca-475d-9cd6-f25d69ac8a9f",
+                "user_id": "acf889fb-5442-47ad-bb97-a9c6df1e5283",
+                "user_name": "Harini Prasad",
+                "user_email": "member08@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.410892Z"
+            },
+            {
+                "id": "76650a76-de19-4ddf-b5c2-40764e8c7fdb",
+                "user_id": "0eda22f3-c41f-473b-8b22-2ad1954fe576",
+                "user_name": "Ishaan Bose",
+                "user_email": "member09@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.411097Z"
+            },
+            {
+                "id": "bb178f37-6c28-479e-bc2b-cb04937438f3",
+                "user_id": "6d0611aa-afd0-4c74-b89f-65062652de70",
+                "user_name": "Jaya Krishnan",
+                "user_email": "member10@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.411283Z"
+            },
+            {
+                "id": "c5e9ae49-8616-431b-97cf-aa8cf420d2a2",
+                "user_id": "936b970a-e48e-4de1-80fb-dc21e51612eb",
+                "user_name": "Kabir Malhotra",
+                "user_email": "member11@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.411572Z"
+            },
+            {
+                "id": "bbc4652c-3792-4e74-9499-b15e32e56d95",
+                "user_id": "c240b013-6fe9-450f-b75d-fca1a3688780",
+                "user_name": "Lakshmi Reddy",
+                "user_email": "member12@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.411808Z"
+            },
+            {
+                "id": "d9198bf7-0101-4fcb-9f7f-fe29f012beb5",
+                "user_id": "4101c957-8f16-46b5-950a-59ed9c827d0a",
+                "user_name": "Manav Joshi",
+                "user_email": "member13@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412006Z"
+            },
+            {
+                "id": "4633013b-5b6e-4016-b24d-5e766b68e755",
+                "user_id": "1a55fb70-decb-44f7-854f-dd2cd39d66aa",
+                "user_name": "Nisha Pillai",
+                "user_email": "member14@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412223Z"
+            },
+            {
+                "id": "76f43318-b45b-4395-b5b9-ac6cbc00e380",
+                "user_id": "e3e59b3a-2e02-4ad5-966b-734f498b6f7e",
+                "user_name": "Aditi Rao",
+                "user_email": "member01@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412551Z"
+            },
+            {
+                "id": "f1591cf6-31ca-43af-a7ab-d1d6a3c889b8",
+                "user_id": "4df154b8-4a9b-400e-82a7-0cf9304bdb53",
+                "user_name": "Bhavya Shetty",
+                "user_email": "member02@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412540Z"
+            },
+            {
+                "id": "bdf63c13-3a14-4d83-9075-2cf43dbb69a5",
+                "user_id": "e7274f8b-8f50-4534-8acc-7f841047dbaf",
+                "user_name": "Chirag Patel",
+                "user_email": "member03@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412563Z"
+            },
+            {
+                "id": "f915bbf3-dc2f-4660-9d2b-0127bf5d897a",
+                "user_id": "38cd909e-ab5f-469b-bd1f-6d6ec4e22366",
+                "user_name": "Divya Menon",
+                "user_email": "member04@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412583Z"
+            },
+            {
+                "id": "f2f47922-1497-49de-b6c2-c124dd36951d",
+                "user_id": "fd68965a-27d0-45d4-b499-3bfc4de9e07b",
+                "user_name": "Eshan Gupta",
+                "user_email": "member05@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412454Z"
+            },
+            {
+                "id": "e3eac755-f154-4df2-8691-bbd714063891",
+                "user_id": "4d895920-47a3-4945-8a25-497bea7863d2",
+                "user_name": "Farah Khan",
+                "user_email": "member06@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412592Z"
+            },
+            {
+                "id": "4b8b1a05-3435-4000-9b62-fe30ef23b473",
+                "user_id": "8fd8dd9e-5380-4dfb-9c5f-c3acc9b591f2",
+                "user_name": "Gaurav Singh",
+                "user_email": "member07@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412573Z"
+            },
+            {
+                "id": "3f8b5c38-6f03-4b1c-9fde-0e55d8e6e0ee",
+                "user_id": "acf889fb-5442-47ad-bb97-a9c6df1e5283",
+                "user_name": "Harini Prasad",
+                "user_email": "member08@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412467Z"
+            },
+            {
+                "id": "ed021654-39c3-4d3a-b194-cc274661077c",
+                "user_id": "0eda22f3-c41f-473b-8b22-2ad1954fe576",
+                "user_name": "Ishaan Bose",
+                "user_email": "member09@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412479Z"
+            },
+            {
+                "id": "215ebd6f-1429-4e76-8298-0569d806ddc3",
+                "user_id": "6d0611aa-afd0-4c74-b89f-65062652de70",
+                "user_name": "Jaya Krishnan",
+                "user_email": "member10@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412490Z"
+            },
+            {
+                "id": "3ad98b02-b023-4dec-bf7c-1857a9787d3e",
+                "user_id": "936b970a-e48e-4de1-80fb-dc21e51612eb",
+                "user_name": "Kabir Malhotra",
+                "user_email": "member11@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:15.412500Z"
+            }
+        ],
+        "total": 23,
+        "page": 1,
+        "page_size": 20
+    }
+}
+Every active member has an in-app row; only the opted-in ones have an email row.
+
+== 4. GET /announcements  as a guest  (no token, no members-only post)
+  guest : does not see "Members' AGM next Friday (1791614442)"
+  member: SEES "Members' AGM next Friday (1791614442)"
+
+== 5. GET /announcements  as member05  (the same feed, one post longer)
+  14 post(s)
+  - general   all      "Welcome to Spring Semester" [pinned]  by Om Prakash
+      The club desk in the Student Centre is open every weekday fr...
+  - deadline  members  "Members' AGM next Friday (1791614442)"  by Om Prakash
+      The Annual General Meeting is next Friday at 4 PM in the Sem...
+  - general   members  "Hoodies are in (1791613862)"  by Om Prakash
+      Pre-ordered hoodies can be collected from the club room betw...
+  - deadline  members  "Members' AGM next Friday (1791613862)"  by Om Prakash
+      The Annual General Meeting is next Friday at 4 PM in the Sem...
+  - general   members  "Hoodies are in (1791613787)"  by Om Prakash
+      Pre-ordered hoodies can be collected from the club room betw...
+  - deadline  members  "Members' AGM next Friday (1791613787)"  by Om Prakash
+      The Annual General Meeting is next Friday at 4 PM in the Sem...
+  - general   members  "Hoodies are in (1791613703)"  by Om Prakash
+      Pre-ordered hoodies can be collected from the club room betw...
+  - deadline  members  "Members' AGM next Friday (1791613703)"  by Om Prakash
+      The Annual General Meeting is next Friday at 4 PM in the Sem...
+  - deadline  members  "Members' AGM next Friday (1791613661)"  by Om Prakash
+      The Annual General Meeting is next Friday at 4 PM in the Sem...
+  - change    all      "Auditions moved to Lab 3"  by Om Prakash
+      Auditions for the annual play start at 5 PM in Lab 3, not th...
+  - meeting   all      "Blood donation drive on Tuesday"  by Om Prakash
+      The campus blood bank is on the lawn from 9 AM. Walk-ins wel...
+  - deadline  members  "Dues deadline is 31 October"  by Om Prakash
+      Memberships lapse on 31 October. Renew at the desk or online...
+  - change    event    "Spring Gala: doors open 6 PM"  by Om Prakash
+      Doors open 6 PM - bring your QR ticket, entry is by scan onl...
+  - deadline  members  "Members' AGM next Friday"  by Om Prakash
+      The Annual General Meeting is next Friday at 4 PM in the Sem...
+
+== 6. PATCH /announcements/8b71a720-c594-4a14-8a4b-e335aff04722  (organizer+: body changed, revision_note required)
+{
+    "id": "8b71a720-c594-4a14-8a4b-e335aff04722",
+    "title": "Members' AGM next Friday (1791614442)",
+    "category": "deadline",
+    "audience": "members",
+    "event_id": null,
+    "is_pinned": false,
+    "author_name": "Om Prakash",
+    "published_at": "2026-10-10T06:41:13.120011Z",
+    "edited_at": "2026-10-10T06:41:23.078730Z",
+    "body": "The Annual General Meeting is next Friday at 4 PM in the Seminar Hall. Dues for the next year can be paid at the desk, or online from the members page.",
+    "revision_note": "Added the online payment option"
+}
+
+== 7. PATCH with a 2-character note  (422: the record of WHY has a floor)
+{
+    "error": {
+        "code": "REVISION_NOTE_REQUIRED",
+        "message": "revision_note (3+ characters) is required when editing a posted announcement",
+        "details": {
+            "field": "revision_note"
+        }
+    }
+}
+
+== 8. GET /announcements/8b71a720-c594-4a14-8a4b-e335aff04722/revisions  (organizer+: the version that was replaced)
+{
+    "items": [
+        {
+            "id": "84569e39-886c-4c41-8572-bbaea2a1b5de",
+            "title": "Members' AGM next Friday (1791614442)",
+            "body": "The Annual General Meeting is next Friday at 4 PM in the Seminar Hall. Dues for the next year can be paid at the desk.",
+            "category": "deadline",
+            "audience": "members",
+            "edited_by": "de2bda4f-71aa-4c24-92b5-562d81cf938a",
+            "edited_by_name": "Om Prakash",
+            "edited_at": "2026-10-10T06:41:23.078491Z",
+            "note": "Added the online payment option"
+        }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20
+}
+
+== 9. POST /users/me/email-preferences  (member06 switches email off)
+{
+    "email": "member06@ssa.org",
+    "email_opt_in": false
+}
+
+== 10. POST /announcements  (organizer+ again: member06 is now skipped)
+{
+    "id": "6cfb0351-8087-4808-a100-c09c5cf1ee6f",
+    "title": "Hoodies are in (1791614442)",
+    "category": "general",
+    "audience": "members",
+    "event_id": null,
+    "is_pinned": false,
+    "author_name": "Om Prakash",
+    "published_at": "2026-10-10T06:41:26.461834Z",
+    "edited_at": null,
+    "body": "Pre-ordered hoodies can be collected from the club room between 11 AM and 5 PM.",
+    "revision_note": null,
+    "delivery_summary": {
+        "inapp_queued": 14,
+        "email_queued": 8,
+        "skipped_opted_out": 6
+    }
+}
+  skipped_opted_out: 5 for the first post, 6 now
+
+== 11. GET /announcements/6cfb0351-8087-4808-a100-c09c5cf1ee6f/deliveries  (admin: one more email skipped)
+{
+    "announcement_id": "6cfb0351-8087-4808-a100-c09c5cf1ee6f",
+    "summary": {
+        "email": {
+            "queued": 0,
+            "sent": 8,
+            "failed": 0
+        },
+        "inapp": {
+            "queued": 0,
+            "sent": 14,
+            "failed": 0
+        },
+        "total_recipients": 22
+    },
+    "items": {
+        "items": [
+            {
+                "id": "a30cf0d6-51dc-49ca-805c-39775bb6c5f4",
+                "user_id": "fd68965a-27d0-45d4-b499-3bfc4de9e07b",
+                "user_name": "Eshan Gupta",
+                "user_email": "member05@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.352476Z"
+            },
+            {
+                "id": "a2347440-89bb-4c61-92a6-dd0c61601e3b",
+                "user_id": "acf889fb-5442-47ad-bb97-a9c6df1e5283",
+                "user_name": "Harini Prasad",
+                "user_email": "member08@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.352665Z"
+            },
+            {
+                "id": "440bd84d-1a36-4c8c-8f69-9baaba89e576",
+                "user_id": "0eda22f3-c41f-473b-8b22-2ad1954fe576",
+                "user_name": "Ishaan Bose",
+                "user_email": "member09@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.352835Z"
+            },
+            {
+                "id": "c3593037-0425-4c19-875d-fc168fa4cfdb",
+                "user_id": "6d0611aa-afd0-4c74-b89f-65062652de70",
+                "user_name": "Jaya Krishnan",
+                "user_email": "member10@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353004Z"
+            },
+            {
+                "id": "d3abafe2-239e-4a6a-bf12-dc3e83f3425d",
+                "user_id": "936b970a-e48e-4de1-80fb-dc21e51612eb",
+                "user_name": "Kabir Malhotra",
+                "user_email": "member11@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353153Z"
+            },
+            {
+                "id": "3d700a9f-7250-42eb-bab3-f58ee3e96955",
+                "user_id": "c240b013-6fe9-450f-b75d-fca1a3688780",
+                "user_name": "Lakshmi Reddy",
+                "user_email": "member12@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353297Z"
+            },
+            {
+                "id": "4c59d0ee-0496-46a9-b5b5-513942c6d294",
+                "user_id": "4101c957-8f16-46b5-950a-59ed9c827d0a",
+                "user_name": "Manav Joshi",
+                "user_email": "member13@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353452Z"
+            },
+            {
+                "id": "9865c7a0-d0cb-4bac-bf5f-0841c75f0e83",
+                "user_id": "1a55fb70-decb-44f7-854f-dd2cd39d66aa",
+                "user_name": "Nisha Pillai",
+                "user_email": "member14@ssa.org",
+                "channel": "email",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353675Z"
+            },
+            {
+                "id": "cd3bdef4-f1c5-4157-968c-66ebdc31da1d",
+                "user_id": "e3e59b3a-2e02-4ad5-966b-734f498b6f7e",
+                "user_name": "Aditi Rao",
+                "user_email": "member01@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353757Z"
+            },
+            {
+                "id": "badd45f7-02cf-4d1a-b0ac-f82a42024580",
+                "user_id": "4df154b8-4a9b-400e-82a7-0cf9304bdb53",
+                "user_name": "Bhavya Shetty",
+                "user_email": "member02@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353750Z"
+            },
+            {
+                "id": "dd0fd39a-85c1-4cbd-9f1f-56a57c801dc9",
+                "user_id": "e7274f8b-8f50-4534-8acc-7f841047dbaf",
+                "user_name": "Chirag Patel",
+                "user_email": "member03@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353767Z"
+            },
+            {
+                "id": "12600dc3-926c-4168-a51d-9a4ed43b1e8e",
+                "user_id": "38cd909e-ab5f-469b-bd1f-6d6ec4e22366",
+                "user_name": "Divya Menon",
+                "user_email": "member04@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353782Z"
+            },
+            {
+                "id": "4127d726-34b5-4453-8bf7-b3c40646c776",
+                "user_id": "fd68965a-27d0-45d4-b499-3bfc4de9e07b",
+                "user_name": "Eshan Gupta",
+                "user_email": "member05@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353687Z"
+            },
+            {
+                "id": "98250ee3-b8cd-45bd-9ae7-fffc008d9335",
+                "user_id": "4d895920-47a3-4945-8a25-497bea7863d2",
+                "user_name": "Farah Khan",
+                "user_email": "member06@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353789Z"
+            },
+            {
+                "id": "c747c308-320a-4fbb-a9e3-c66b4562ee77",
+                "user_id": "8fd8dd9e-5380-4dfb-9c5f-c3acc9b591f2",
+                "user_name": "Gaurav Singh",
+                "user_email": "member07@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353774Z"
+            },
+            {
+                "id": "d916cd49-ad4a-4f92-b8b7-e7496f68d759",
+                "user_id": "acf889fb-5442-47ad-bb97-a9c6df1e5283",
+                "user_name": "Harini Prasad",
+                "user_email": "member08@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353696Z"
+            },
+            {
+                "id": "33c6ceea-d84f-4d6c-b09d-e838a244cdc6",
+                "user_id": "0eda22f3-c41f-473b-8b22-2ad1954fe576",
+                "user_name": "Ishaan Bose",
+                "user_email": "member09@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353704Z"
+            },
+            {
+                "id": "e612a95a-61a4-4861-af3c-9f7842e9494c",
+                "user_id": "6d0611aa-afd0-4c74-b89f-65062652de70",
+                "user_name": "Jaya Krishnan",
+                "user_email": "member10@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353711Z"
+            },
+            {
+                "id": "19f1aa89-f24e-407f-a97f-e94ecd6fc1d0",
+                "user_id": "936b970a-e48e-4de1-80fb-dc21e51612eb",
+                "user_name": "Kabir Malhotra",
+                "user_email": "member11@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353720Z"
+            },
+            {
+                "id": "ecd5d2d0-e972-4cc0-859a-74a64b030f52",
+                "user_id": "c240b013-6fe9-450f-b75d-fca1a3688780",
+                "user_name": "Lakshmi Reddy",
+                "user_email": "member12@ssa.org",
+                "channel": "inapp",
+                "status": "sent",
+                "attempts": 0,
+                "error": null,
+                "sent_at": "2026-10-10T06:41:27.353728Z"
+            }
+        ],
+        "total": 22,
+        "page": 1,
+        "page_size": 20
+    }
+}
+
+== 12. GET /unsubscribe?token=...  (the link from the console email, no session needed)
+read from the console provider's output in /tmp/ssa_uvicorn.log:
+  unsubscribe?token=<dev unsubscribe JWT, redacted before commit>
+{
+    "unsubscribed": true,
+    "email": "m*******@ssa.org"
+}
+
+== 13. script/check_db.py  (DATABASE_URL, the pooler: server, tables, RLS)
+SSA Hub - database check
+----------------------------------------------------------------
+  DATABASE_URL    aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+  DIRECT_URL      aws-0-ap-south-1.pooler.supabase.com
+  mode            transaction pooler
+  server          PostgreSQL 17.11 on aarch64-unknown-linux-gnu
+  connected as    postgres @ postgres
+  backend session real port 5432 (pooled) - no session state, no advisory locks
+
+  table                            rls
+  -------------------------------- -----
+  announcement_deliveries          on
+  announcement_revisions           on
+  announcements                    on
+  events                           on
+  membership_plans                 on
+  memberships                      on
+  order_items                      on
+  orders                           on
+  payments                         on
+  reminders                        on
+  ticket_types                     on
+  tickets                          on
+  transactions                     on
+  users                            on
+----------------------------------------------------------------
+  OK: RLS enabled on all 14 public tables
+
+== done
+One post, one audience, one queue, one revision trail, one unsubscribe - and RLS on every
+public table. Swagger UI (tags: Announcements, Preferences): http://127.0.0.1:8000/docs

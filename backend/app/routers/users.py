@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db, require_role
 from app.core.errors import AppError
 from app.models import User
-from app.schemas import Page, RoleUpdateIn, UserOut
+from app.schemas import AssignableUserOut, Page, RoleUpdateIn, UserOut
+from app.services import tasks as task_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -38,6 +39,20 @@ def list_users(
         select(User).where(*filters).order_by(User.full_name).offset((page - 1) * page_size).limit(page_size)
     ).all()
     return {"items": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get(
+    "/assignable",
+    response_model=list[AssignableUserOut],
+    summary="Who can be handed a task: active volunteer and above (organizer+)",
+)
+def assignable(
+    _: User = Depends(require_role("organizer")),
+    db: Session = Depends(get_db),
+):
+    """The assignee picker. Not paginated: the club's volunteers and staff are a short list, and a
+    picker needs all of them at once."""
+    return task_service.assignable_users(db)
 
 
 @router.patch("/{user_id}/role", response_model=UserOut, summary="Change a user's role (admin)")

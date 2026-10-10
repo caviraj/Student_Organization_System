@@ -100,8 +100,8 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 | 0 | ☑ | ☐ | `backend/README.md` (run commands), `GET /health`, `/docs` | `phase-0-done` |
 | 1 | ☑ | ☐ | `docs/demos/phase1/` (`demo_phase1.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase1.sh` | `phase-1-done` |
 | 2 | ☑ | ☐ | `docs/demos/phase2/` (`demo_phase2.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase2.sh` | `phase-2-done` |
-| 3 | ☐ | ☐ | | |
-| 4 | ☐ | ☐ | | |
-| 5 | ☐ | ☐ | | |
-| 6 | ☐ | ☐ | | |
+| 3 | ☑ | ☐ | `docs/demos/phase3/` (`demo_phase3.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase3.sh` | `phase-3-done` |
+| 4 | ☑ | ☐ | `docs/demos/phase4/` (`demo_phase4.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase4.sh` | `phase-4-done` |
+| 5 | ☑ | ☐ | `docs/demos/phase5/` (`demo_phase5.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase5.sh` | `phase-5-done` |
+| 6 | ☑ | ☐ | `docs/demos/phase6/` (`demo_phase6.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase6.sh` | `phase-6-done` |
 | 7 | ☐ | ☐ | | |

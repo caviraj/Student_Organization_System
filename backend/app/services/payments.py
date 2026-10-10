@@ -48,7 +48,7 @@ def confirm_mock_payment(db: Session, order_id: UUID, outcome: str, actor: User)
     handlers keep everything in ONE transaction and are idempotent; the conditional
     pending->paid claim is what makes a repeated callback a no-op.
     """
-    from app.services import memberships, tickets  # local: both import this module
+    from app.services import memberships, merch, tickets  # local: all three import this module
 
     order = db.get(Order, order_id)
     if order is None:
@@ -67,4 +67,8 @@ def confirm_mock_payment(db: Session, order_id: UUID, outcome: str, actor: User)
 
     if payment is None:
         raise AppError(404, "PAYMENT_NOT_FOUND", "This order has no payment")
+
+    if order.kind == "merch":
+        return merch.confirm_merch_payment(db, order, payment, outcome)
+
     return memberships.confirm_membership_payment(db, order, payment, outcome)

@@ -1,0 +1,31 @@
+SSA Hub - database check
+----------------------------------------------------------------
+  DATABASE_URL    aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+  DIRECT_URL      aws-0-ap-south-1.pooler.supabase.com
+  mode            transaction pooler
+  server          PostgreSQL 17.11 on aarch64-unknown-linux-gnu
+  connected as    postgres @ postgres
+  backend session real port 5432 (pooled) - no session state, no advisory locks
+
+  table                            rls
+  -------------------------------- -----
+  announcement_deliveries          on
+  announcement_revisions           on
+  announcements                    on
+  events                           on
+  membership_plans                 on
+  memberships                      on
+  merch_orders                     on
+  order_items                      on
+  orders                           on
+  payments                         on
+  product_variants                 on
+  products                         on
+  reminders                        on
+  stock_movements                  on
+  ticket_types                     on
+  tickets                          on
+  transactions                     on
+  users                            on
+----------------------------------------------------------------
+  OK: RLS enabled on all 18 public tables

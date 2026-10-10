@@ -200,7 +200,7 @@ def confirm_ticket_payment(db: Session, order: Order, payment: Payment | None, o
 
     meta = order.meta or {}
     item = db.scalar(select(OrderItem).where(OrderItem.order_id == order.id, OrderItem.item_type == "ticket_type"))
-    ledger.record_transaction(
+    ledger.add_transaction(
         db,
         direction="in",
         amount=order.total,

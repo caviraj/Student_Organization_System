@@ -1,13 +1,24 @@
-"""Idempotent Phase 1 + 2 seed: staff, plans, 20 members and a set of events with real sales.
+"""Idempotent Phase 1-6 seed: staff, plans, 20 members, events with real sales, announcements
+with real deliveries, merch bought through the real checkout, fundraisers with real task
+boards and real income, and expense claims walked through submit / approve / reject / reimburse.
 
     python scripts/seed.py
 
 Running it twice changes nothing. Every member gets a paid order, a succeeded mock payment
 and a matching ledger row; every seeded ticket goes through the real checkout service, so
-`ticket_types.sold_count` and the ledger reconcile from day one.
+`ticket_types.sold_count` and the ledger reconcile from day one. Announcements go through the
+real announcement service and the real delivery worker, so the mailing list has genuinely sent,
+genuinely failed and genuinely opted-out rows. Merch orders are placed and paid through the real
+merch checkout and the real payment dispatcher, so stock, the stock_movements audit trail and
+the ledger all agree. Fundraiser tasks are created and moved through the real task service and
+their income through the real income service, so `task_activity` and the `fundraiser` ledger
+rows are exactly what the API would have written. Expense claims go through the real expense and
+finance services, so the review trail, the reimbursements and their ledger rows are real too.
 """
 
+import struct
 import sys
+import zlib
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -16,32 +27,58 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.db import SessionLocal
+from app.core.config import settings
+from app.core.db import MigrationSessionLocal  # the DIRECT connection: seeding writes in bulk
 from app.core.security import hash_password
 from app.models import (
+    Announcement,
+    AnnouncementDelivery,
+    AnnouncementRevision,
     Event,
+    Expense,
+    Fundraiser,
     Membership,
     MembershipPlan,
+    MerchOrder,
     Order,
     OrderItem,
     Payment,
+    Product,
+    ProductVariant,
     Reminder,
+    StockMovement,
+    Task,
+    TaskActivity,
     Ticket,
     TicketType,
     Transaction,
     User,
 )
+from app.services import announcements as announcement_service
+from app.services import expenses as expense_service
+from app.services import finance as finance_service
+from app.services import fundraisers as fundraiser_service
+from app.services import income as income_service
+from app.services import ledger
+from app.services import merch as merch_service
+from app.services import payments as payment_service
+from app.services import tasks as task_service
 from app.services.checkin import check_in
+from app.services.delivery_worker import process_queued_deliveries
 from app.services.memberships import add_months, ensure_member_code
+from app.services.pricing import is_active_member
 from app.services.reminders import run_expiry_scan
 from app.services.tickets import confirm_ticket_payment, create_ticket_checkout
 
 # Also documented in .env.example.
 PASSWORD = "Passw0rd!"
 PASSWORD_HASH = hash_password(PASSWORD)  # hashed once; bcrypt is deliberately slow
+
+# Any address at this domain fails to send (see app/services/mailer.py).
+BOUNCE_EMAIL = "bouncing@fail.test"
 
 STAFF = [
     ("admin@ssa.org", "Aarav Menon", "admin"),
@@ -77,9 +114,9 @@ MEMBER_STATES = [
 ]
 
 
-def get_or_create_staff(db: Session) -> int:
+def get_or_create_staff(db: Session, people: list[tuple[str, str, str]] = STAFF) -> int:
     created = 0
-    for email, full_name, role in STAFF:
+    for email, full_name, role in people:
         if db.scalar(select(User.id).where(User.email == email)):
             continue
         db.add(User(email=email, password_hash=PASSWORD_HASH, full_name=full_name, role=role))
@@ -284,13 +321,541 @@ def seed_events(db: Session) -> dict:
     return {"created": True, "events": 4, "tickets": 85 + 19 + 10 + 5, "checked_in": 64}
 
 
+# (title, body, category, audience, is_pinned, send_email)
+POSTS = [
+    (
+        "Welcome to Spring Semester",
+        ("The club desk in the Student Centre is open every weekday from 10 AM. Dues, events and "
+        "merch all start here - come and say hello."),
+        "general",
+        "all",
+        True,
+        True,
+    ),
+    (
+        "Members' AGM next Friday",
+        ("The Annual General Meeting is next Friday at 4 PM in the Seminar Hall. Office-bearer "
+        "elections are on the agenda, and only members may vote."),
+        "deadline",
+        "members",
+        False,
+        True,
+    ),
+    (
+        "Spring Gala: doors open 6 PM",
+        ("Doors open 6 PM - bring your QR ticket, entry is by scan only. See you in the Main "
+        "Auditorium."),
+        "change",
+        "event",
+        False,
+        True,
+    ),
+    (
+        "Dues deadline is 31 October",
+        ("Memberships lapse on 31 October. Renew at the desk or online to keep member pricing for "
+        "the Gala."),
+        "deadline",
+        "members",
+        False,
+        False,
+    ),
+    (
+        "Blood donation drive on Tuesday",
+        "The campus blood bank is on the lawn from 9 AM. Walk-ins welcome; bring your student ID.",
+        "meeting",
+        "all",
+        False,
+        False,
+    ),
+]
+
+
+def seed_announcements(db: Session) -> dict:
+    """Six posts, one of them edited twice, delivered by the real worker."""
+    organizer = db.scalar(select(User).where(User.email == "organizer@ssa.org"))
+    gala = db.scalar(select(Event).where(Event.title == "Spring Gala"))
+    members = list(
+        db.scalars(select(User).where(User.email.like("member%@ssa.org")).order_by(User.email))
+    )
+
+    # Three members have switched email off, and one more account has an address that always
+    # bounces, so the mailing list has all three states (sent, failed, opted out) to show.
+    # Nothing is broken to produce them.
+    for member in members[:3]:
+        member.email_opt_in = False
+    if not db.scalar(select(User.id).where(User.email == BOUNCE_EMAIL)):
+        db.add(
+            User(
+                email=BOUNCE_EMAIL,
+                password_hash=PASSWORD_HASH,
+                full_name="Bounce Test Account",
+                role="member",
+            )
+        )
+    db.commit()
+
+    if db.scalar(select(Announcement.id)):
+        return {"created": False}
+
+    created: list[Announcement] = []
+    for title, body, category, audience, is_pinned, send_email in POSTS:
+        data = {
+            "title": title,
+            "body": body,
+            "category": category,
+            "audience": audience,
+            "is_pinned": is_pinned,
+            "send_email": send_email,
+        }
+        if audience == "event":
+            data["event_id"] = gala.id
+        created.append(announcement_service.create_announcement(db, organizer, data)["announcement"])
+
+    # The one with history: two edits, so GET /revisions has something to show.
+    auditions = announcement_service.create_announcement(
+        db,
+        organizer,
+        {
+            "title": "Auditions moved to Lab 3",
+            "body": "Auditions for the annual play start at 4 PM in Lab 3.",
+            "category": "change",
+            "audience": "all",
+        },
+    )["announcement"]
+    created.append(auditions)
+    announcement_service.update_announcement(
+        db,
+        organizer,
+        auditions.id,
+        {
+            "title": "Auditions moved to Lab 3",
+            "body": "Auditions for the annual play start at 4 PM in Lab 3, not the Seminar Hall.",
+            "revision_note": "Venue changed from the Seminar Hall to Lab 3",
+        },
+    )
+    announcement_service.update_announcement(
+        db,
+        organizer,
+        auditions.id,
+        {
+            "body": (
+                "Auditions for the annual play start at 5 PM in Lab 3, not the Seminar Hall. "
+                "Sign-up sheet is on the club desk."
+            ),
+            "revision_note": "Start moved to 5 PM to avoid the NCC drill",
+        },
+    )
+
+    # Spread the dates: the feed reads newest first, and six posts written in the same second
+    # would come out in an arbitrary order.
+    base = datetime.now(UTC)
+    for offset, announcement in enumerate(reversed(created)):
+        announcement.published_at = base - timedelta(days=3 * offset)
+    db.commit()
+
+    # The worker, three times over: everything sends on the first pass except the bouncing
+    # address, which needs all three attempts before it is marked failed.
+    for _ in range(3):
+        process_queued_deliveries(db)
+
+    return {
+        "created": True,
+        "posts": len(created),
+        "revisions": db.scalar(select(func.count()).select_from(AnnouncementRevision)),
+    }
+
+
+# --- merchandise (Phase 4) ----------------------------------------------------------------------
+
+# (name, description, base price in paise, product-wide member discount, [(size, sku, opening stock)])
+# The Hoodie's opening stock is deliberately uneven: S is gone, XXL is the last one, M is exactly
+# at the low-stock threshold. A stock summary with everything comfortable shows nothing.
+CATALOGUE = [
+    (
+        "SSA Hoodie",
+        "Heavyweight fleece, embroidered club crest. Unisex fit.",
+        99900,
+        10,
+        [("S", "SSA-HOOD-S", 0), ("M", "SSA-HOOD-M", 8), ("L", "SSA-HOOD-L", 10),
+         ("XL", "SSA-HOOD-XL", 6), ("XXL", "SSA-HOOD-XXL", 1)],
+    ),
+    (
+        "SSA T-Shirt",
+        "Cotton tee with the club wordmark.",
+        49900,
+        15,
+        [("S", "SSA-TEE-S", 10), ("M", "SSA-TEE-M", 15), ("L", "SSA-TEE-L", 15),
+         ("XL", "SSA-TEE-XL", 10), ("XXL", "SSA-TEE-XXL", 5)],
+    ),
+    (
+        "Old Mug",
+        "Last year's design. No longer on sale.",
+        29900,
+        0,
+        [("ONE", "SSA-MUG-ONE", 4)],
+    ),
+]
+
+# ([(product, size, qty)], delivery_method, delivery_note, fulfilment steps after payment)
+# Twelve orders, all genuinely paid: 6 still to pack, 4 packed, 2 handed over. Nothing is left
+# pending - a pending order would be swept and its stock released on the next scheduler tick.
+MERCH_ORDERS = [
+    ([("SSA Hoodie", "M", 1)], "pickup", None, ()),
+    ([("SSA Hoodie", "M", 2)], "pickup", None, ()),
+    ([("SSA Hoodie", "L", 1)], "campus_delivery", "Hostel B, room 214", ()),
+    ([("SSA Hoodie", "L", 1)], "pickup", None, ()),
+    ([("SSA Hoodie", "XL", 1)], "pickup", None, ()),
+    ([("SSA Hoodie", "XL", 1)], "campus_delivery", "Hostel A, room 108", ()),
+    ([("SSA T-Shirt", "M", 1)], "pickup", None, ("packed",)),
+    ([("SSA T-Shirt", "M", 2)], "pickup", None, ("packed",)),
+    ([("SSA T-Shirt", "L", 1)], "campus_delivery", "Day scholar, main gate", ("packed",)),
+    ([("SSA T-Shirt", "L", 1)], "pickup", None, ("packed",)),
+    ([("SSA Hoodie", "XXL", 1), ("SSA T-Shirt", "S", 1)], "pickup", None, ("packed", "handed_over")),
+    ([("SSA Hoodie", "M", 1), ("SSA T-Shirt", "XL", 1)], "pickup", None, ("packed", "handed_over")),
+]
+
+
+def seed_merch(db: Session) -> dict:
+    """The shop, and twelve orders bought the way a real member buys them."""
+    if db.scalar(select(Product.id).where(Product.name == "SSA Hoodie")):
+        return {"created": False}
+
+    admin = db.scalar(select(User).where(User.email == "admin@ssa.org"))
+    variants: dict[tuple[str, str], ProductVariant] = {}
+    for name, description, base_price, discount_pct, sizes in CATALOGUE:
+        product = merch_service.create_product(
+            db,
+            {
+                "name": name,
+                "description": description,
+                "base_price": base_price,
+                "member_discount_pct": discount_pct,
+                "is_active": name != "Old Mug",  # one retired product, so hiding is visible
+            },
+        )
+        for size, sku, stock in sizes:
+            variant = merch_service.create_variant(db, product, {"size": size, "sku": sku, "stock": stock}, admin)
+            variants[(name, size)] = variant
+
+    # Only members with a live membership may order (MERCH_MEMBERS_ONLY), so the lapsed and
+    # expired seeded members are genuinely turned away at checkout - exactly as in production.
+    buyers = [m for m in db.scalars(select(User).where(User.email.like("member%@ssa.org")).order_by(User.email))]
+    buyers = [m for m in buyers if is_active_member(db, m)]
+    for index, (lines, delivery_method, delivery_note, steps) in enumerate(MERCH_ORDERS):
+        buyer = buyers[index % len(buyers)]
+        order, _payment = merch_service.create_merch_checkout(
+            db,
+            buyer,
+            [{"variant_id": variants[(product, size)].id, "qty": qty} for product, size, qty in lines],
+            delivery_method,
+            delivery_note,
+        )
+        payment_service.confirm_mock_payment(db, order.id, "success", buyer)
+        for step in steps:
+            merch_service.update_fulfilment(db, order.id, step, admin)
+
+    return {"created": True, "products": len(CATALOGUE), "variants": len(variants), "orders": len(MERCH_ORDERS)}
+
+
+# --- fundraisers & tasks (Phase 5) ---------------------------------------------------------------
+
+# (title, category, status, due offset in days from the fundraiser's event date, assignee email)
+# Task and column state is chosen so the board's health rule lands on "at_risk" - two cards are
+# past their date (>= 1 is at_risk, >= 3 is behind) and the event is still 10 days out.
+BAKE_SALE_TASKS = [
+    ("Book the quad table", "promotion", "done", -6, "organizer@ssa.org"),
+    ("Print posters and flyers", "promotion", "done", -5, "treasurer@ssa.org"),
+    ("Order flour, sugar and butter", "supplies", "done", -3, "volunteer@ssa.org"),
+    ("Confirm the oven slot in the hostel kitchen", "supplies", "doing", -1, "organizer@ssa.org"),
+    ("Collect the cake tins", "supplies", "doing", 1, "volunteer@ssa.org"),
+    ("Bake 200 cookies", "baking", "todo", 3, "volunteer@ssa.org"),
+    ("Bake 40 brownies", "baking", "todo", 4, None),
+    ("Man the table at lunch", "table_duty", "todo", 10, None),
+]
+
+BOOK_DRIVE_TASKS = [
+    ("Ask the library for a donation box", "other", "todo", -20, "volunteer@ssa.org"),
+    ("Design the collection poster", "promotion", "todo", -14, None),
+]
+
+
+def _task(db: Session, actor: User, fundraiser_id, title: str, category: str, status: str, due: date, assignee) -> Task:
+    task = task_service.create_task(
+        db,
+        {
+            "fundraiser_id": fundraiser_id,
+            "title": title,
+            "category": category,
+            "status": status,
+            "due_date": due,
+            "assignee_id": assignee.id if assignee else None,
+        },
+        actor,
+    )
+    # Backdated so the board reads like a plan that started weeks ago, not one written this second.
+    task.created_at = task.updated_at = datetime.combine(due - timedelta(days=7), time(11, 0), tzinfo=UTC)
+    db.flush()
+    return task
+
+
+def seed_fundraisers(db: Session) -> dict:
+    """One active fundraiser that needs attention, one still being planned, one long finished."""
+    if db.scalar(select(Fundraiser.id).where(Fundraiser.title == "Spring Bake Sale")):
+        return {"created": False}
+
+    organizer = db.scalar(select(User).where(User.email == "organizer@ssa.org"))
+    admin = db.scalar(select(User).where(User.email == "admin@ssa.org"))
+    staff = {
+        email: db.scalar(select(User).where(User.email == email))
+        for email in ("organizer@ssa.org", "treasurer@ssa.org", "volunteer@ssa.org")
+    }
+    today = date.today()
+
+    bake_sale = fundraiser_service.create_fundraiser(
+        db,
+        {
+            "title": "Spring Bake Sale",
+            "description": "Cakes, cookies and cold coffee on the quad, all weekend.",
+            "goal_amount": 500000,
+            "event_date": today + timedelta(days=10),
+            "owner_id": organizer.id,
+        },
+        organizer,
+    )
+    for title, category, status, offset, email in BAKE_SALE_TASKS:
+        _task(db, organizer, bake_sale.id, title, category, status, today + timedelta(days=offset), staff.get(email))
+    db.commit()
+    fundraiser_service.update_fundraiser(db, bake_sale, {"status": "active"}, organizer)
+
+    # Real income through the real service, so the ledger row and `raised` are the same number.
+    income_service.log_fundraiser_income(
+        db, admin, bake_sale.id, 120000, note="Pre-orders from the department", source_label="UPI",
+        idempotency_key="seed-bake-sale-preorders",
+    )
+    income_service.log_fundraiser_income(
+        db, admin, bake_sale.id, 80000, note="Morning sales", source_label="Cash box",
+        idempotency_key="seed-bake-sale-morning",
+    )
+
+    book_drive = fundraiser_service.create_fundraiser(
+        db,
+        {
+            "title": "Book Drive",
+            "description": "Collecting second-hand textbooks for the village school.",
+            "goal_amount": 300000,
+            "event_date": today + timedelta(days=35),
+            "owner_id": organizer.id,
+        },
+        organizer,
+    )
+    for title, category, status, offset, email in BOOK_DRIVE_TASKS:
+        _task(db, organizer, book_drive.id, title, category, status, today + timedelta(days=offset), staff.get(email))
+    db.commit()
+
+    # A stall that is over: every card done, so it can be closed without `force`, and its cash was
+    # logged on the day.
+    stall = fundraiser_service.create_fundraiser(
+        db,
+        {
+            "title": "Diwali Stall",
+            "description": "Sweets, diyas and rangoli colours outside the canteen.",
+            "goal_amount": 200000,
+            "event_date": today + timedelta(days=2),
+            "owner_id": organizer.id,
+        },
+        organizer,
+    )
+    for title, category, status, offset, email in (
+        ("Buy the sweets and diyas", "supplies", "done", 0, "volunteer@ssa.org"),
+        ("Run the stall for the evening", "table_duty", "done", 2, "organizer@ssa.org"),
+    ):
+        _task(db, organizer, stall.id, title, category, status, today + timedelta(days=offset), staff.get(email))
+    db.commit()
+    fundraiser_service.update_fundraiser(db, stall, {"status": "active"}, organizer)
+    fundraiser_service.update_fundraiser(db, stall, {"status": "done"}, organizer)
+
+    twenty_days_ago = datetime.now(UTC) - timedelta(days=20)
+    income_service.log_fundraiser_income(
+        db, admin, stall.id, 250000, note="Evening takings", source_label="Cash box",
+        idempotency_key="seed-diwali-stall", occurred_at=twenty_days_ago,
+    )
+    # The stall finished three weeks ago, so the dates are the ones it really happened on - which
+    # is also what puts its income past the 7-day grace window.
+    stall.event_date = today - timedelta(days=20)
+    stall.completed_at = twenty_days_ago
+    db.commit()
+
+    return {
+        "created": True,
+        "fundraisers": 3,
+        "tasks": db.scalar(select(func.count()).select_from(Task)),
+        "activity": db.scalar(select(func.count()).select_from(TaskActivity)),
+        "bake_sale_health": fundraiser_service.compute_progress(db, bake_sale)["health"],
+    }
+
+
+VOLUNTEERS = [
+    ("neha@ssa.org", "Neha Kadam", "volunteer"),
+    ("rohit@ssa.org", "Rohit Bhatt", "volunteer"),
+]
+
+# (claimant, amount in paise, description, category, days ago, receipt format, what happens to it)
+EXPENSE_SEED = [
+    ("volunteer@ssa.org", 45000, "Auto fare to the printer and back", "travel", 40, "png", "reimburse"),
+    ("neha@ssa.org", 128000, "Leaflets for the club fair", "printing", 30, "png", "reimburse"),
+    ("rohit@ssa.org", 96000, "Snacks for the volunteer briefing", "food", 20, "pdf", "approve"),
+    ("organizer@ssa.org", 240000, "XLR cable and a spare mic clip", "equipment", 12, "pdf", "submit"),
+    ("neha@ssa.org", 38000, "Paint and brushes for the stall backdrop", "supplies", 8, None, "submit"),
+    ("rohit@ssa.org", 300000, "Venue security deposit for the auditorium", "venue", 60, None, "reject"),
+    ("volunteer@ssa.org", 75000, "Poster printing run, first draft", "marketing", 3, None, "withdraw"),
+]
+
+# A quarter of hand-logged history, so the monthly chart and the date filters have something to
+# show. (days ago, amount in paise, note)
+HISTORY_SEED = [
+    (88, 150000, "Canteen revenue share - July"),
+    (72, 90000, "Merch restock float, returned"),
+    (35, 220000, "Alumni donation - batch of 2019"),
+]
+
+
+def _chunk(tag: bytes, payload: bytes) -> bytes:
+    return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload))
+
+
+def _png(width: int = 240, height: int = 120) -> bytes:
+    """A real, decodable PNG - a grey block on white, which is all a receipt placeholder needs to
+    be. Generated rather than committed so the repo carries no binary fixtures."""
+    rows = b"".join(b"\x00" + bytes(0 if y < height // 3 else 200 for _ in range(width)) for y in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)  # 8-bit greyscale
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", header)
+        + _chunk(b"IDAT", zlib.compress(rows, 9))
+        + _chunk(b"IEND", b"")
+    )
+
+
+def _pdf(lines: list[str]) -> bytes:
+    """A minimal but genuinely valid single-page PDF, xref offsets and all - a reader that opens it
+    shows a page rather than an error."""
+    content = "BT /F1 12 Tf 40 700 Td 16 TL\n" + "".join(f"({line}) Tj T*\n" for line in lines) + "ET"
+    bodies = [
+        b"<</Type/Catalog/Pages 2 0 R>>",
+        b"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 800]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>",
+        b"<</Length " + str(len(content)).encode() + b">>stream\n" + content.encode() + b"\nendstream",
+        b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(bodies, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
+    start_xref = len(out)
+    out += f"xref\n0 {len(bodies) + 1}\n".encode() + b"0000000000 65535 f \n"
+    out += b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets)
+    out += f"trailer\n<</Size {len(bodies) + 1}/Root 1 0 R>>\nstartxref\n{start_xref}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def seed_expenses(db: Session) -> dict:
+    """Seven claims walked through the real state machine, a hand-logged quarter, and one reversal.
+
+    Every row goes through `services/expenses.py` and `services/finance.py`, so what the demo shows
+    is what the API would have written - including the ledger rows that reimburse the claims.
+    """
+    if db.scalar(select(Expense.id).limit(1)):
+        return {"created": False}
+
+    helpers = get_or_create_staff(db, VOLUNTEERS)
+    treasurer = db.scalar(select(User).where(User.email == "treasurer@ssa.org"))
+    today = date.today()
+
+    outcomes: dict[str, int] = {}
+    for email, amount, description, category, days_ago, receipt, outcome in EXPENSE_SEED:
+        claimant = db.scalar(select(User).where(User.email == email))
+        blob = None
+        if receipt == "png":
+            blob = (_png(), "image/png")
+        elif receipt == "pdf":
+            blob = (_pdf(["SSA Hub", description, f"Rs {amount / 100:,.2f}", date.today().isoformat()]), "application/pdf")
+
+        expense = expense_service.create_expense(
+            db,
+            {
+                "amount": amount,
+                "description": description,
+                "category": category,
+                "incurred_on": today - timedelta(days=days_ago),
+            },
+            claimant,
+            blob,
+        )
+        if outcome == "reject":
+            expense = expense_service.review_expense(
+                db, expense, treasurer, "reject", "Attach the venue's stamped receipt, please"
+            )
+        elif outcome in ("approve", "reimburse"):
+            expense = expense_service.review_expense(db, expense, treasurer, "approve", "Receipt checked")
+        if outcome == "reimburse":
+            expense = expense_service.reimburse_expense(
+                db, expense, treasurer, "upi" if amount > 100000 else "cash", f"SEED/{expense.id.hex[:8]}"
+            )[0]
+        elif outcome == "withdraw":
+            expense = expense_service.withdraw_expense(db, expense, claimant)
+        outcomes[expense.status] = outcomes.get(expense.status, 0) + 1
+
+    # Two named hand-logged rows, and then the reversal that demonstrates the correction path: the
+    # printer cancelled, so the row stays and its mirror image cancels it.
+    finance_service.manual_entry(
+        db, treasurer, {"amount": 500000, "source": "other_income", "note": "Sponsor - campus bookstore"},
+        "seed-sponsor-bookstore",
+    )
+    banner, _ = finance_service.manual_entry(
+        db, treasurer, {"amount": 80000, "source": "other_expense", "note": "Banner printing"},
+        "seed-banner-printing",
+    )
+    finance_service.reverse_transaction(db, treasurer, banner.id, "The printer cancelled and refunded the deposit")
+
+    for days_ago, amount, note in HISTORY_SEED:
+        # `seed_backdate` is the writer's seed-only door: the API backdates a manual entry by at most
+        # 60 days, and the demo dashboard wants a quarter. Nothing at runtime may pass it.
+        ledger.add_transaction(
+            db,
+            direction="in",
+            amount=amount,
+            source="other_income",
+            ref_type="manual",
+            note=note,
+            created_by=treasurer.id,
+            occurred_at=datetime.now(UTC) - timedelta(days=days_ago),
+            seed_backdate=True,
+        )
+    db.commit()
+
+    report = finance_service.reconcile(db)
+    assert report["ok"], f"the seeded books do not reconcile: {[c for c in report['checks'] if not c['ok']]}"
+    return {
+        "created": True,
+        "helpers": helpers,
+        "claims": len(EXPENSE_SEED),
+        "outcomes": outcomes,
+        "reconcile": report["ok"],
+    }
+
+
 def main() -> None:
-    db = SessionLocal()
+    db = MigrationSessionLocal()
     try:
         staff = get_or_create_staff(db)
         plans = get_or_create_plans(db)
         members = seed_members(db, plans)
         events = seed_events(db)
+        announcements = seed_announcements(db)
+        merch = seed_merch(db)
+        fundraisers = seed_fundraisers(db)
+        expenses = seed_expenses(db)
         scan = run_expiry_scan(db)  # same job the scheduler runs daily
 
         today = date.today()
@@ -298,7 +863,7 @@ def main() -> None:
         active = [m for m in memberships if m.status == "active"]
         expiring = [m for m in active if m.end_date and (m.end_date - today).days <= 30]
 
-        print("SSA Hub - Phase 1 + 2 seed")
+        print("SSA Hub - Phase 1-6 seed")
         print("-" * 58)
         print(f"  staff created          {staff} (of {len(STAFF)})")
         print(f"  plans                  {len(plans)}: {', '.join(p.name for p in plans)}")
@@ -322,10 +887,118 @@ def main() -> None:
         print(f"  ledger rows (tickets)  "
               f"{db.query(Transaction).filter(Transaction.source == 'tickets').count()} | "
               f"Rs {ledger_paise // 100:,} ({ledger_paise} paise)")
+
+        deliveries = db.execute(
+            select(AnnouncementDelivery.channel, AnnouncementDelivery.status, func.count())
+            .group_by(AnnouncementDelivery.channel, AnnouncementDelivery.status)
+            .order_by(AnnouncementDelivery.channel, AnnouncementDelivery.status)
+        ).all()
+        print(f"  announcements          {db.query(Announcement).count()} "
+              f"({db.query(Announcement).filter(Announcement.is_pinned).count()} pinned) "
+              f"({'new this run' if announcements['created'] else 'already seeded'}) | "
+              f"{db.query(AnnouncementRevision).count()} revision rows")
+        print("  deliveries             "
+              + " | ".join(f"{channel} {status} {count}" for channel, status, count in deliveries))
+        print(f"  opted out of email     "
+              f"{db.query(User).filter(User.email_opt_in.is_(False)).count()} users "
+              f"| bouncing@fail.test always fails")
+
+        variant_count = db.query(ProductVariant).count()
+        fulfilled = dict(
+            db.execute(
+                select(MerchOrder.fulfilment_status, func.count()).group_by(MerchOrder.fulfilment_status)
+            ).all()
+        )
+        merch_paise = sum(
+            t.amount for t in db.scalars(select(Transaction).where(Transaction.source == "merch"))
+        )
+        moved = (
+            select(StockMovement.variant_id, func.sum(StockMovement.delta).label("delta"))
+            .group_by(StockMovement.variant_id)
+            .subquery()
+        )
+        drift = db.scalar(
+            select(func.count())
+            .select_from(ProductVariant)
+            .outerjoin(moved, moved.c.variant_id == ProductVariant.id)
+            .where(func.coalesce(moved.c.delta, 0) != ProductVariant.stock)
+        )
+        print(f"  products               {db.query(Product).count()} "
+              f"({db.query(Product).filter(Product.is_active).count()} active, "
+              f"{db.query(Product).filter(Product.is_active.is_(False)).count()} retired) | "
+              f"{variant_count} variants "
+              f"({'new this run' if merch['created'] else 'already seeded'})")
+        print(f"  merch stock            "
+              f"{db.query(func.coalesce(func.sum(ProductVariant.stock), 0)).scalar()} units | "
+              f"{db.query(ProductVariant).filter(ProductVariant.stock <= 0).count()} out of stock | "
+              f"{db.query(ProductVariant).filter(ProductVariant.stock > 0, ProductVariant.stock <= ProductVariant.low_stock_threshold).count()} low")
+        print(f"  merch orders           {db.query(MerchOrder).count()} | "
+              + ", ".join(f"{status} {fulfilled.get(status, 0)}" for status in ("paid", "packed", "handed_over")))
+        print(f"  ledger rows (merch)    "
+              f"{db.query(Transaction).filter(Transaction.source == 'merch').count()} | "
+              f"Rs {merch_paise // 100:,} ({merch_paise} paise)")
+        print(f"  stock movements        {db.query(StockMovement).count()} rows | "
+              f"invariant SUM(delta) == stock for {variant_count - (drift or 0)}/{variant_count} variants")
+
+        by_status = dict(
+            db.execute(select(Fundraiser.status, func.count()).group_by(Fundraiser.status)).all()
+        )
+        fundraiser_paise = sum(
+            t.amount for t in db.scalars(select(Transaction).where(Transaction.source == "fundraiser"))
+        )
+        bake_sale = db.scalar(select(Fundraiser).where(Fundraiser.title == "Spring Bake Sale"))
+        bake_progress = fundraiser_service.compute_progress(db, bake_sale)
+        print(f"  fundraisers            {db.query(Fundraiser).count()} "
+              f"({'new this run' if fundraisers['created'] else 'already seeded'}) | "
+              + ", ".join(f"{status} {by_status.get(status, 0)}" for status in ("planning", "active", "done")))
+        print(f"  tasks                  {db.query(Task).count()} "
+              f"({db.query(Task).filter(Task.status == 'done').count()} done, "
+              f"{db.query(Task).filter(Task.status != 'done', Task.assignee_id.is_(None)).count()} unassigned) | "
+              f"{db.query(TaskActivity).count()} activity rows")
+        print(f"  Spring Bake Sale       raised Rs {bake_progress['raised'] // 100:,} of "
+              f"Rs {bake_progress['goal'] // 100:,} "
+              f"({bake_progress['percent_of_goal']}%) | {bake_progress['tasks']['done']}/"
+              f"{bake_progress['tasks']['total']} tasks done | health {bake_progress['health']}")
+        print(f"  ledger rows (fundraiser) "
+              f"{db.query(Transaction).filter(Transaction.source == 'fundraiser').count()} | "
+              f"Rs {fundraiser_paise // 100:,} ({fundraiser_paise} paise)")
+
+        claim_status = dict(
+            db.execute(select(Expense.status, func.count()).group_by(Expense.status)).all()
+        )
+        claims_paise = db.query(func.coalesce(func.sum(Expense.amount), 0)).scalar()
+        owed = finance_service.outstanding_reimbursements(db)
+        print(f"  expenses               {db.query(Expense).count()} "
+              f"({'new this run' if expenses['created'] else 'already seeded'}) | "
+              + ", ".join(f"{status} {claim_status.get(status, 0)}"
+                          for status in ("submitted", "approved", "rejected", "reimbursed", "withdrawn"))
+              + (f" | with receipts {db.query(Expense).filter(Expense.receipt_path.is_not(None)).count()}" if expenses["created"] else ""))
+        print(f"  claims total           Rs {(claims_paise or 0) // 100:,} ({(claims_paise or 0)} paise) | "
+              f"{len(owed)} claimant(s) owed Rs "
+              f"{sum(row['submitted_amount'] + row['approved_unpaid_amount'] for row in owed) // 100:,}")
+        money = ledger.totals(db)
+        manual_rows = db.query(Transaction).filter(Transaction.source.in_(("other_income", "other_expense"))).count()
+        reversals = db.query(Transaction).filter(Transaction.is_reversal.is_(True)).count()
+        print(f"  manual ledger rows     {manual_rows} ({reversals} reversal) | "
+              f"balance Rs {money['balance'] // 100:,} ({money['balance']} paise) = "
+              f"in Rs {money['total_in'] // 100:,} - out Rs {money['total_out'] // 100:,}")
+        book = finance_service.reconcile(db)
+        print(f"  reconcile              {'OK - ' + str(len(book['checks'])) + '/' + str(len(book['checks'])) + ' checks pass' if book['ok'] else 'FAILED: ' + str([c for c in book['checks'] if not c['ok']])}")
         print("-" * 58)
         print("  login as staff: admin@ssa.org / treasurer@ssa.org / organizer@ssa.org / volunteer@ssa.org")
         print("  members: member01@ssa.org ... member20@ssa.org")
+        if expenses["created"] and expenses.get("helpers"):
+            print("  new volunteers this run: neha@ssa.org, rohit@ssa.org (expense claimants)")
         print(f"  password for all seeded accounts: {PASSWORD}")
+
+        if settings.STORAGE_PROVIDER == "supabase":
+            # The receipts above are already in the bucket by now, so the bucket has to exist first;
+            # this is here so a fresh Supabase project needs one command, not two.
+            from scripts.setup_storage import ensure_bucket
+
+            print("-" * 58)
+            if ensure_bucket() != 0:
+                raise SystemExit("receipt storage is not ready")
     finally:
         db.close()
 

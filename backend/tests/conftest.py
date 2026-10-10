@@ -1,60 +1,123 @@
-"""Test harness: in-memory SQLite, one session per test, fast bcrypt."""
+"""Test harness: a real Postgres database of its own (TEST_DATABASE_URL), one session per test.
+
+The suite runs against Postgres, not SQLite, because that is what the app ships on - the pooler,
+the JSONB columns, the enum CHECK constraints and the row locks all behave differently from
+SQLite. The database is built by running the actual Alembic migrations (never `create_all`), so a
+migration that drifts from the models fails here.
+
+Safety: conftest refuses to start unless TEST_DATABASE_URL is set and points somewhere other than
+DATABASE_URL. Every table is truncated between tests - against the real database that would be
+data loss, so the guard is the difference between a test run and an incident.
+"""
 
 import os
+import tempfile
+from pathlib import Path
 
 # Must be set before app.core.config is imported.
-os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["JWT_SECRET"] = "test-secret-long-enough-for-hs256-32-bytes"
 os.environ["BCRYPT_ROUNDS"] = "4"
+# Receipts go to a throwaway directory: a test must never need a Supabase account, and must never
+# write into the repo. STORAGE_PROVIDER=local also keeps the service-role key out of the suite.
+os.environ["STORAGE_PROVIDER"] = "local"
+os.environ["LOCAL_STORAGE_DIR"] = tempfile.mkdtemp(prefix="ssa-test-receipts-")
 
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
+from alembic import command
+from app.core.config import settings
+from app.core.db import duplicate_database_reason, engine_kwargs
 from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
-from app.models import Base, Event, Membership, MembershipPlan, TicketType, User
+from app.models import Event, Fundraiser, Membership, MembershipPlan, Task, TicketType, User
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+_reason = duplicate_database_reason(settings.TEST_DATABASE_URL, settings.DATABASE_URL)
+if _reason:
+    raise RuntimeError(_reason)
+
+TEST_URL = settings.TEST_DATABASE_URL
 
 PASSWORD = "Passw0rd!"
 _PASSWORD_HASH = hash_password(PASSWORD)  # hashed once: bcrypt is deliberately slow
 
-engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+engine = create_engine(TEST_URL, **engine_kwargs(TEST_URL))
 # expire_on_commit: one session serves the whole test, while production gets a fresh one per
 # request. Without this the session keeps handing back rows that a service-level UPDATE has
 # already changed behind its back (sold_count, capacity, ticket status).
 TestingSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=True)
 
 
+def _migrate() -> None:
+    """Build the test schema with the real migrations. ALEMBIC_DATABASE_URL is what stops a test
+    run from ever touching the database Alembic would otherwise choose."""
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    os.environ["ALEMBIC_DATABASE_URL"] = TEST_URL
+    command.upgrade(config, "head")
+
+
+def _truncate_all(target_engine) -> None:
+    """Discovered, not hard-coded, so a new Phase's tables are cleaned without editing this."""
+    with target_engine.begin() as conn:
+        names = (
+            conn.execute(
+                text("select tablename from pg_tables where schemaname = 'public' and tablename <> 'alembic_version'")
+            )
+            .scalars()
+            .all()
+        )
+        if names:
+            conn.execute(text("TRUNCATE TABLE " + ", ".join(f'"{name}"' for name in names) + " RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture(scope="session")
+def pg_engine():
+    _migrate()
+    _truncate_all(engine)  # an earlier run that died mid-test must not leak rows into this one
+    yield engine
+    engine.dispose()
+
+
 @pytest.fixture(autouse=True)
-def _schema():
-    Base.metadata.create_all(engine)
+def _clean(pg_engine):
+    """Truncate after every test: the next one starts from an empty database."""
     yield
-    Base.metadata.drop_all(engine)
+    _truncate_all(pg_engine)
 
 
 @pytest.fixture
-def db() -> Session:
+def db(pg_engine) -> Session:
     session = TestingSession()
     yield session
     session.close()
 
 
 @pytest.fixture
-def db2() -> Session:
-    """A second session on the same in-memory DB, so a test can hold a stale read."""
+def db2(pg_engine) -> Session:
+    """A second session on the same database, so a test can hold a stale read."""
     session = TestingSession()
     yield session
     session.close()
 
 
 @pytest.fixture
-def client(db: Session) -> TestClient:
+def client(db: Session, monkeypatch) -> TestClient:
     app.dependency_overrides[get_db] = lambda: db
+    # POST /announcements kicks the delivery worker through BackgroundTasks. Unpatched it would
+    # open its own session on the app's engine - the real database. Point it at the test session.
+    from app.jobs import scheduler
+    from app.services.delivery_worker import process_queued_deliveries
+
+    monkeypatch.setattr(scheduler, "run_deliveries_once", lambda: process_queued_deliveries(db))
     # Not used as a context manager: that would start the APScheduler job.
     yield TestClient(app)
     app.dependency_overrides.clear()
@@ -63,12 +126,13 @@ def client(db: Session) -> TestClient:
 # --- helpers ----------------------------------------------------------------------
 @pytest.fixture
 def make_user(db):
-    def _make(email: str, role: str = "member", full_name: str | None = None) -> User:
+    def _make(email: str, role: str = "member", full_name: str | None = None, **extra) -> User:
         user = User(
             email=email,
             password_hash=_PASSWORD_HASH,
             full_name=full_name or email.split("@")[0].title(),
             role=role,
+            **extra,
         )
         db.add(user)
         db.commit()
@@ -165,6 +229,59 @@ def make_ticket_type(db):
         db.commit()
         db.refresh(ticket_type)
         return ticket_type
+
+    return _make
+
+
+@pytest.fixture
+def make_fundraiser(db):
+    """A fundraiser row, written straight to the table: the fixtures here build state, they do not
+    test the service. Its `event_date` defaults to 10 days out, like the seeded bake sale."""
+
+    def _make(owner: User, *, title: str = "Spring Bake Sale", goal: int = 500000, days: int = 10, status: str = "planning", **extra) -> Fundraiser:
+        fundraiser = Fundraiser(
+            title=title,
+            goal_amount=goal,
+            event_date=date.today() + timedelta(days=days),
+            status=status,
+            owner_id=owner.id,
+            **extra,
+        )
+        db.add(fundraiser)
+        db.commit()
+        db.refresh(fundraiser)
+        return fundraiser
+
+    return _make
+
+
+@pytest.fixture
+def make_task(db):
+    def _make(
+        fundraiser: Fundraiser,
+        *,
+        title: str = "Bake 200 cookies",
+        status: str = "todo",
+        due_in_days: int | None = None,
+        assignee: User | None = None,
+        category: str = "other",
+        position: int = 0,
+        **extra,
+    ) -> Task:
+        task = Task(
+            fundraiser_id=fundraiser.id,
+            title=title,
+            status=status,
+            category=category,
+            position=position,
+            assignee_id=assignee.id if assignee else None,
+            due_date=None if due_in_days is None else date.today() + timedelta(days=due_in_days),
+            **extra,
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        return task
 
     return _make
 
