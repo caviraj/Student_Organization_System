@@ -1,0 +1,950 @@
+import type { MembershipPlan, UserMe, Membership, RenewalDueItem } from '../types/api';
+import type { Announcement, AnnouncementDelivery } from '../types/announcements';
+import type { Product, MerchOrder } from '../features/shop/types';
+
+export const mockPlans: MembershipPlan[] = [
+  {
+    id: 'plan_basic_001',
+    name: 'Basic Annual',
+    description: 'Essential membership giving access to all campus workshops and general body meetings.',
+    price: 50000, // ₹500 in paise
+    duration_days: 365,
+    perks: ['Event entry pass', 'SSA Digital ID Card', 'Voting rights in GBM'],
+    is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'plan_standard_002',
+    name: 'Standard Scholar',
+    description: 'Our most popular plan with priority event registration and exclusive merch discounts.',
+    price: 90000, // ₹900 in paise
+    duration_days: 365,
+    perks: ['All Basic perks', 'Priority registration for high-demand fests', '15% Merch discount', 'Access to member lounge'],
+    is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'plan_premium_003',
+    name: 'Premium Patron',
+    description: 'Full-access VIP pass for passionate student leaders and innovators.',
+    price: 150000, // ₹1500 in paise
+    duration_days: 365,
+    perks: ['All Standard perks', 'Free Annual Fest T-shirt', 'Exclusive leadership networking dinners', 'Certificate of Club Fellowship'],
+    is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+];
+
+export const mockUsers: Record<string, UserMe> = {
+  'admin@ssa.org': {
+    id: 'usr_admin_01',
+    email: 'admin@ssa.org',
+    full_name: 'Dr. Sarah Connor',
+    phone: '+91 98765 43210',
+    department: 'Computer Science',
+    year: 4,
+    role: 'admin',
+    email_opt_in: true,
+    created_at: '2025-08-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    membership: {
+      status: 'active',
+      plan_name: 'Premium Patron',
+      end_date: '2027-01-01T00:00:00Z',
+      days_left: 265,
+    },
+  },
+  'member@ssa.org': {
+    id: 'usr_member_02',
+    email: 'member@ssa.org',
+    full_name: 'Aarav Patel',
+    phone: '+91 91234 56789',
+    department: 'Electronics',
+    year: 3,
+    role: 'member',
+    email_opt_in: true,
+    created_at: '2025-10-15T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    membership: {
+      status: 'active',
+      plan_name: 'Standard Scholar',
+      end_date: '2026-11-20T00:00:00Z',
+      days_left: 41,
+    },
+  },
+  'expiring@ssa.org': {
+    id: 'usr_expiring_03',
+    email: 'expiring@ssa.org',
+    full_name: 'Diya Sharma',
+    phone: '+91 99887 76655',
+    department: 'Mechanical Engineering',
+    year: 2,
+    role: 'member',
+    created_at: '2025-10-20T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    membership: {
+      status: 'active',
+      plan_name: 'Basic Annual',
+      end_date: '2026-10-20T00:00:00Z',
+      days_left: 10,
+    },
+  },
+  'expired@ssa.org': {
+    id: 'usr_expired_04',
+    email: 'expired@ssa.org',
+    full_name: 'Rohan Verma',
+    phone: '+91 94455 66778',
+    department: 'Biotechnology',
+    year: 4,
+    role: 'guest',
+    created_at: '2024-09-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    membership: {
+      status: 'expired',
+      plan_name: 'Basic Annual',
+      end_date: '2026-09-01T00:00:00Z',
+      days_left: 0,
+    },
+  },
+  'guest@ssa.org': {
+    id: 'usr_guest_05',
+    email: 'guest@ssa.org',
+    full_name: 'Pooja Hegde',
+    phone: '+91 91122 33445',
+    department: 'Civil Engineering',
+    year: 1,
+    role: 'guest',
+    created_at: '2026-10-01T00:00:00Z',
+    updated_at: '2026-10-01T00:00:00Z',
+    membership: null,
+  },
+  'volunteer@ssa.org': {
+    id: 'usr_vol_06',
+    email: 'volunteer@ssa.org',
+    full_name: 'Vikram Seth',
+    phone: '+91 95566 77889',
+    department: 'Information Technology',
+    year: 2,
+    role: 'volunteer',
+    created_at: '2025-11-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    membership: {
+      status: 'active',
+      plan_name: 'Standard Scholar',
+      end_date: '2027-02-15T00:00:00Z',
+      days_left: 128,
+    },
+  },
+  'organizer@ssa.org': {
+    id: 'usr_org_07',
+    email: 'organizer@ssa.org',
+    full_name: 'Ananya Roy',
+    phone: '+91 97788 99001',
+    department: 'Management Studies',
+    year: 3,
+    role: 'organizer',
+    created_at: '2025-09-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    membership: {
+      status: 'active',
+      plan_name: 'Premium Patron',
+      end_date: '2027-01-01T00:00:00Z',
+      days_left: 265,
+    },
+  },
+};
+
+export const mockMemberships: Membership[] = [
+  {
+    id: 'mem_001',
+    user_id: 'usr_member_02',
+    plan_id: 'plan_standard_002',
+    status: 'active',
+    start_date: '2025-11-20T00:00:00Z',
+    end_date: '2026-11-20T00:00:00Z',
+    auto_renew: true,
+    created_at: '2025-11-20T00:00:00Z',
+    user: mockUsers['member@ssa.org'],
+    plan: mockPlans[1],
+  },
+  {
+    id: 'mem_002',
+    user_id: 'usr_expiring_03',
+    plan_id: 'plan_basic_001',
+    status: 'active',
+    start_date: '2025-10-20T00:00:00Z',
+    end_date: '2026-10-20T00:00:00Z',
+    auto_renew: false,
+    created_at: '2025-10-20T00:00:00Z',
+    user: mockUsers['expiring@ssa.org'],
+    plan: mockPlans[0],
+  },
+  {
+    id: 'mem_003',
+    user_id: 'usr_expired_04',
+    plan_id: 'plan_basic_001',
+    status: 'expired',
+    start_date: '2024-09-01T00:00:00Z',
+    end_date: '2026-09-01T00:00:00Z',
+    auto_renew: false,
+    created_at: '2024-09-01T00:00:00Z',
+    user: mockUsers['expired@ssa.org'],
+    plan: mockPlans[0],
+  },
+];
+
+export const mockRenewalsDue: RenewalDueItem[] = [
+  {
+    membership_id: 'mem_002',
+    user_id: 'usr_expiring_03',
+    user_name: 'Diya Sharma',
+    user_email: 'expiring@ssa.org',
+    plan_name: 'Basic Annual',
+    end_date: '2026-10-20T00:00:00Z',
+    days_left: 10,
+    status: 'active',
+  },
+  {
+    membership_id: 'mem_004',
+    user_id: 'usr_member_04',
+    user_name: 'Aditya Nair',
+    user_email: 'aditya@ssa.org',
+    plan_name: 'Standard Scholar',
+    end_date: '2026-11-04T00:00:00Z',
+    days_left: 25,
+    status: 'active',
+  },
+  {
+    membership_id: 'mem_003',
+    user_id: 'usr_expired_04',
+    user_name: 'Rohan Verma',
+    user_email: 'expired@ssa.org',
+    plan_name: 'Basic Annual',
+    end_date: '2026-09-01T00:00:00Z',
+    days_left: 0,
+    status: 'expired',
+  },
+];
+
+import type { EventDetail, TicketItem } from '../types/events';
+
+export const mockEvents: EventDetail[] = [
+  {
+    id: 'evt_gala_001',
+    title: 'Spring Gala 2026',
+    description: 'Grand annual festival celebrating student excellence with cultural performances, keynotes, and a networking buffet dinner.',
+    venue: 'Main Auditorium & Lawn',
+    starts_at: '2026-11-15T18:00:00Z',
+    ends_at: '2026-11-15T23:00:00Z',
+    banner_url: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+    status: 'published',
+    created_at: '2026-09-01T10:00:00Z',
+    min_price: 30000,
+    ticket_types: [
+      {
+        id: 'tt_gala_gen',
+        event_id: 'evt_gala_001',
+        name: 'General Admission',
+        member_price: 30000, // ₹300
+        non_member_price: 50000, // ₹500
+        capacity: 100,
+        sold_count: 85,
+        seats_left: 15,
+      },
+      {
+        id: 'tt_gala_vip',
+        event_id: 'evt_gala_001',
+        name: 'VIP Pass + Dinner',
+        member_price: 75000, // ₹750
+        non_member_price: 100000, // ₹1000
+        capacity: 20,
+        sold_count: 15,
+        seats_left: 5,
+      },
+    ],
+  },
+  {
+    id: 'evt_bootcamp_002',
+    title: 'Fullstack Web Dev Bootcamp',
+    description: 'Intensive hands-on weekend workshop mastering React 19, TypeScript, and modern web architectures. Laptop required.',
+    venue: 'Tech Lab 3B, Engineering Block',
+    starts_at: '2026-11-05T09:00:00Z',
+    ends_at: '2026-11-06T17:00:00Z',
+    banner_url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1200&q=80',
+    status: 'published',
+    created_at: '2026-09-15T10:00:00Z',
+    min_price: 0,
+    ticket_types: [
+      {
+        id: 'tt_boot_std',
+        event_id: 'evt_bootcamp_002',
+        name: 'Standard Seat',
+        member_price: 0, // Free for members
+        non_member_price: 25000, // ₹250
+        capacity: 40,
+        sold_count: 38,
+        seats_left: 2, // low seats left
+      },
+    ],
+  },
+  {
+    id: 'evt_hackathon_003',
+    title: 'Campus AI Hackathon 2026',
+    description: '36-hour code marathon building impactful solutions using generative AI, multi-agent frameworks, and autonomous tooling.',
+    venue: 'Innovation Center',
+    starts_at: '2026-12-01T10:00:00Z',
+    ends_at: '2026-12-02T22:00:00Z',
+    banner_url: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80',
+    status: 'draft',
+    created_at: '2026-10-01T10:00:00Z',
+    min_price: 15000,
+    ticket_types: [
+      {
+        id: 'tt_hack_team',
+        event_id: 'evt_hackathon_003',
+        name: 'Hacker Pass',
+        member_price: 15000,
+        non_member_price: 30000,
+        capacity: 60,
+        sold_count: 0,
+        seats_left: 60,
+      },
+    ],
+  },
+  {
+    id: 'evt_closed_004',
+    title: 'Fall Orientation & Welcome Mixer',
+    description: 'Opening semester mixer for freshers and returning club members.',
+    venue: 'Student Union Hall',
+    starts_at: '2026-09-10T16:00:00Z',
+    ends_at: '2026-09-10T20:00:00Z',
+    banner_url: null,
+    status: 'closed',
+    created_at: '2026-08-15T10:00:00Z',
+    min_price: 0,
+    ticket_types: [
+      {
+        id: 'tt_closed_pass',
+        event_id: 'evt_closed_004',
+        name: 'Entry Pass',
+        member_price: 0,
+        non_member_price: 10000,
+        capacity: 80,
+        sold_count: 80,
+        seats_left: 0,
+      },
+    ],
+  },
+];
+
+export const mockTickets: TicketItem[] = [
+  {
+    id: 'tkt_001',
+    order_id: 'ord_tkt_01',
+    event_id: 'evt_gala_001',
+    event_title: 'Spring Gala 2026',
+    venue: 'Main Auditorium & Lawn',
+    starts_at: '2026-11-15T18:00:00Z',
+    ends_at: '2026-11-15T23:00:00Z',
+    ticket_type_name: 'VIP Pass + Dinner',
+    code: 'GALA-9941',
+    status: 'valid',
+    price_paid: 75000,
+    is_member_price: true,
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    checked_in_at: null,
+  },
+  {
+    id: 'tkt_002',
+    order_id: 'ord_tkt_02',
+    event_id: 'evt_bootcamp_002',
+    event_title: 'Fullstack Web Dev Bootcamp',
+    venue: 'Tech Lab 3B, Engineering Block',
+    starts_at: '2026-11-05T09:00:00Z',
+    ends_at: '2026-11-06T17:00:00Z',
+    ticket_type_name: 'Standard Seat',
+    code: 'BOOT-1042',
+    status: 'valid',
+    price_paid: 0,
+    is_member_price: true,
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    checked_in_at: null,
+  },
+  {
+    id: 'tkt_used_003',
+    order_id: 'ord_tkt_03',
+    event_id: 'evt_gala_001',
+    event_title: 'Spring Gala 2026',
+    venue: 'Main Auditorium & Lawn',
+    starts_at: '2026-11-15T18:00:00Z',
+    ends_at: '2026-11-15T23:00:00Z',
+    ticket_type_name: 'General Admission',
+    code: 'USED-7712',
+    status: 'used',
+    price_paid: 30000,
+    is_member_price: true,
+    user_name: 'Diya Sharma',
+    user_email: 'expiring@ssa.org',
+    checked_in_at: '2026-11-15T18:15:00Z',
+  },
+  {
+    id: 'tkt_wrong_004',
+    order_id: 'ord_tkt_04',
+    event_id: 'evt_closed_004',
+    event_title: 'Fall Orientation & Welcome Mixer',
+    venue: 'Student Union Hall',
+    starts_at: '2026-09-10T16:00:00Z',
+    ends_at: '2026-09-10T20:00:00Z',
+    ticket_type_name: 'Entry Pass',
+    code: 'WRNG-3321',
+    status: 'valid',
+    price_paid: 0,
+    is_member_price: true,
+    user_name: 'Rohan Verma',
+    user_email: 'expired@ssa.org',
+    checked_in_at: null,
+  },
+];
+
+export const mockAnnouncements: Announcement[] = [
+  {
+    id: 'ann_001',
+    title: 'General Body Meeting & Annual Roadmapping',
+    body: 'Join us this Friday at 5:00 PM in the Main Auditorium for our quarterly General Body Meeting. We will review upcoming club projects, budget status, and nominations for sub-committee chairs.',
+    category: 'meeting',
+    audience: 'all',
+    event_id: null,
+    is_pinned: true,
+    author_id: 'usr_admin_01',
+    author_name: 'Dr. Sarah Connor',
+    published_at: '2026-10-09T10:00:00Z',
+    revision_note: null,
+  },
+  {
+    id: 'ann_002',
+    title: 'Scholarship & Project Grant Application Deadline',
+    body: 'Applications for the Student Innovation Grant close on October 25th at 11:59 PM. Please submit your team proposal and budget breakdown via the member portal. Incomplete submissions will not be reviewed.',
+    category: 'deadline',
+    audience: 'members',
+    event_id: null,
+    is_pinned: false,
+    author_id: 'usr_org_07',
+    author_name: 'Ananya Roy',
+    published_at: '2026-10-08T15:30:00Z',
+    revision_note: null,
+  },
+  {
+    id: 'ann_003',
+    title: 'HackSSA 2026: Lab Assignment & Schedule Update',
+    body: 'Due to ongoing maintenance in Lab 2, all track participants for HackSSA 2026 will now be hosted in Tech Lab 4A. Check-in starts at 8:30 AM sharp. Please bring your student ID and laptop charger.',
+    category: 'change',
+    audience: 'event',
+    event_id: 'evt_hackathon_001',
+    is_pinned: false,
+    author_id: 'usr_org_07',
+    author_name: 'Ananya Roy',
+    published_at: '2026-10-07T09:00:00Z',
+    revision_note: 'Updated venue to Tech Lab 4A after facility alert',
+  },
+  {
+    id: 'ann_004',
+    title: 'Welcome to the New Academic Semester!',
+    body: 'Welcome to all returning students and freshmen! SSA Hub is your central station for club events, project collaborations, and professional mentorship. Check out our upcoming calendar!',
+    category: 'general',
+    audience: 'all',
+    event_id: null,
+    is_pinned: false,
+    author_id: 'usr_admin_01',
+    author_name: 'Dr. Sarah Connor',
+    published_at: '2026-10-05T12:00:00Z',
+    revision_note: null,
+  },
+  {
+    id: 'ann_005',
+    title: 'Exclusive Member Workshop: Deep Dive into Cloud Native Systems',
+    body: 'Special guest speaker session with industry architects on deploying Kubernetes at scale. Free for all active members. Registration link has been emailed to opted-in members.',
+    category: 'meeting',
+    audience: 'members',
+    event_id: null,
+    is_pinned: false,
+    author_id: 'usr_org_07',
+    author_name: 'Ananya Roy',
+    published_at: '2026-10-02T14:00:00Z',
+    revision_note: null,
+  },
+];
+
+export const mockDeliveries: AnnouncementDelivery[] = [
+  {
+    id: 'del_001',
+    announcement_id: 'ann_001',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    channel: 'email',
+    status: 'sent',
+    sent_at: '2026-10-09T10:00:05Z',
+  },
+  {
+    id: 'del_002',
+    announcement_id: 'ann_001',
+    user_id: 'usr_expiring_03',
+    user_name: 'Diya Sharma',
+    user_email: 'expiring@ssa.org',
+    channel: 'email',
+    status: 'sent',
+    sent_at: '2026-10-09T10:00:08Z',
+  },
+  {
+    id: 'del_003',
+    announcement_id: 'ann_001',
+    user_id: 'usr_guest_05',
+    user_name: 'Pooja Hegde',
+    user_email: 'guest@ssa.org',
+    channel: 'inapp',
+    status: 'sent',
+    sent_at: '2026-10-09T10:00:10Z',
+  },
+  {
+    id: 'del_004',
+    announcement_id: 'ann_001',
+    user_id: 'usr_vol_06',
+    user_name: 'Vikram Seth',
+    user_email: 'volunteer@ssa.org',
+    channel: 'email',
+    status: 'queued',
+    sent_at: null,
+  },
+  {
+    id: 'del_005',
+    announcement_id: 'ann_002',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    channel: 'email',
+    status: 'sent',
+    sent_at: '2026-10-08T15:30:10Z',
+  },
+  {
+    id: 'del_006',
+    announcement_id: 'ann_002',
+    user_id: 'usr_expired_04',
+    user_name: 'Rohan Verma',
+    user_email: 'expired@ssa.org',
+    channel: 'email',
+    status: 'failed',
+    sent_at: null,
+  },
+  {
+    id: 'del_007',
+    announcement_id: 'ann_003',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    channel: 'email',
+    status: 'sent',
+    sent_at: '2026-10-07T09:00:12Z',
+  },
+];
+
+export const mockProducts: Product[] = [
+  {
+    id: 'prod_hoodie_01',
+    name: 'SSA Premium Club Hoodie',
+    description:
+      'Heavyweight 380 GSM organic cotton fleece pullover hoodie with embroidered SSA chest crest and custom club pull-cords. Brushed interior for maximum comfort.',
+    image_url:
+      'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
+    base_price: 180000, // ₹1,800 in paise
+    member_discount_pct: 15, // 15% discount for active members
+    is_active: true,
+    created_at: '2026-02-01T10:00:00Z',
+    updated_at: '2026-02-01T10:00:00Z',
+    variants: [
+      {
+        id: 'var_hoodie_s',
+        product_id: 'prod_hoodie_01',
+        size: 'S',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-S',
+        stock: 8,
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_m',
+        product_id: 'prod_hoodie_01',
+        size: 'M',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-M',
+        stock: 2, // low stock!
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_l',
+        product_id: 'prod_hoodie_01',
+        size: 'L',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-L',
+        stock: 0, // sold out!
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_xl',
+        product_id: 'prod_hoodie_01',
+        size: 'XL',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-XL',
+        stock: 12,
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_xxl',
+        product_id: 'prod_hoodie_01',
+        size: 'XXL',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-XXL',
+        stock: 5,
+        low_stock_threshold: 3,
+      },
+    ],
+  },
+  {
+    id: 'prod_tshirt_02',
+    name: 'SSA Annual Fest Tee',
+    description:
+      '100% pre-shrunk combed cotton jersey t-shirt celebrating our annual innovation fest. High-density screen printed graphics on chest and back.',
+    image_url:
+      'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
+    base_price: 65000, // ₹650 in paise
+    member_discount_pct: 10, // 10% discount for active members
+    is_active: true,
+    created_at: '2026-02-05T12:00:00Z',
+    updated_at: '2026-02-05T12:00:00Z',
+    variants: [
+      {
+        id: 'var_tee_xs',
+        product_id: 'prod_tshirt_02',
+        size: 'XS',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-XS',
+        stock: 4,
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_tee_s',
+        product_id: 'prod_tshirt_02',
+        size: 'S',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-S',
+        stock: 15,
+        low_stock_threshold: 5,
+      },
+      {
+        id: 'var_tee_m',
+        product_id: 'prod_tshirt_02',
+        size: 'M',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-M',
+        stock: 20,
+        low_stock_threshold: 5,
+      },
+      {
+        id: 'var_tee_l',
+        product_id: 'prod_tshirt_02',
+        size: 'L',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-L',
+        stock: 14,
+        low_stock_threshold: 5,
+      },
+      {
+        id: 'var_tee_xl',
+        product_id: 'prod_tshirt_02',
+        size: 'XL',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-XL',
+        stock: 3, // low stock!
+        low_stock_threshold: 4,
+      },
+      {
+        id: 'var_tee_xxl',
+        product_id: 'prod_tshirt_02',
+        size: 'XXL',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-XXL',
+        stock: 1, // low stock!
+        low_stock_threshold: 2,
+      },
+      {
+        id: 'var_tee_xxxl',
+        product_id: 'prod_tshirt_02',
+        size: 'XXXL',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-3XL',
+        stock: 0, // sold out!
+        low_stock_threshold: 2,
+      },
+    ],
+  },
+];
+
+export const mockMerchOrders: MerchOrder[] = [
+  {
+    id: 'ord_merch_001',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    kind: 'merch',
+    amount: 153000, // ₹1,530 after 15% discount
+    status: 'paid',
+    fulfilment_status: 'paid',
+    delivery_note: 'Pickup: Student Activity Center, Desk #2',
+    items: [
+      {
+        id: 'item_m_01',
+        variant_id: 'var_hoodie_m',
+        product_name: 'SSA Premium Club Hoodie',
+        size: 'M',
+        color: 'Midnight Navy',
+        qty: 1,
+        unit_price: 153000,
+      },
+    ],
+    created_at: '2026-10-08T14:20:00Z',
+  },
+  {
+    id: 'ord_merch_002',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    kind: 'merch',
+    amount: 117000, // ₹1,170 (2x fest tees at ₹585)
+    status: 'paid',
+    fulfilment_status: 'packed',
+    delivery_note: 'Deliver to: Room 304, Boys Hostel B, Campus North',
+    items: [
+      {
+        id: 'item_m_02',
+        variant_id: 'var_tee_l',
+        product_name: 'SSA Annual Fest Tee',
+        size: 'L',
+        color: 'Charcoal Grey',
+        qty: 2,
+        unit_price: 58500,
+      },
+    ],
+    created_at: '2026-10-07T11:15:00Z',
+  },
+  {
+    id: 'ord_merch_003',
+    user_id: 'usr_expiring_03',
+    user_name: 'Diya Sharma',
+    user_email: 'expiring@ssa.org',
+    kind: 'merch',
+    amount: 153000,
+    status: 'paid',
+    fulfilment_status: 'handed_over',
+    delivery_note: 'Pickup: SAC Club Room after 4 PM',
+    items: [
+      {
+        id: 'item_m_03',
+        variant_id: 'var_hoodie_s',
+        product_name: 'SSA Premium Club Hoodie',
+        size: 'S',
+        color: 'Midnight Navy',
+        qty: 1,
+        unit_price: 153000,
+      },
+    ],
+    created_at: '2026-10-06T09:45:00Z',
+  },
+];
+
+export interface MockFundraiserRecord {
+  id: string;
+  title: string;
+  description: string;
+  goal_amount: number; // paise
+  raised_amount: number; // paise
+  event_date: string;
+  status: 'planning' | 'active' | 'done';
+  owner_id: string;
+  created_at: string;
+}
+
+export interface MockTaskRecord {
+  id: string;
+  fundraiser_id?: string | null;
+  event_id?: string | null;
+  title: string;
+  description: string;
+  category: string;
+  assignee_id?: string | null;
+  assignee_name?: string;
+  due_date: string; // YYYY-MM-DD
+  status: 'todo' | 'doing' | 'done';
+  created_at: string;
+}
+
+export const mockFundraisers: MockFundraiserRecord[] = [
+  {
+    id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Autumn Charity Bake Sale',
+    description: 'Annual campus bake sale raising funds for local school libraries and science lab equipment.',
+    goal_amount: 1500000, // ₹15,000
+    raised_amount: 1850000, // ₹18,500 (123% of goal)
+    event_date: '2026-10-25',
+    status: 'active',
+    owner_id: 'usr_org_07',
+    created_at: '2026-09-20T10:00:00Z',
+  },
+  {
+    id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Tech Fest Hardware Kit Drive',
+    description: 'Sponsoring IoT sensor kits, Arduino kits, and breadboards for first-year hackathon participants.',
+    goal_amount: 5000000, // ₹50,000
+    raised_amount: 1250000, // ₹12,500 (25% of goal)
+    event_date: '2026-11-15',
+    status: 'planning',
+    owner_id: 'usr_org_07',
+    created_at: '2026-10-01T09:00:00Z',
+  },
+];
+
+export const mockTasks: MockTaskRecord[] = [
+  {
+    id: 'task-bake-01',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Reserve Main Quad Canopies & Tables',
+    description: 'Book 4 canopy tents and 6 foldout tables with Student Affairs administration.',
+    category: 'Logistics',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-02', // past date, but status is done -> NOT overdue
+    status: 'done',
+    created_at: '2026-09-21T10:00:00Z',
+  },
+  {
+    id: 'task-bake-02',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Source Ingredients & Eco Packaging Boxes',
+    description: 'Procure bulk cocoa powder, parchment, sugar, and 200 biodegradable bakery boxes.',
+    category: 'Supplies',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-05', // past date, status doing -> OVERDUE
+    status: 'doing',
+    created_at: '2026-09-22T11:00:00Z',
+  },
+  {
+    id: 'task-bake-03',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Design & Print Stall Banners',
+    description: 'Finalize A2 vinyl posters and price menu cards with QR payment badges.',
+    category: 'Marketing',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-08', // past date, status todo -> OVERDUE
+    status: 'todo',
+    created_at: '2026-09-23T12:00:00Z',
+  },
+  {
+    id: 'task-bake-04',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Organize Baker Volunteer Roster',
+    description: 'Coordinate baking slots across 12 volunteer student bakers with dietary labeling.',
+    category: 'Volunteers',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-18',
+    status: 'doing',
+    created_at: '2026-09-24T14:00:00Z',
+  },
+  {
+    id: 'task-bake-05',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Confirm Food Hygiene Compliance',
+    description: 'Obtain clearance certificate and food handling gloves from campus cafeteria board.',
+    category: 'Admin',
+    assignee_id: 'usr_admin_01',
+    assignee_name: 'Dr. Sarah Connor',
+    due_date: '2026-10-20',
+    status: 'todo',
+    created_at: '2026-09-25T15:00:00Z',
+  },
+  {
+    id: 'task-bake-06',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Bake Batch A: Dark Chocolate Brownies',
+    description: 'Prepare 80 portions of eggless Belgian dark chocolate brownies.',
+    category: 'Baking',
+    assignee_id: 'usr_member_02',
+    assignee_name: 'Aarav Patel',
+    due_date: '2026-10-24',
+    status: 'todo',
+    created_at: '2026-09-26T09:00:00Z',
+  },
+  {
+    id: 'task-bake-07',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Setup Cashless UPI QR Codes & Cash Box',
+    description: 'Print official treasurer UPI QR standees and prepare ₹1,000 in small change.',
+    category: 'Finance',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-24',
+    status: 'done',
+    created_at: '2026-09-27T10:00:00Z',
+  },
+  {
+    id: 'task-bake-08',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Stall Cleanup & Equipment Return',
+    description: 'Sweep Quad area, pack leftover boxes, and return canopy hardware to inventory.',
+    category: 'Table Duty',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-26',
+    status: 'todo',
+    created_at: '2026-09-28T16:00:00Z',
+  },
+  {
+    id: 'task-tech-01',
+    fundraiser_id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Negotiate Bulk Component Discount',
+    description: 'Reach out to local electronics distributor for 30 Raspberry Pi Pico starter kits.',
+    category: 'Procurement',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-15',
+    status: 'done',
+    created_at: '2026-10-02T10:00:00Z',
+  },
+  {
+    id: 'task-tech-02',
+    fundraiser_id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Launch Crowdfunding Promo on Socials',
+    description: 'Publish video appeal featuring previous year hackathon alumni project winners.',
+    category: 'Outreach',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-22',
+    status: 'doing',
+    created_at: '2026-10-03T11:00:00Z',
+  },
+  {
+    id: 'task-tech-03',
+    fundraiser_id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Package Individual Hackathon Kits',
+    description: 'Assemble kits with jumper wires, sensors, breadboards, and documentation guide.',
+    category: 'Assembly',
+    assignee_id: null,
+    due_date: '2026-11-10',
+    status: 'todo',
+    created_at: '2026-10-04T12:00:00Z',
+  },
+];
+
+

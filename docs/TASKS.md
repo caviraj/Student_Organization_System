@@ -125,11 +125,29 @@ in CI rather than a developer's `TEST_DATABASE_URL`. Both are Milestone 2 operat
 ## Phase Log
 | Phase | Backend done | Frontend done | Demo link/screens | Tag |
 |---|---|---|---|---|
-| 0 | ☑ | ☐ | `backend/README.md` (run commands), `GET /health`, `/docs` | `phase-0-done` |
-| 1 | ☑ | ☐ | `docs/demos/phase1/` (`demo_phase1.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase1.sh` | `phase-1-done` |
-| 2 | ☑ | ☐ | `docs/demos/phase2/` (`demo_phase2.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase2.sh` | `phase-2-done` |
-| 3 | ☑ | ☐ | `docs/demos/phase3/` (`demo_phase3.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase3.sh` | `phase-3-done` |
-| 4 | ☑ | ☐ | `docs/demos/phase4/` (`demo_phase4.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase4.sh` | `phase-4-done` |
-| 5 | ☑ | ☐ | `docs/demos/phase5/` (`demo_phase5.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase5.sh` | `phase-5-done` |
-| 6 | ☑ | ☐ | `docs/demos/phase6/` (`demo_phase6.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase6.sh` | `phase-6-done` |
-| 7 | ☑ | ☐ | `docs/API_HANDOFF.md` · `docs/ARCHITECTURE.md` · `docs/DEMO_SCRIPT.md` · `docs/M2_BACKLOG.md` · `docs/demos/phase7/` (`REPORT.md`, `pytest.txt`, `smoke_e2e.txt`, `demo_phase1..6.txt`) · run `python backend/scripts/smoke_e2e.py` | `backend-m1-done` |
+| 0 | ☑ | ☑ | **BE:** `backend/README.md`, `GET /health`, `/docs` · **FE:** scaffold shell + role menu, mocks verified | `phase-0-done` |
+| 1 | ☑ | ☑ | **BE:** `docs/demos/phase1/` (`demo_phase1.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase1.sh` · **FE:** `docs/demos/phase1/DEMO_PHASE1.md` | `phase-1-done` |
+| 2 | ☑ | ☑ | **BE:** `docs/demos/phase2/` (`demo_phase2.txt`, `pytest.txt`) · run `bash backend/scripts/demo_phase2.sh` · **FE:** `docs/demos/phase2/DEMO_PHASE2.md` | `phase-2-done` |
+| 3 | ☑ | ☑ | **BE:** `docs/demos/phase3/` (`demo_phase3.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase3.sh` · **FE:** `docs/demos/phase3/DEMO_PHASE3.md` | `phase-3-done` |
+| 4 | ☑ | ☐ | **BE:** `docs/demos/phase4/` (`demo_phase4.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase4.sh` · **FE:** not built | (see tag audit) |
+| 5 | ☑ | ☑ | **BE:** `docs/demos/phase5/` (`demo_phase5.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase5.sh` · **FE:** `docs/demos/phase5/DEMO_PHASE5.md` | `phase-5-done` |
+| 6 | ☑ | ☐ | **BE:** `docs/demos/phase6/` (`demo_phase6.txt`, `pytest.txt`, `check_db.txt`) · run `bash backend/scripts/demo_phase6.sh` · **FE:** not built | (see tag audit) |
+| 7 | ☑ | ☐ | **BE:** `docs/API_HANDOFF.md` · `docs/ARCHITECTURE.md` · `docs/DEMO_SCRIPT.md` · `docs/M2_BACKLOG.md` · `docs/demos/phase7/` (`REPORT.md`, `pytest.txt`, `smoke_e2e.txt`, `demo_phase1..6.txt`) · run `python backend/scripts/smoke_e2e.py` · **FE:** no phase-7 pass yet | `backend-m1-done` |
+
+### Tag audit — 2026-10-10, after integrating `fe/*` into `main`
+
+The two workstreams reused the **same tag names** for different gates, and the table above now
+records both sides honestly. What actually exists:
+
+| Tag | Points at | Reality |
+|---|---|---|
+| `phase-0-done` | FE scaffold commit `0636eb1` | never tagged for backend; backend Phase 0 has no tag |
+| `phase-1-done` … `phase-5-done` | FE phase-gate commits on the `fe/*` line | **frontend** gates. The backend phases landed on `main` without these tags, so the names are now misleading |
+| `phase-4-done`, `phase-6-done`, `phase-7-done` | — | **never created** |
+| `backend-m1-done` | backend Milestone 1 sign-off (Phase 7) | the one tag that names its own side |
+| `backend-completely-finished` | one commit behind the backend tip | left as-is; harmless but stale |
+
+Not fixed here, because retagging rewrites shared remote state and Dinesh's branches reference
+these names. If we want unambiguous per-side gates, the clean move is to leave history alone and
+tag forward: `backend-m1-done` already does this; FE phases can be re-tagged on the merged
+commit as `fe-phase-N-done` — decide together before anyone does it.
