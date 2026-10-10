@@ -1,114 +1,162 @@
 import { useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { paymentsApi } from '../../api/payments';
+import { openRazorpayCheckout } from '../../lib/razorpay';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { useToast } from '../../components/ui/Toast';
 import { formatINR } from '../../lib/formatINR';
-import type { CheckoutResponse } from '../../types/api';
+import { ApiError, type CheckoutResponse, type PaymentResultResponse } from '../../types/api';
 import type { TicketCheckoutResponse } from '../../types/events';
-import { CreditCard, CheckCircle2, XCircle, ArrowLeft, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { CreditCard, CheckCircle2, XCircle, ArrowLeft, ShieldCheck, AlertTriangle, Lock } from 'lucide-react';
+
+interface CheckoutSummaryExtras {
+  items_count?: number;
+  delivery_note?: string;
+}
 
 export function Checkout() {
   const { orderId } = useParams<{ orderId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
 
-  const checkoutData = (location.state as {
-    checkoutData?: (CheckoutResponse & Partial<TicketCheckoutResponse>) | TicketCheckoutResponse;
-  })?.checkoutData;
+  // Descriptive extras only - the event title, the ticket tier, how many items are in the cart.
+  // Never the amount and never which order this is: the router state is gone after a reload or a
+  // return from a bank page, and those two have to survive that.
+  const summary = (
+    location.state as {
+      checkoutData?: (CheckoutResponse & Partial<TicketCheckoutResponse>) & CheckoutSummaryExtras;
+    } | null
+  )?.checkoutData;
 
-  const isTicketCheckout = Boolean(
-    (checkoutData as TicketCheckoutResponse)?.event_title ||
-    (checkoutData as TicketCheckoutResponse)?.ticket_type_name
-  );
-  const ticketData = checkoutData as TicketCheckoutResponse | undefined;
+  const intentQuery = useQuery({
+    queryKey: ['payment-intent', orderId],
+    queryFn: () => paymentsApi.getIntent(orderId as string),
+    enabled: Boolean(orderId),
+    retry: false,
+  });
+  const intent = intentQuery.data;
 
-  const isMerchCheckout = Boolean(
-    (checkoutData as any)?.is_merch ||
-    (checkoutData as any)?.items ||
-    (checkoutData as any)?.order_type === 'merch'
-  );
-  const merchData = checkoutData as any;
+  const isMerch = intent?.kind === 'merch';
+  const isTicket = intent?.kind === 'ticket';
+  // The mock provider is the only one that renders buttons which settle an order by assertion.
+  const isMock = intent?.provider === 'mock';
+  const alreadyPaid = intent?.order_status === 'paid';
 
+  const [paying, setPaying] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const confirmMutation = useMutation({
-    mutationFn: (status: 'SUCCESS' | 'FAILED') => {
-      const oid = orderId || checkoutData?.order_id || 'order_unknown';
-      return paymentsApi.mockConfirm(oid, status === 'SUCCESS' ? 'success' : 'fail');
-    },
-    onSuccess: async (data, status) => {
-      const isPaid =
-        status === 'SUCCESS' &&
-        (data.order_status === 'paid' ||
-          data.payment_status === 'paid' ||
-          data.order_status === 'PAID' ||
-          data.payment_status === 'PAID' ||
-          data.status === 'SUCCESS' ||
-          data.status === 'success');
+  const succeeded = paymentStatus === 'success' || alreadyPaid;
 
-      if (isPaid) {
-        setPaymentStatus('success');
-        await refreshUser();
-        if (isMerchCheckout) {
-          toast.show('Payment confirmed! Merchandise order placed.', 'success');
-          setTimeout(() => {
-            navigate('/me/orders');
-          }, 1800);
-        } else if (isTicketCheckout) {
-          toast.show('Payment confirmed! Tickets issued successfully.', 'success');
-          setTimeout(() => {
-            navigate('/me/tickets');
-          }, 1800);
-        } else {
-          toast.show('Payment confirmed! Membership activated successfully.', 'success');
-          setTimeout(() => {
-            navigate('/me');
-          }, 1800);
-        }
-      } else {
-        setPaymentStatus('failed');
-        setErrorMessage(data.message || 'Payment simulation failed.');
-        toast.show('Payment failed or cancelled.', 'error');
-      }
-    },
-    onError: (err: any) => {
+  const finish = async (data: PaymentResultResponse) => {
+    if (data.order_status === 'paid') {
+      setPaymentStatus('success');
+      await refreshUser();
+      const [message, destination] = isMerch
+        ? ['Payment confirmed! Merchandise order placed.', '/me/orders']
+        : isTicket
+          ? ['Payment confirmed! Tickets issued successfully.', '/me/tickets']
+          : ['Payment confirmed! Membership activated successfully.', '/me'];
+      toast.show(message, 'success');
+      setTimeout(() => navigate(destination), 1800);
+    } else {
       setPaymentStatus('failed');
-      const msg = err.error?.message || err.message || 'Payment verification failed.';
-      setErrorMessage(msg);
-      toast.show(msg, 'error');
-    },
-  });
-
-  const handleSimulate = (status: 'SUCCESS' | 'FAILED') => {
-    confirmMutation.mutate(status);
+      setErrorMessage(data.message || 'The payment was not completed.');
+      toast.show('Payment failed or cancelled.', 'error');
+    }
   };
 
-  const amountPaise = checkoutData?.amount || 50000;
-  const currentOrderId = orderId || checkoutData?.order_id || 'ord_sample_987';
+  const fail = (err: unknown, fallback: string) => {
+    const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : fallback;
+    setPaymentStatus('failed');
+    setErrorMessage(message);
+    toast.show(message, 'error');
+  };
+
+  const pay = async () => {
+    if (!intent?.key_id || !intent.gateway_order_id) return;
+    setPaying(true);
+    setErrorMessage(null);
+    try {
+      const result = await openRazorpayCheckout(
+        {
+          key_id: intent.key_id,
+          gateway_order_id: intent.gateway_order_id,
+          amount: intent.amount,
+          currency: intent.currency,
+        },
+        { name: user?.full_name, email: user?.email },
+      );
+      if (result.status === 'dismissed') {
+        // The user closed the widget. Nothing was charged and the order is still payable, so this
+        // is a note, not a failure.
+        toast.show('Payment cancelled - nothing was charged.', 'info');
+        return;
+      }
+      // The widget's word is not enough: the backend checks the signature before settling.
+      await finish(await paymentsApi.verify(intent.order_id, result.payment));
+    } catch (err) {
+      fail(err, 'Payment verification failed.');
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const simulate = async (outcome: 'success' | 'fail') => {
+    if (!intent) return;
+    setPaying(true);
+    setErrorMessage(null);
+    try {
+      await finish(await paymentsApi.mockConfirm(intent.order_id, outcome));
+    } catch (err) {
+      fail(err, 'Payment simulation failed.');
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const backTo = isMerch ? '/shop' : isTicket ? '/events' : '/join';
+  const backLabel = isMerch ? 'Back to Shop' : isTicket ? 'Back to Events' : 'Back to Plans';
+
+  if (intentQuery.isError) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <Button variant="ghost" size="sm" onClick={() => navigate(backTo)} className="mb-6 text-slate-400 hover:text-white">
+          <ArrowLeft className="w-4 h-4 mr-1.5" /> {backLabel}
+        </Button>
+        <ErrorState
+          title="We could not open this order"
+          message={
+            intentQuery.error instanceof ApiError
+              ? intentQuery.error.message
+              : 'The order could not be loaded. Please try again.'
+          }
+          onRetry={() => intentQuery.refetch()}
+        />
+      </div>
+    );
+  }
+
+  if (!intent) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 space-y-4">
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-96 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() =>
-          isMerchCheckout
-            ? navigate('/shop')
-            : isTicketCheckout
-            ? navigate('/events')
-            : navigate('/join')
-        }
-        className="mb-6 text-slate-400 hover:text-white"
-      >
-        <ArrowLeft className="w-4 h-4 mr-1.5" />{' '}
-        {isMerchCheckout ? 'Back to Shop' : isTicketCheckout ? 'Back to Events' : 'Back to Plans'}
+      <Button variant="ghost" size="sm" onClick={() => navigate(backTo)} className="mb-6 text-slate-400 hover:text-white">
+        <ArrowLeft className="w-4 h-4 mr-1.5" /> {backLabel}
       </Button>
 
       <Card className="border-slate-800 bg-slate-900/90 shadow-2xl relative overflow-hidden">
@@ -120,16 +168,12 @@ export function Checkout() {
             <CreditCard className="w-7 h-7" />
           </div>
           <CardTitle className="text-2xl font-bold text-white">
-            {isMerchCheckout
-              ? 'Merchandise Checkout'
-              : isTicketCheckout
-              ? 'Ticket Checkout'
-              : 'Payment Checkout'}
+            {isMerch ? 'Merchandise Checkout' : isTicket ? 'Ticket Checkout' : 'Payment Checkout'}
           </CardTitle>
           <CardDescription className="text-slate-400">
-            {isMerchCheckout
+            {isMerch
               ? 'Complete your official club merchandise payment'
-              : isTicketCheckout
+              : isTicket
               ? 'Complete your event admission ticket order'
               : 'Complete your student club membership purchase'}
           </CardDescription>
@@ -141,65 +185,69 @@ export function Checkout() {
             <div className="flex justify-between items-center text-sm">
               <span className="text-slate-400">Order Reference</span>
               <span className="font-mono text-xs text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-                {currentOrderId}
+                {intent.order_id}
               </span>
             </div>
 
-            {isMerchCheckout && (
+            {isMerch && (
               <>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-400">Category</span>
                   <span className="font-medium text-white">Official Club Merch</span>
                 </div>
-                {merchData?.items_count && (
+                {summary?.items_count ? (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-400">Items Ordered</span>
-                    <span className="font-medium text-white">{merchData.items_count} item{merchData.items_count > 1 ? 's' : ''}</span>
+                    <span className="font-medium text-white">
+                      {summary.items_count} item{summary.items_count > 1 ? 's' : ''}
+                    </span>
                   </div>
-                )}
-                {merchData?.delivery_note && (
+                ) : null}
+                {summary?.delivery_note ? (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-400">Fulfillment Note</span>
-                    <span className="font-medium text-slate-300 truncate max-w-[240px] text-right">{merchData.delivery_note}</span>
+                    <span className="font-medium text-slate-300 truncate max-w-[240px] text-right">
+                      {summary.delivery_note}
+                    </span>
                   </div>
-                )}
+                ) : null}
               </>
             )}
 
-            {isTicketCheckout && ticketData?.event_title && (
+            {isTicket && summary?.event_title && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Event</span>
-                <span className="font-medium text-white truncate max-w-[260px] text-right">
-                  {ticketData.event_title}
+                <span className="font-medium text-white truncate max-w-[260px] text-right">{summary.event_title}</span>
+              </div>
+            )}
+
+            {isTicket && summary?.ticket_type_name && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Ticket Tier</span>
+                <span className="font-medium text-white">{summary.ticket_type_name}</span>
+              </div>
+            )}
+
+            {isTicket && typeof summary?.quantity === 'number' && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Quantity</span>
+                <span className="font-medium text-white">
+                  {summary.quantity} ticket{summary.quantity > 1 ? 's' : ''}
                 </span>
               </div>
             )}
 
-            {isTicketCheckout && ticketData?.ticket_type_name && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Ticket Tier</span>
-                <span className="font-medium text-white">{ticketData.ticket_type_name}</span>
-              </div>
-            )}
-
-            {isTicketCheckout && typeof ticketData?.quantity === 'number' && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Quantity</span>
-                <span className="font-medium text-white">{ticketData.quantity} ticket{ticketData.quantity > 1 ? 's' : ''}</span>
-              </div>
-            )}
-
-            {isTicketCheckout && typeof ticketData?.unit_price === 'number' && (
+            {isTicket && typeof summary?.unit_price === 'number' && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Price per ticket</span>
-                <span className="font-medium text-slate-300">{formatINR(ticketData.unit_price)}</span>
+                <span className="font-medium text-slate-300">{formatINR(summary.unit_price)}</span>
               </div>
             )}
 
-            {!isTicketCheckout && !isMerchCheckout && (checkoutData as CheckoutResponse)?.plan_name && (
+            {!isTicket && !isMerch && (summary as CheckoutResponse | undefined)?.plan_name && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Membership Tier</span>
-                <span className="font-medium text-white">{(checkoutData as CheckoutResponse).plan_name}</span>
+                <span className="font-medium text-white">{(summary as CheckoutResponse).plan_name}</span>
               </div>
             )}
 
@@ -207,77 +255,108 @@ export function Checkout() {
               <span className="text-slate-400">Payment Gateway</span>
               <span className="text-slate-300 font-medium flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Cashfree / Razorpay Mock Simulator
+                {isMock ? 'Mock gateway (development)' : 'Razorpay'}
               </span>
             </div>
             <div className="pt-3 border-t border-slate-800 flex justify-between items-baseline">
               <span className="text-base font-semibold text-white">Total Amount</span>
-              <span className="text-3xl font-black text-emerald-400">
-                {formatINR(amountPaise)}
-              </span>
+              <span className="text-3xl font-black text-emerald-400">{formatINR(intent.amount)}</span>
             </div>
           </div>
 
           {/* Status Display if completed or failed */}
-          {paymentStatus === 'success' && (
+          {succeeded && (
             <div className="p-4 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-center animate-fade-in">
               <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
               <h4 className="font-bold text-white text-lg">Payment Successful!</h4>
               <p className="text-xs text-emerald-300 mt-1">
-                {isTicketCheckout
+                {isTicket
                   ? 'Your event tickets have been issued and QR access passes generated.'
+                  : isMerch
+                  ? 'Your merchandise order has been placed and the reserved stock is yours.'
                   : 'Your role has been upgraded to Member and your membership card has been issued.'}
               </p>
               <p className="text-xs text-slate-400 mt-3">
-                {isTicketCheckout ? 'Redirecting to My Tickets...' : 'Redirecting to your Digital ID Card...'}
+                {isMerch
+                  ? 'Redirecting to My Orders...'
+                  : isTicket
+                  ? 'Redirecting to My Tickets...'
+                  : 'Redirecting to your Digital ID Card...'}
               </p>
             </div>
           )}
 
-          {paymentStatus === 'failed' && (
+          {!succeeded && paymentStatus === 'failed' && (
             <div className="p-4 rounded-xl bg-rose-950/50 border border-rose-500/40 text-center animate-fade-in">
               <XCircle className="w-10 h-10 text-rose-400 mx-auto mb-2" />
-              <h4 className="font-bold text-white text-lg">Payment Simulation Failed</h4>
+              <h4 className="font-bold text-white text-lg">Payment Failed</h4>
               <p className="text-xs text-rose-300 mt-1">
-                {errorMessage || 'The simulated transaction was rejected or cancelled.'}
+                {errorMessage || 'The transaction was rejected or cancelled.'}
               </p>
             </div>
           )}
 
-          {/* Simulation Notice */}
-          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <strong>Phase 1 Mock Gateway:</strong> Real bank charges are bypassed in development/testing mode. Use the buttons below to test both successful confirmation and failure handling.
+          {isMock ? (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong>Mock gateway:</strong> this deployment has no payment provider configured, so no money
+                moves. The buttons below settle the order directly.
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700 text-xs text-slate-300 flex items-start gap-2.5">
+              <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                Payment is processed by Razorpay. Your card and UPI details go to them and never touch this
+                site.
+              </div>
+            </div>
+          )}
         </CardContent>
 
-        <CardFooter className="flex flex-col sm:flex-row gap-3 pt-2">
-          <Button
-            variant="success"
-            size="lg"
-            className="w-full sm:flex-1"
-            disabled={confirmMutation.isPending || paymentStatus === 'success'}
-            isLoading={confirmMutation.isPending && confirmMutation.variables === 'SUCCESS'}
-            onClick={() => handleSimulate('SUCCESS')}
-          >
-            <ShieldCheck className="w-4 h-4 mr-2" />
-            Simulate Payment Success
-          </Button>
+        {!succeeded && (
+          <CardFooter className="flex flex-col sm:flex-row gap-3 pt-2">
+            {isMock ? (
+              <>
+                <Button
+                  variant="success"
+                  size="lg"
+                  className="w-full sm:flex-1"
+                  disabled={paying}
+                  isLoading={paying}
+                  onClick={() => simulate('success')}
+                >
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  Simulate Payment Success
+                </Button>
 
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full sm:w-auto text-rose-400 border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50"
-            disabled={confirmMutation.isPending || paymentStatus === 'success'}
-            isLoading={confirmMutation.isPending && confirmMutation.variables === 'FAILED'}
-            onClick={() => handleSimulate('FAILED')}
-          >
-            <XCircle className="w-4 h-4 mr-2" />
-            Simulate Failure
-          </Button>
-        </CardFooter>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full sm:w-auto text-rose-400 border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50"
+                  disabled={paying}
+                  onClick={() => simulate('fail')}
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Simulate Failure
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="success"
+                size="lg"
+                className="w-full"
+                disabled={paying}
+                isLoading={paying}
+                onClick={pay}
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Pay {formatINR(intent.amount)}
+              </Button>
+            )}
+          </CardFooter>
+        )}
       </Card>
     </div>
   );

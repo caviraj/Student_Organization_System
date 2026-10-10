@@ -116,7 +116,9 @@ export interface CheckoutResponse {
   plan_name?: string;
 }
 
-export interface MockConfirmResponse {
+// One shape for both settlement paths: the mock confirm and the real gateway callback answer
+// exactly the same body, because both go through the same dispatcher.
+export interface PaymentResultResponse {
   order_id: string;
   payment_id: string;
   order_status: string;
@@ -185,4 +187,22 @@ export class ApiError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+export interface PaymentIntent {
+  order_id: string;
+  kind: 'membership' | 'ticket' | 'merch';
+  order_status: string;
+  amount: number; // integer paise
+  currency: string;
+  provider: 'mock' | 'razorpay';
+  payment_status: string | null;
+  key_id: string | null;
+  gateway_order_id: string | null;
+}
+
+export interface RazorpayVerifyPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
 }

@@ -34,6 +34,143 @@ export const ticketOrdersState: Record<string, {
 }> = {};
 
 
+// Orders the checkout page has to be able to describe after a reload: a membership order has no
+// other home, and the status of all of them lives here once it is settled.
+const membershipOrdersState: Record<string, { amount: number }> = {};
+const orderStatusState: Record<string, 'pending' | 'paid' | 'failed'> = {};
+
+// The gateway callback and the simulated buttons settle through one function, exactly as they
+// do on the backend. /verify carries no `outcome`, so it always takes the success path.
+const settleMockPayment: Parameters<typeof http.post>[1] = async ({ params, request }) => {
+  const { orderId } = params;
+  const body = (await request.json()) as { outcome: 'success' | 'fail' };
+
+  const ticketOrder = ticketOrdersState[String(orderId)];
+  if (ticketOrder) {
+    if (body.outcome === 'fail') {
+      orderStatusState[String(orderId)] = 'failed';
+      orderStatusState[String(orderId)] = 'paid';
+      return HttpResponse.json({
+        order_id: String(orderId),
+        payment_id: ticketOrder.payment_id,
+        order_status: 'failed',
+        payment_status: 'failed',
+        provider_ref: `txn_fail_${Date.now()}`,
+      });
+    }
+
+    // Success for ticket order
+    let foundEvent: EventDetail | undefined;
+    let foundType: any;
+    for (const ev of eventsState) {
+      const tt = ev.ticket_types.find((t) => t.id === ticketOrder.ticket_type_id);
+      if (tt) {
+        foundEvent = ev;
+        foundType = tt;
+        break;
+      }
+    }
+
+    if (foundType && foundEvent) {
+      foundType.sold_count = (foundType.sold_count || 0) + ticketOrder.quantity;
+      foundType.seats_left = Math.max(0, (foundType.seats_left ?? foundType.capacity) - ticketOrder.quantity);
+
+      for (let i = 0; i < ticketOrder.quantity; i++) {
+        const randCode = `${foundEvent.title.replace(/[^A-Za-z]/g, '').substring(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        ticketsState.unshift({
+          id: `tkt_${Math.random().toString(36).substring(2, 9)}`,
+          order_id: String(orderId),
+          event_id: foundEvent.id,
+          event_title: foundEvent.title,
+          venue: foundEvent.venue,
+          starts_at: foundEvent.starts_at,
+          ends_at: foundEvent.ends_at,
+          ticket_type_name: foundType.name,
+          code: randCode,
+          status: 'valid',
+          price_paid: Math.round(ticketOrder.amount / ticketOrder.quantity),
+          is_member_price: ticketOrder.amount < foundType.non_member_price * ticketOrder.quantity,
+          user_name: ticketOrder.user_name,
+          user_email: ticketOrder.user_email,
+          checked_in_at: null,
+        });
+      }
+    }
+
+    return HttpResponse.json({
+      order_id: String(orderId),
+      payment_id: ticketOrder.payment_id,
+      order_status: 'paid',
+      payment_status: 'succeeded',
+      provider_ref: `txn_mock_${Date.now()}`,
+    });
+  }
+
+  const merchOrder = merchOrdersState.find((o) => o.id === String(orderId));
+  if (merchOrder) {
+    if (body.outcome === 'fail') {
+      orderStatusState[String(orderId)] = 'failed';
+      merchOrder.status = 'failed';
+      merchOrder.updated_at = new Date().toISOString();
+      return HttpResponse.json({
+        order_id: String(orderId),
+        payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
+        order_status: 'failed',
+        payment_status: 'failed',
+        provider_ref: `txn_fail_${Date.now()}`,
+      });
+    }
+    merchOrder.status = 'paid';
+    merchOrder.updated_at = new Date().toISOString();
+    orderStatusState[String(orderId)] = 'paid';
+    return HttpResponse.json({
+      order_id: String(orderId),
+      payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
+      order_status: 'paid',
+      payment_status: 'succeeded',
+      provider_ref: `txn_mock_${Date.now()}`,
+    });
+  }
+
+  if (body.outcome === 'fail') {
+    return HttpResponse.json({
+      order_id: String(orderId),
+      payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
+      order_status: 'failed',
+      payment_status: 'failed',
+      provider_ref: `txn_fail_${Date.now()}`,
+      membership: null,
+    });
+  }
+
+  // Success flow
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 365);
+
+  const currentUser = mockUsers[activeUserEmail] || mockUsers['member@ssa.org'];
+  orderStatusState[String(orderId)] = 'paid';
+  currentUser.role = 'member';
+  currentUser.membership = {
+    status: 'active',
+    plan_name: 'Standard Scholar',
+    end_date: endDate.toISOString(),
+    days_left: 365,
+  };
+
+  return HttpResponse.json({
+    order_id: String(orderId),
+    payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
+    order_status: 'paid',
+    payment_status: 'succeeded',
+    provider_ref: `txn_mock_${Date.now()}`,
+    membership: {
+      id: `mem_${Math.random().toString(36).substring(2, 9)}`,
+      status: 'active',
+      end_date: endDate.toISOString(),
+    },
+  });
+};
+
 export const handlers = [
   // 1. Auth Register
   http.post('*/api/v1/auth/register', async ({ request }) => {
@@ -234,6 +371,8 @@ export const handlers = [
 
     const orderId = `ord_${Math.random().toString(36).substring(2, 10)}`;
     const paymentId = `pay_${Math.random().toString(36).substring(2, 10)}`;
+    membershipOrdersState[orderId] = { amount: plan.price };
+    orderStatusState[orderId] = 'pending';
 
     return HttpResponse.json({
       order_id: orderId,
@@ -244,129 +383,37 @@ export const handlers = [
     });
   }),
 
-  // 8. Mock Payment Confirm
-  http.post('*/api/v1/payments/:orderId/mock-confirm', async ({ params, request }) => {
-    const { orderId } = params;
-    const body = (await request.json()) as { outcome: 'success' | 'fail' };
+  // 8. Mock payment settlement: the simulated buttons and the gateway callback, same code.
+  http.post('*/api/v1/payments/:orderId/mock-confirm', settleMockPayment),
+  http.post('*/api/v1/payments/:orderId/verify', settleMockPayment),
 
-    const ticketOrder = ticketOrdersState[String(orderId)];
-    if (ticketOrder) {
-      if (body.outcome === 'fail') {
-        return HttpResponse.json({
-          order_id: String(orderId),
-          payment_id: ticketOrder.payment_id,
-          order_status: 'failed',
-          payment_status: 'failed',
-          provider_ref: `txn_fail_${Date.now()}`,
-        });
-      }
+  // 8b. Which order is this, and what does it cost? The checkout page asks before it opens
+  // anything, because the state it was navigated with is gone after a reload.
+  http.get('*/api/v1/payments/:orderId', ({ params }) => {
+    const orderId = String(params.orderId);
+    const ticketOrder = ticketOrdersState[orderId];
+    const merchOrder = merchOrdersState.find((o) => o.id === orderId);
+    const membershipOrder = membershipOrdersState[orderId];
+    const amount = ticketOrder?.amount ?? merchOrder?.amount ?? membershipOrder?.amount;
 
-      // Success for ticket order
-      let foundEvent: EventDetail | undefined;
-      let foundType: any;
-      for (const ev of eventsState) {
-        const tt = ev.ticket_types.find((t) => t.id === ticketOrder.ticket_type_id);
-        if (tt) {
-          foundEvent = ev;
-          foundType = tt;
-          break;
-        }
-      }
-
-      if (foundType && foundEvent) {
-        foundType.sold_count = (foundType.sold_count || 0) + ticketOrder.quantity;
-        foundType.seats_left = Math.max(0, (foundType.seats_left ?? foundType.capacity) - ticketOrder.quantity);
-
-        for (let i = 0; i < ticketOrder.quantity; i++) {
-          const randCode = `${foundEvent.title.replace(/[^A-Za-z]/g, '').substring(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-          ticketsState.unshift({
-            id: `tkt_${Math.random().toString(36).substring(2, 9)}`,
-            order_id: String(orderId),
-            event_id: foundEvent.id,
-            event_title: foundEvent.title,
-            venue: foundEvent.venue,
-            starts_at: foundEvent.starts_at,
-            ends_at: foundEvent.ends_at,
-            ticket_type_name: foundType.name,
-            code: randCode,
-            status: 'valid',
-            price_paid: Math.round(ticketOrder.amount / ticketOrder.quantity),
-            is_member_price: ticketOrder.amount < foundType.non_member_price * ticketOrder.quantity,
-            user_name: ticketOrder.user_name,
-            user_email: ticketOrder.user_email,
-            checked_in_at: null,
-          });
-        }
-      }
-
-      return HttpResponse.json({
-        order_id: String(orderId),
-        payment_id: ticketOrder.payment_id,
-        order_status: 'completed',
-        payment_status: 'succeeded',
-        provider_ref: `txn_mock_${Date.now()}`,
-      });
+    if (amount === undefined) {
+      return HttpResponse.json(
+        { error: { code: 'ORDER_NOT_FOUND', message: 'Order not found', details: {} } },
+        { status: 404 }
+      );
     }
 
-    const merchOrder = merchOrdersState.find((o) => o.id === String(orderId));
-    if (merchOrder) {
-      if (body.outcome === 'fail') {
-        merchOrder.status = 'failed';
-        merchOrder.updated_at = new Date().toISOString();
-        return HttpResponse.json({
-          order_id: String(orderId),
-          payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
-          order_status: 'failed',
-          payment_status: 'failed',
-          provider_ref: `txn_fail_${Date.now()}`,
-        });
-      }
-      merchOrder.status = 'paid';
-      merchOrder.updated_at = new Date().toISOString();
-      return HttpResponse.json({
-        order_id: String(orderId),
-        payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
-        order_status: 'completed',
-        payment_status: 'succeeded',
-        provider_ref: `txn_mock_${Date.now()}`,
-      });
-    }
-
-    if (body.outcome === 'fail') {
-      return HttpResponse.json({
-        order_id: String(orderId),
-        payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
-        order_status: 'failed',
-        payment_status: 'failed',
-        provider_ref: `txn_fail_${Date.now()}`,
-        membership: null,
-      });
-    }
-
-    // Success flow
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 365);
-
-    const currentUser = mockUsers[activeUserEmail] || mockUsers['member@ssa.org'];
-    currentUser.role = 'member';
-    currentUser.membership = {
-      status: 'active',
-      plan_name: 'Standard Scholar',
-      end_date: endDate.toISOString(),
-      days_left: 365,
-    };
-
+    const orderStatus = orderStatusState[orderId] ?? 'pending';
     return HttpResponse.json({
-      order_id: String(orderId),
-      payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
-      order_status: 'completed',
-      payment_status: 'succeeded',
-      provider_ref: `txn_mock_${Date.now()}`,
-      membership: {
-        id: `mem_${Math.random().toString(36).substring(2, 9)}`,
-        status: 'active',
-        end_date: endDate.toISOString(),
-      },
+      order_id: orderId,
+      kind: ticketOrder ? 'ticket' : merchOrder ? 'merch' : 'membership',
+      order_status: orderStatus,
+      amount,
+      currency: 'INR',
+      provider: 'mock',
+      payment_status: orderStatus === 'paid' ? 'succeeded' : 'created',
+      key_id: null,
+      gateway_order_id: null,
     });
   }),
 
@@ -731,6 +778,7 @@ export const handlers = [
     const orderId = `ord_tkt_${Math.random().toString(36).substring(2, 10)}`;
     const paymentId = `pay_${Math.random().toString(36).substring(2, 10)}`;
 
+    orderStatusState[orderId] = 'pending';
     ticketOrdersState[orderId] = {
       order_id: orderId,
       payment_id: paymentId,
