@@ -138,6 +138,36 @@ class MockConfirmIn(BaseModel):
     outcome: Literal["success", "fail"] = Field(examples=["success"])
 
 
+class RazorpayVerifyIn(BaseModel):
+    """The trio the Checkout widget hands back on success. Verified server-side; a client that
+    makes these up gains nothing, because the signature is computed with the key secret."""
+
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+class PaymentIntentOut(BaseModel):
+    """What the checkout page needs to open the gateway - and to redraw itself after a reload or
+    a redirect back from a bank page, where the router state is gone."""
+
+    order_id: UUID
+    kind: str
+    order_status: str
+    amount: int = Field(description="Integer paise")
+    currency: str
+    provider: str
+    payment_status: str | None = None
+    # Razorpay Checkout opens with these two together; both are null under the mock provider.
+    key_id: str | None = None
+    gateway_order_id: str | None = None
+
+
+class WebhookAckOut(BaseModel):
+    status: Literal["processed", "ignored"]
+    order_id: UUID | None = None
+
+
 class PaymentResultOut(BaseModel):
     order_id: UUID
     payment_id: UUID | None = None

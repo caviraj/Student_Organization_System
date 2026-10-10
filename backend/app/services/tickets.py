@@ -139,7 +139,7 @@ def create_ticket_checkout(
         db.commit()
         return order, None, tickets
 
-    payment = payments.create_mock_intent(db, order)
+    payment = payments.create_intent(db, order)
     db.commit()
     db.refresh(order)
     db.refresh(payment)

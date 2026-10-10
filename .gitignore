@@ -41,3 +41,7 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Razorpay key exports downloaded from the dashboard - never commit.
+rzp-key.csv
+*rzp-key*.csv

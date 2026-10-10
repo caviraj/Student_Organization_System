@@ -123,7 +123,7 @@ def checkout(db: Session, user: User, plan_id: uuid.UUID) -> tuple[Order, Paymen
             line_total=plan.price,
         )
     )
-    payment = payments.create_mock_intent(db, order)
+    payment = payments.create_intent(db, order)
     db.commit()
     db.refresh(order)
     db.refresh(payment)

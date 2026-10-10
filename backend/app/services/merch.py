@@ -336,7 +336,7 @@ def create_merch_checkout(
         db.rollback()
         raise
 
-    payment = payments.create_mock_intent(db, order)
+    payment = payments.create_intent(db, order)
     db.commit()
     db.refresh(order)
     db.refresh(payment)

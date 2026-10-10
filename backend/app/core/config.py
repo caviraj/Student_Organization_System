@@ -55,6 +55,17 @@ class Settings(BaseSettings):
     # Merch is members-only by default (PRD FR-4.1). Set false to let anyone order at list price.
     MERCH_MEMBERS_ONLY: bool = True
 
+    # --- Payments (M2-P1) --------------------------------------------------------------------
+    # mock | razorpay. `mock` settles an order through POST /payments/{order_id}/mock-confirm,
+    # which is a free-money endpoint if it is ever reachable in production - so it is refused
+    # outright whenever this is not `mock`.
+    PAYMENTS_PROVIDER: str = "mock"
+    RAZORPAY_KEY_ID: str | None = None
+    RAZORPAY_KEY_SECRET: str | None = None
+    # Set when the webhook URL is registered in the Razorpay dashboard. It is the ONLY thing that
+    # makes an incoming event trustworthy, so without it every webhook is rejected.
+    RAZORPAY_WEBHOOK_SECRET: str | None = None
+
     # Receipts (Phase 6). The bucket is PRIVATE and only this backend holds the key, so
     # SUPABASE_SERVICE_ROLE_KEY must never be logged, returned, or committed - it bypasses RLS.
     # `local` keeps the whole receipt flow working with no cloud account (dev and tests).
@@ -120,6 +131,19 @@ class Settings(BaseSettings):
             problems.append("STORAGE_PROVIDER is unset")
         if self.STORAGE_PROVIDER == "supabase" and not (self.SUPABASE_SERVICE_ROLE_KEY or "").strip():
             problems.append("STORAGE_PROVIDER=supabase but SUPABASE_SERVICE_ROLE_KEY is unset")
+        if not (self.PAYMENTS_PROVIDER or "").strip():
+            problems.append("PAYMENTS_PROVIDER is unset")
+        if self.PAYMENTS_PROVIDER == "razorpay":
+            for name in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"):
+                if not (getattr(self, name) or "").strip():
+                    problems.append(f"PAYMENTS_PROVIDER=razorpay but {name} is unset")
+            key_id = (self.RAZORPAY_KEY_ID or "").strip()
+            # A test key in production takes no money at all, which is the exact failure this
+            # whole change exists to remove: it would look live and settle nothing real.
+            if self.is_production and key_id.startswith("rzp_test_"):
+                problems.append("RAZORPAY_KEY_ID is a TEST key (rzp_test_...) under APP_ENV=production")
+            if not self.is_production and key_id.startswith("rzp_live_"):
+                problems.append("RAZORPAY_KEY_ID is a LIVE key outside production - real money will move")
         return problems
 
     def enforce_startup_config(self) -> list[str]:

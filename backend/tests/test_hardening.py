@@ -41,6 +41,9 @@ PUBLIC_ALLOWLIST = {
     ("/api/v1/announcements/{announcement_id}", "GET"),
     ("/api/v1/products", "GET"),
     ("/api/v1/products/{product_id}", "GET"),
+    # The gateway calls this, not a browser. It carries no token by design: the signature over the
+    # raw body is the authentication, and the handler refuses everything else.
+    ("/api/v1/payments/webhook", "POST"),
 }
 
 # Every authenticated route a plain `member` may reach - both the ones with a `require_role`
@@ -52,6 +55,8 @@ MEMBER_ALLOWED = {
     ("/api/v1/memberships/checkout", "POST"),
     ("/api/v1/memberships/me", "GET"),
     ("/api/v1/payments/{order_id}/mock-confirm", "POST"),
+    ("/api/v1/payments/{order_id}", "GET"),
+    ("/api/v1/payments/{order_id}/verify", "POST"),
     ("/api/v1/tickets/checkout", "POST"),
     ("/api/v1/tickets/me", "GET"),
     ("/api/v1/tickets/{ticket_id}", "GET"),

@@ -25,6 +25,10 @@ os.environ["LOCAL_STORAGE_DIR"] = tempfile.mkdtemp(prefix="ssa-test-receipts-")
 # limiter, and a test that trips a limit would be testing the limiter, not the route. The limits
 # have their own tests, which turn this back on for that test alone (see the `rate_limits` fixture).
 os.environ["RATE_LIMIT_ENABLED"] = "false"
+# Pinned, not defaulted: a developer machine with real Razorpay keys in .env would otherwise run
+# the whole suite in live mode, where mock-confirm is refused and thousands of tests would fail for
+# the wrong reason. The tests that exercise a real gateway set the provider and the keys themselves.
+os.environ["PAYMENTS_PROVIDER"] = "mock"
 
 from datetime import UTC, date, datetime, timedelta
 

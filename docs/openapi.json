@@ -5040,6 +5040,80 @@
         "title": "Page[UserOut]",
         "type": "object"
       },
+      "PaymentIntentOut": {
+        "description": "What the checkout page needs to open the gateway - and to redraw itself after a reload or\na redirect back from a bank page, where the router state is gone.",
+        "properties": {
+          "amount": {
+            "description": "Integer paise",
+            "title": "Amount",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "gateway_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Order Id"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Id"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_status": {
+            "title": "Order Status",
+            "type": "string"
+          },
+          "payment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Status"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "kind",
+          "order_status",
+          "amount",
+          "currency",
+          "provider"
+        ],
+        "title": "PaymentIntentOut",
+        "type": "object"
+      },
       "PaymentResultOut": {
         "properties": {
           "membership": {
@@ -5721,6 +5795,30 @@
           }
         },
         "title": "ProductUpdateIn",
+        "type": "object"
+      },
+      "RazorpayVerifyIn": {
+        "description": "The trio the Checkout widget hands back on success. Verified server-side; a client that\nmakes these up gains nothing, because the signature is computed with the key secret.",
+        "properties": {
+          "razorpay_order_id": {
+            "title": "Razorpay Order Id",
+            "type": "string"
+          },
+          "razorpay_payment_id": {
+            "title": "Razorpay Payment Id",
+            "type": "string"
+          },
+          "razorpay_signature": {
+            "title": "Razorpay Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "razorpay_order_id",
+          "razorpay_payment_id",
+          "razorpay_signature"
+        ],
+        "title": "RazorpayVerifyIn",
         "type": "object"
       },
       "ReconcileCheckOut": {
@@ -7943,6 +8041,35 @@
           "status"
         ],
         "title": "VerifyOut",
+        "type": "object"
+      },
+      "WebhookAckOut": {
+        "properties": {
+          "order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "status": {
+            "enum": [
+              "processed",
+              "ignored"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "WebhookAckOut",
         "type": "object"
       }
     },
@@ -11963,6 +12090,75 @@
         ]
       }
     },
+    "/api/v1/payments/webhook": {
+      "post": {
+        "operationId": "webhook_api_v1_payments_webhook_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Razorpay webhook (signature-verified; unauthenticated by design)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{order_id}": {
+      "get": {
+        "operationId": "get_intent_api_v1_payments__order_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "What the checkout page needs to open the gateway (owner or admin)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
     "/api/v1/payments/{order_id}/mock-confirm": {
       "post": {
         "operationId": "mock_confirm_api_v1_payments__order_id__mock_confirm_post",
@@ -12015,7 +12211,65 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Simulate the gateway result for an order (owner or admin)",
+        "summary": "Simulate the gateway result for an order (owner or admin; mock provider only)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/v1/payments/{order_id}/verify": {
+      "post": {
+        "operationId": "verify_api_v1_payments__order_id__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RazorpayVerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Verify the Checkout widget's success callback and settle the order (owner or admin)",
         "tags": [
           "payments"
         ]
