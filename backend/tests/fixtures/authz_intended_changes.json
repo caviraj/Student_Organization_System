@@ -1,0 +1,10 @@
+{
+  "_": [
+    "Authorisation cells the M2-P2 refactor is allowed to change, with the reason.",
+    "Shape: {\"changes\": {\"METHOD /path\": {\"role\": \"why\"}}}.",
+    "A cell named here is not checked for equality; every other cell still is, and a cell that",
+    "changes without being named here fails tests/test_authz_golden.py.",
+    "Filled in as the intentional behaviour changes of M2-P2 Step 6 land."
+  ],
+  "changes": {}
+}
