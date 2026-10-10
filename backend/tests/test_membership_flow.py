@@ -210,7 +210,7 @@ def test_confirm_unknown_order_is_404(client, make_user, login, auth):
 
 # --- verification (FR-1.6) --------------------------------------------------------
 def test_verify_active_member(client, db, make_user, make_plan, login, auth):
-    user = make_user("vol@ssa.org", role="volunteer")
+    make_user("vol@ssa.org", role="volunteer")  # exists so the volunteer can log in
     member = make_user("active@ssa.org", role="member")
     member.member_code = "SSA-2026-0001"
     plan = make_plan()

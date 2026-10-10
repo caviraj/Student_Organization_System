@@ -3,7 +3,7 @@
 Runs daily from jobs/scheduler.py; exposed here so tests can drive it directly.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -46,7 +46,7 @@ def run_expiry_scan(db: Session) -> dict:
                 created += 1
                 raised = True
         if raised:
-            membership.renewal_reminded_at = datetime.now(timezone.utc)
+            membership.renewal_reminded_at = datetime.now(UTC)
 
     db.commit()
     return {"scanned": len(memberships), "expired": expired, "reminders_created": created}

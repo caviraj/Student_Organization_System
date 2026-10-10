@@ -1,0 +1,286 @@
+
+== 0. migrate + seed
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 3682ea441d4b, phase 1 auth and membership tables
+SSA Hub - Phase 1 seed
+----------------------------------------------------------
+  staff created          4 (of 4)
+  plans                  3: Basic, Standard, Premium
+  members created        20 (of 20)
+  memberships            20 total | 14 active | 7 expiring <=30d | 6 expired
+  paid orders            20
+  succeeded payments     20
+  ledger rows (dues)     20
+  reminders              9 (expiry_30/expiry_7/expired)
+  expiry scan            {'scanned': 15, 'expired': 1, 'reminders_created': 9}
+----------------------------------------------------------
+  login as staff: admin@ssa.org / treasurer@ssa.org / organizer@ssa.org / volunteer@ssa.org
+  members: member01@ssa.org ... member20@ssa.org
+  password for all seeded accounts: Passw0rd!
+
+== starting uvicorn on :8000
+
+== health
+{
+    "status": "ok",
+    "service": "ssa-hub-api",
+    "version": "1.0.0"
+}
+
+== 1. POST /auth/register  (demo.1791608825@ssa.org)
+{
+    "access_token": "<redacted - demo run>",
+    "token_type": "bearer",
+    "user": {
+        "id": "fd6ca846-1987-4fe6-a4e7-3d358689db54",
+        "email": "demo.1791608825@ssa.org",
+        "full_name": "Demo Student",
+        "phone": "9876500000",
+        "department": "CSE",
+        "year": 2,
+        "role": "guest",
+        "member_code": null,
+        "email_opt_in": true,
+        "is_active": true,
+        "created_at": "2026-10-10T05:07:18"
+    }
+}
+
+== 2. POST /auth/login
+{
+    "access_token": "<redacted - demo run>",
+    "token_type": "bearer",
+    "user": {
+        "id": "fd6ca846-1987-4fe6-a4e7-3d358689db54",
+        "email": "demo.1791608825@ssa.org",
+        "full_name": "Demo Student",
+        "phone": "9876500000",
+        "department": "CSE",
+        "year": 2,
+        "role": "guest",
+        "member_code": null,
+        "email_opt_in": true,
+        "is_active": true,
+        "created_at": "2026-10-10T05:07:18"
+    }
+}
+
+== 3. GET /plans  (public, active only)
+{
+    "items": [
+        {
+            "id": "168c7f37-b9d0-46ff-9369-809642117278",
+            "name": "Basic",
+            "price": 50000,
+            "duration_months": 12,
+            "ticket_discount_pct": 10,
+            "merch_discount_pct": 5,
+            "description": "Dues + member pricing. 10% off tickets, 5% off merch.",
+            "is_active": true
+        },
+        {
+            "id": "693ccaa8-88b1-458b-a6d2-e97ab7e93cf5",
+            "name": "Standard",
+            "price": 90000,
+            "duration_months": 12,
+            "ticket_discount_pct": 20,
+            "merch_discount_pct": 10,
+            "description": "Most popular. 20% off tickets, 10% off merch.",
+            "is_active": true
+        },
+        {
+            "id": "19138ac6-bce2-4b68-ae31-19314584f83b",
+            "name": "Premium",
+            "price": 150000,
+            "duration_months": 12,
+            "ticket_discount_pct": 30,
+            "merch_discount_pct": 15,
+            "description": "Best value. 30% off tickets, 15% off merch.",
+            "is_active": true
+        }
+    ],
+    "total": 3,
+    "page": 1,
+    "page_size": 20
+}
+
+== 4. POST /memberships/checkout  (Standard plan)
+{
+    "order_id": "fae89175-8bec-49cd-a129-38fe363bb513",
+    "payment_id": "794b52fc-2612-4a03-89ed-b6ddd845e8a0",
+    "amount": 90000,
+    "provider": "mock",
+    "status": "created"
+}
+
+== 5. POST /payments/fae89175-8bec-49cd-a129-38fe363bb513/mock-confirm  {outcome: success}
+{
+    "order_id": "fae89175-8bec-49cd-a129-38fe363bb513",
+    "payment_id": "794b52fc-2612-4a03-89ed-b6ddd845e8a0",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_d963e9cbc6c44227959423b17c49d548",
+    "membership": {
+        "status": "active",
+        "plan_name": "Standard",
+        "end_date": "2027-10-10",
+        "days_left": 365
+    }
+}
+
+== 6. same call again -> idempotent, nothing duplicated
+{
+    "order_id": "fae89175-8bec-49cd-a129-38fe363bb513",
+    "payment_id": "794b52fc-2612-4a03-89ed-b6ddd845e8a0",
+    "order_status": "paid",
+    "payment_status": "succeeded",
+    "provider_ref": "mock_d963e9cbc6c44227959423b17c49d548",
+    "membership": {
+        "status": "active",
+        "plan_name": "Standard",
+        "end_date": "2027-10-10",
+        "days_left": 365
+    }
+}
+
+== 7. GET /auth/me  (role promoted guest -> member, membership active)
+{
+    "id": "fd6ca846-1987-4fe6-a4e7-3d358689db54",
+    "email": "demo.1791608825@ssa.org",
+    "full_name": "Demo Student",
+    "phone": "9876500000",
+    "department": "CSE",
+    "year": 2,
+    "role": "member",
+    "member_code": "SSA-2026-0021",
+    "email_opt_in": true,
+    "is_active": true,
+    "created_at": "2026-10-10T05:07:18",
+    "membership": {
+        "status": "active",
+        "plan_name": "Standard",
+        "end_date": "2027-10-10",
+        "days_left": 365
+    }
+}
+
+== 8. GET /members/me/card  (QR payload)
+{
+    "member_code": "SSA-2026-0021",
+    "full_name": "Demo Student",
+    "status": "active",
+    "valid_until": "2027-10-10"
+}
+
+== 9. POST /auth/login  (admin@ssa.org - seeded)
+admin token issued
+
+== 10. GET /members/verify?code=SSA-2026-0021  (volunteer+; admin here)
+{
+    "valid": true,
+    "status": "active",
+    "name": "Demo Student",
+    "member_code": "SSA-2026-0021",
+    "valid_until": "2027-10-10",
+    "reason": null
+}
+
+== 10b. GET /members/verify?code=SSA-2026-9999  (not a member)
+{
+    "valid": false,
+    "status": "none",
+    "name": null,
+    "member_code": null,
+    "valid_until": null,
+    "reason": "No member found"
+}
+
+== 11. GET /memberships/renewals-due  (active memberships ending within 30 days)
+{
+    "items": [
+        {
+            "id": "6791b6eb-dd82-4dc2-a9c8-9878d4bfe260",
+            "user_id": "b992b11d-05f9-4aca-ac49-f084eda06b0e",
+            "plan_id": "693ccaa8-88b1-458b-a6d2-e97ab7e93cf5",
+            "plan_name": "Standard",
+            "status": "active",
+            "start_date": "2025-10-15",
+            "end_date": "2026-10-15",
+            "days_left": 5,
+            "member_code": "SSA-2026-0008",
+            "user_name": "Harini Prasad",
+            "user_email": "member08@ssa.org"
+        },
+        {
+            "id": "af2039d7-ccea-4e06-8593-677f29b744c9",
+            "user_id": "b9139c16-66b4-4c15-a949-e1431290af0f",
+            "plan_id": "19138ac6-bce2-4b68-ae31-19314584f83b",
+            "plan_name": "Premium",
+            "status": "active",
+            "start_date": "2025-10-20",
+            "end_date": "2026-10-20",
+            "days_left": 10,
+            "member_code": "SSA-2026-0009",
+            "user_name": "Ishaan Bose",
+            "user_email": "member09@ssa.org"
+        },
+        {
+            "id": "f7bfa1f1-f466-4d5e-b169-3c78d6692383",
+            "user_id": "cf8fed08-b67c-46f3-8b33-6d538a407947",
+            "plan_id": "168c7f37-b9d0-46ff-9369-809642117278",
+            "plan_name": "Basic",
+            "status": "active",
+            "start_date": "2025-10-20",
+            "end_date": "2026-10-20",
+            "days_left": 10,
+            "member_code": "SSA-2026-0010",
+            "user_name": "Jaya Krishnan",
+            "user_email": "member10@ssa.org"
+        },
+        {
+            "id": "7197be74-a233-4090-b96b-5c3982ed1b5e",
+            "user_id": "4e27fa8c-a938-4545-b10e-fa706cae7a77",
+            "plan_id": "693ccaa8-88b1-458b-a6d2-e97ab7e93cf5",
+            "plan_name": "Standard",
+            "status": "active",
+            "start_date": "2025-10-20",
+            "end_date": "2026-10-20",
+            "days_left": 10,
+            "member_code": "SSA-2026-0011",
+            "user_name": "Kabir Malhotra",
+            "user_email": "member11@ssa.org"
+        },
+        {
+            "id": "a60bc3e1-8587-440a-8098-a792fe509db3",
+            "user_id": "b0ba0005-4deb-4304-a20b-851921ad3f6d",
+            "plan_id": "19138ac6-bce2-4b68-ae31-19314584f83b",
+            "plan_name": "Premium",
+            "status": "active",
+            "start_date": "2025-11-04",
+            "end_date": "2026-11-04",
+            "days_left": 25,
+            "member_code": "SSA-2026-0012",
+            "user_name": "Lakshmi Reddy",
+            "user_email": "member12@ssa.org"
+        }
+    ],
+    "total": 7,
+    "page": 1,
+    "page_size": 5
+}
+
+== 12. ledger row for this order  (money is traceable, DESIGN.md 4.3)
+[
+  {
+    "direction": "in",
+    "source": "dues",
+    "amount": 90000,
+    "ref_type": "order",
+    "note": "Membership dues - Standard"
+  }
+]
+
+== done
+The new member is active, has a member code, shows in the admin renewals list,
+and their dues are on the ledger. Swagger UI: http://127.0.0.1:8000/docs

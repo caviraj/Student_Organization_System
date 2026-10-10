@@ -58,7 +58,7 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 **events**: id, title, description, venue, starts_at, ends_at, banner_url, status (`draft|published|closed`), created_by
 
 **ticket_types**: id, event_id, name, member_price, non_member_price, capacity, sold_count, sale_starts_at, sale_ends_at
-  *constraint:* `sold_count <= capacity`
+  *constraint:* `sold_count <= capacity`, plus `capacity > 0`, `sold_count >= 0` and both prices `>= 0` — the database refuses an oversell even if a future caller forgets rule 2.
 
 **orders**: id, user_id, kind (`membership|ticket|merch`), status (`pending|paid|failed|cancelled|refunded`), subtotal, discount, total, currency=`INR`, meta JSONB, idempotency_key
 
@@ -67,6 +67,7 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 **payments**: id, order_id, provider (`mock|razorpay`), provider_ref, status (`created|succeeded|failed`), amount, raw JSONB
 
 **tickets**: id, order_id, event_id, ticket_type_id, user_id, code (unique, short random), status (`valid|used|void`), price_paid, is_member_price, checked_in_at, checked_in_by
+  *constraint:* `code` unique+indexed, and an index on `(event_id, status)` so the door counters and the report stay cheap. `price_paid`/`is_member_price` are **frozen at purchase time**, so a later price change or lapsed membership never rewrites history.
 
 **announcements**: id, title, body, category (`meeting|deadline|change|general`), audience (`all|members|event`), event_id?, is_pinned, author_id, published_at, revision_note
 **announcement_deliveries**: id, announcement_id, user_id, channel (`email|inapp`), status (`queued|sent|failed`), sent_at
@@ -92,7 +93,11 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 3. **Payment success handler is idempotent** and, in ONE DB transaction: marks order paid → creates fulfilment → writes ledger `in` row. The `M2` Razorpay handler keys off `provider_ref`; the `M1` mock handler has no gateway callback to dedupe on, so it claims the order first — `UPDATE orders SET status='paid' WHERE id=:id AND status='pending'` — and a 0-row result means "already settled", so the caller replays the stored result instead of repeating the work. Both are the same idea: the conditional UPDATE is the lock.
 4. **Check-in:** `UPDATE tickets SET status='used', checked_in_at=now() WHERE code=:c AND status='valid' AND event_id=:e` — row count decides valid vs already-used.
 5. **Expense** can be `approved` only if `receipt_url` present; `reimbursed` creates ledger `out` row.
-6. Membership expiry job: `active` & `end_date < today` → `expired`; `end_date <= today+30d` → reminder row.
+6. Membership expiry job (daily; `services.reminders.run_expiry_scan()` so tests can drive it directly): `active` & `end_date < today` → `expired` **and** an `expired` reminder; otherwise `active` & `end_date <= today+30d` → `expiry_30` reminder, plus `expiry_7` once it is within 7 days. At most one reminder per kind per membership, enforced by the unique constraint — so a scan that runs twice in a day is a no-op. Returns `{scanned, expired, reminders_created}`.
+   **Academic year:** `end_date = start_date + plan.duration_months` only. The "cap to the academic year end" from the PRD is deliberately not applied — a one-year plan bought in month 3 would otherwise silently grant only 9 months. Revisit if the club decides dues are per-academic-year rather than rolling.
+7. **Activation (part of the rule-3 transaction):** on a successful membership payment the member's `memberships` row goes `active`, `renewal_reminded_at` resets, its old reminders are cleared, a `member_code` is minted if the user has none (`SSA-<year>-NNNN`, sequential within the year), and the role is promoted `guest → member` **only** — paying dues can never demote a volunteer, organizer, treasurer or admin whose role was set deliberately.
+8. **Ticket fulfilment (part of the rule-3 transaction):** a successful ticket payment marks the order `paid`, issues exactly `quantity` tickets with unique 10-character codes, and writes one ledger `in` row (`source=tickets`, `ref_type=order`, `event_id` from the order's meta). Idempotent twice over: the pending→paid claim guards a replayed callback, and the ticket issuer returns the existing tickets rather than minting more. Codes use an unambiguous alphabet (`ABCDEFGHJKMNPQRSTUVWXYZ23456789` — no `0/O/1/I/L`) because volunteers read them aloud at the door. Rule 1 applies at checkout, not at payment: the price is resolved and frozen when the order is created.
+9. **Seats are reserved at checkout, not at payment** (so two shoppers cannot both be told there is one seat left), and released when the order dies: `mock-confirm {outcome:"fail"}` marks it `failed`, and a sweep every 5 minutes cancels ticket orders still `pending` after 15 minutes (`services.tickets.release_expired_pending_orders()`, called by the scheduler and directly by tests). Release never pushes `sold_count` below 0. A **free** ticket type skips payment entirely — seats reserved, tickets issued, no payment row and **no ledger row**, because nothing was earned.
 
 ## 5. API Contract (prefix `/api/v1`, JSON, JWT Bearer)
 
@@ -102,32 +107,35 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 ### Auth & Users
 | Method | Path | Role | Notes |
 |---|---|---|---|
-| POST | /auth/register | public | returns user + token, role=`guest` until plan paid |
+| POST | /auth/register | public | 201; body `{email, password, full_name, phone?, department?, year?}` → `{access_token, token_type, user}`, role=`guest` until plan paid |
 | POST | /auth/login | public | `{access_token, token_type, user}` |
-| GET | /auth/me | any | user + membership summary |
-| GET | /users | admin | search `q`, filter `role`,`status` |
-| PATCH | /users/{id}/role | admin | |
-| GET | /members/verify?code= or ?q= | volunteer+ | `{valid, status, name, member_code, valid_until}` |
-| GET | /members/me/card | member | data for QR (member_code) |
+| GET | /auth/me | any | flat user fields (`id, email, full_name, phone, department, year, role, member_code, email_opt_in, is_active, created_at`) + nested `membership` = `{status, plan_name, end_date, days_left}`; `status` is `none` before the first membership |
+| GET | /users | admin | search `q`, filter `role`,`status`, `page`, `page_size` |
+| PATCH | /users/{id}/role | admin | 404 `USER_NOT_FOUND` |
+| GET | /members/verify?code= or ?q= | volunteer+ | `{valid, status, name, member_code, valid_until, reason}` — `reason` explains a `false` (`Membership expired on …`, `Not a member`, …) and is `null` when valid. Also: a non-existent code answers **200** with `valid:false, reason:"No member found"` — scanning an unknown card is a normal door event, not a server error. 400 `MISSING_QUERY` when neither param is sent; 409 `AMBIGUOUS_QUERY` (with `details.member_codes`) when `q` matches several members, so staff retype the code instead of the API guessing |
+| GET | /members/me/card | member | data for QR: `{member_code, full_name, status, valid_until}` |
 
 ### Memberships
-| GET | /plans | public | |
-| POST/PATCH | /plans, /plans/{id} | admin | |
-| POST | /memberships/checkout | auth | `{plan_id}` → order+payment intent |
-| GET | /memberships/me | auth | |
-| GET | /memberships | admin | filter `status`, `expiring_within_days` |
-| GET | /memberships/renewals-due | admin | |
+| GET | /plans | public | active plans only, cheapest first |
+| POST/PATCH | /plans, /plans/{id} | admin | 201; 409 `PLAN_NAME_TAKEN` on duplicate name |
+| POST | /memberships/checkout | auth | 201; body `{plan_id}` → `{order_id, payment_id, amount, provider, status}`. Creates order(`membership`, `pending`) + order_item + `mock` payment intent. If the member is still active, the new period starts when the current one ends (see §4 rule 1); 404 `PLAN_NOT_FOUND` for a missing/inactive plan |
+| GET | /memberships/me | auth | 404 `MEMBERSHIP_NOT_FOUND` before the first purchase |
+| GET | /memberships | admin | filter `status`, `expiring_within_days`, `page`, `page_size` |
+| GET | /memberships/renewals-due | admin | `active` memberships ending within 30 days, each with `days_left` |
 
 ### Events, Tickets, Check-in
-| GET | /events | public | published only (organizer sees drafts) |
-| GET | /events/{id} | public | includes ticket_types with `seats_left` |
-| POST/PATCH | /events, /events/{id} | organizer+ | |
-| POST | /events/{id}/ticket-types | organizer+ | |
-| POST | /tickets/checkout | auth | `{ticket_type_id, quantity}` → order+payment intent; 409 `SOLD_OUT` |
-| GET | /tickets/me | auth | with QR `code` |
-| POST | /checkin | volunteer+ | `{event_id, code}` → `{result: VALID|ALREADY_USED|INVALID|WRONG_EVENT, ticket, checked_in_at}` |
-| GET | /events/{id}/report | organizer+ | sold, seats_left, checked_in, no_shows, attendance_rate, revenue{member,non_member,total} |
-| GET | /events/{id}/attendees | organizer+ | |
+| GET | /events | public | published only, soonest first. Items are a summary: `{id, title, venue, starts_at, ends_at, banner_url, status, min_price, seats_left}` — `min_price` is the cheapest price **for the caller** (member price with a token, else non-member) and `seats_left` sums every ticket type. Filters `upcoming=true`, `q` (title or venue), `page`, `page_size`. `include_drafts=true` also returns drafts: **401** anonymous, **403** below organizer |
+| GET | /events/{id} | public | 404 for a non-`published` event unless the caller is organizer+. `ticket_types[]` = `{id, event_id, name, member_price, non_member_price, capacity, sold_count, seats_left, is_on_sale, price_for_you, sale_starts_at, sale_ends_at}`; `price_for_you` is **null for an anonymous caller** (there is no "you"), else the price that caller would pay — both list prices are always present |
+| POST | /events | organizer+ | 201; new events always start as `draft`. 422 `VALIDATION_ERROR` when `ends_at <= starts_at` |
+| PATCH | /events/{id} | organizer+ | `draft → published → closed` only; 409 `INVALID_STATUS_TRANSITION` with `details {from, to}` for anything else (an event never un-publishes) |
+| POST | /events/{id}/ticket-types | organizer+ | 201 → the ticket type, with `seats_left` and `is_on_sale` |
+| PATCH | /ticket-types/{id} | organizer+ | 404 `TICKET_TYPE_NOT_FOUND`; 409 `CAPACITY_BELOW_SOLD` with `details {sold_count, capacity}` when the new capacity would strand sold seats |
+| POST | /tickets/checkout | auth | `{ticket_type_id, quantity}` (quantity **1..10**, else 422) → 201 `{order_id, payment_id, amount, unit_price, is_member_price, quantity, provider, status, tickets}`. Honours an `Idempotency-Key` header: the same key replays the same order instead of reserving seats twice. 409 `SOLD_OUT` with `details {seats_left, requested}`, 409 `EVENT_NOT_ON_SALE` (draft/closed), 409 `NOT_IN_SALE_WINDOW` (outside `sale_starts_at`/`sale_ends_at`). A **free** ticket type returns `status:"paid"`, `payment_id:null` and the tickets already filled — nothing to pay, so nothing to confirm |
+| GET | /tickets/me | auth | paginated tickets, **upcoming first** (soonest at the top, then past events most-recent-first), each with event title/date/venue and the QR `code` |
+| GET | /tickets/{id} | auth | owner or organizer+ (403 otherwise), 404 `TICKET_NOT_FOUND` |
+| POST | /checkin | volunteer+ | `{event_id, code}`. **Always 200** for the four door outcomes: `{result: VALID\|ALREADY_USED\|INVALID\|WRONG_EVENT, ticket, holder_name, ticket_type, checked_in_at, message, checked_in, sold}` — `ticket` is null when nothing matched, `message` is human-readable for the scanner, and `checked_in`/`sold` drive its live counter. The code is normalised (spaces stripped, upper-cased) so a scanner's noise is harmless. A voided ticket is `INVALID`; a ticket for another event is `WRONG_EVENT` and names that event |
+| GET | /events/{id}/report | organizer+ | `{event_id, title, status, tickets_sold, seats_total, seats_left, checked_in, no_shows, attendance_rate, revenue{member, non_member, total}, by_ticket_type[]}`. `tickets_sold` counts `valid`+`used`; `seats_left` is live availability (`seats_total - sum(sold_count)`) so it agrees with `GET /events/{id}`; `attendance_rate` is a percentage (0 when nothing sold); revenue is integer paise summed from `tickets.price_paid`. Per type: `{ticket_type_id, name, capacity, sold, seats_left, checked_in, revenue}` |
+| GET | /events/{id}/attendees | organizer+ | paginated `{ticket_id, code, status, holder_name, holder_email, ticket_type, price_paid, is_member_price, checked_in_at}`; filter `status=valid\|used\|void`, search `q` over name, email or code |
 
 ### Announcements
 | GET | /announcements | public/member | audience filtered; paginated |
@@ -153,7 +161,7 @@ All money = `INTEGER` paise. All PKs = UUID. All tables: `created_at`, `updated_
 | POST | /fundraisers/{id}/income | organizer+ | logs income → ledger |
 
 ### Payments (M1 mock)
-| POST | /payments/{order_id}/mock-confirm | auth | body `{outcome: "success"|"fail"}` simulates gateway |
+| POST | /payments/{order_id}/mock-confirm | auth | body `{outcome: "success"\|"fail"}` simulates the gateway. Owner or admin only (403 otherwise). Returns `{order_id, payment_id, order_status, payment_status, provider_ref, membership, tickets}` — the dispatcher keys off `order.kind`, so a `membership` order fills `membership` (and leaves `tickets` empty) while a `ticket` order fills `tickets` (and leaves `membership` `null`). Safe to call twice: the second call returns the same body and changes nothing (§4 rule 3). On `fail`: payment `failed`, order `failed`, membership untouched and tickets' seats released |
 | POST | /payments/webhook | provider | M2 Razorpay |
 
 ### Expenses & Finance
@@ -195,4 +203,6 @@ Clean, modern campus-club feel. Primary: deep indigo `#4338CA`; accent: amber `#
 - Until backend phase endpoints land, use **mock handlers (MSW)** matching this contract; switch with `VITE_USE_MOCKS=false`.
 
 ## 7. Seed Data (for demos)
-Admin, treasurer, organizer, volunteer, 20 members (some expiring in 10/25 days, some expired), 3 plans, 2 events (Spring Gala: 120 seats; Workshop: 40), 3 announcements, hoodie + T-shirt with S–XXL stock, a Bake Sale fundraiser with 8 tasks, 6 expenses in different states, auto-generated ledger.
+Admin, treasurer, organizer, volunteer, 20 members (some expiring in 10/25 days, some expired), 3 plans, 3 announcements, hoodie + T-shirt with S–XXL stock, a Bake Sale fundraiser with 8 tasks, 6 expenses in different states, auto-generated ledger.
+
+**Events (Phase 2):** Spring Gala (published, in 14 days) with General 120 seats / VIP 20 — 85 General sold with 60 already scanned in, and VIP deliberately nearly gone at 19/20; Coding Workshop (published, free, 40 seats, 10 registered); Annual Meet (draft); Farewell 2025 (closed, in the past, with used tickets). Every seeded ticket is sold through the real checkout service, so `sold_count` and the ledger agree with the report.

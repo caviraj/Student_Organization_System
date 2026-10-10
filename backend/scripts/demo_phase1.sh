@@ -35,7 +35,7 @@ print(data)
 }
 
 pretty() { "$PY" -m json.tool; }
-hr() { printf "\n\033[1m%s\033[0m\n" "$1"; }
+hr() { if [ -t 1 ]; then printf "\n\033[1m%s\033[0m\n" "$1"; else printf "\n== %s\n" "$1"; fi; }
 post() { curl -s -X POST "$BASE$1" -H 'Content-Type: application/json' "${@:2}"; }
 
 EMAIL="demo.$(date +%s)@ssa.org"

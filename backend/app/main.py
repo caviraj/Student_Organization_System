@@ -1,4 +1,4 @@
-"""SSA Hub API — Phase 1 (Auth & Membership)."""
+"""SSA Hub API — Phases 1-2 (Auth & Membership, Events & Tickets)."""
 
 from contextlib import asynccontextmanager
 
@@ -8,14 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.jobs.scheduler import start_scheduler, stop_scheduler
-from app.routers import auth, members, memberships, payments, plans, users
+from app.routers import auth, checkin, events, members, memberships, payments, plans, tickets, users
 
 API_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    start_scheduler()  # expiry scan at startup, then every 24h
+    start_scheduler()  # expiry scan at startup then daily; stale-checkout sweep every 5 min
     yield
     stop_scheduler()
 
@@ -24,9 +24,10 @@ app = FastAPI(
     title="SSA Hub API",
     version="1.0.0",
     description=(
-        "Skyline Student Association platform — Phase 1: Auth & Membership.\n\n"
+        "Skyline Student Association platform — Phase 2: Events, Tickets & Check-in.\n\n"
         "All endpoints are under `/api/v1`. Errors are `{\"error\": {\"code\", \"message\", \"details\"}}`; "
-        "lists are `{\"items\", \"total\", \"page\", \"page_size\"}`. Money is integer paise."
+        "lists are `{\"items\", \"total\", \"page\", \"page_size\"}`. Money is integer paise. "
+        "Timestamps are UTC and always end in `Z`."
     ),
     lifespan=lifespan,
 )
@@ -41,7 +42,18 @@ app.add_middleware(
 
 register_error_handlers(app)
 
-for router in (auth.router, users.router, members.router, plans.router, memberships.router, payments.router):
+for router in (
+    auth.router,
+    users.router,
+    members.router,
+    plans.router,
+    memberships.router,
+    payments.router,
+    events.router,
+    events.ticket_type_router,
+    tickets.router,
+    checkin.router,
+):
     app.include_router(router, prefix=API_PREFIX)
 
 

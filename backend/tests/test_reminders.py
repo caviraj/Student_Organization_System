@@ -35,7 +35,7 @@ def test_scan_expires_past_end_and_reminds_once_per_kind(db, make_user, make_pla
     assert db.get(Membership, lapsed.id).status == "expired"
     assert db.get(Membership, due_10.id).status == "active"  # still valid until end_date
 
-    kinds = lambda membership: {r.kind for r in db.query(Reminder).filter_by(membership_id=membership.id)}  # noqa: E731
+    kinds = lambda membership: {r.kind for r in db.query(Reminder).filter_by(membership_id=membership.id)}
     assert kinds(lapsed) == {"expired"}
     assert kinds(due_10) == {"expiry_30"}
     assert kinds(due_3) == {"expiry_30", "expiry_7"}

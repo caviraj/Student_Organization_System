@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -28,7 +28,7 @@ def record_transaction(
         event_id=event_id,
         fundraiser_id=fundraiser_id,
         note=note,
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
     )
     db.add(entry)
     return entry

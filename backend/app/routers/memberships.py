@@ -1,5 +1,4 @@
 from datetime import date, timedelta
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -7,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_role
 from app.core.errors import AppError
-from app.models import Membership, MembershipPlan, User
+from app.models import Membership, User
 from app.schemas import CheckoutIn, CheckoutOut, MembershipOut, Page
 from app.services import memberships as membership_service
 

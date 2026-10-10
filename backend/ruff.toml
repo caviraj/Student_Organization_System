@@ -1,0 +1,10 @@
+target-version = "py311"
+line-length = 120
+
+[lint]
+ignore = [
+    # FastAPI's dependency idiom is a call in a default argument.
+    "B008",
+    # Membership dates are local civil dates ("valid until 15 Oct"), not instants.
+    "DTZ011",
+]

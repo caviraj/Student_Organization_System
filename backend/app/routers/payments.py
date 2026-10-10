@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, get_db
 from app.models import User
 from app.schemas import MockConfirmIn, PaymentResultOut
-from app.services.memberships import confirm_mock_payment
+from app.services.payments import confirm_mock_payment
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
