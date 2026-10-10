@@ -106,4 +106,12 @@ export const adminPortalApi = {
       method: 'DELETE',
     });
   },
+
+  resetData: async (password: string): Promise<{ success: boolean; message: string }> => {
+    return apiClient('/admin-portal/reset-data', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  },
 };
+

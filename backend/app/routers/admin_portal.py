@@ -17,7 +17,24 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_optional_user, require_role
 from app.core.errors import AppError
-from app.models import Event, Order, OrderItem, Product, ProductVariant, Ticket, TicketType, User
+from app.core.security import verify_password
+from app.models import (
+    Event,
+    Expense,
+    Membership,
+    MerchOrder,
+    Order,
+    OrderItem,
+    Payment,
+    Product,
+    ProductVariant,
+    Reminder,
+    StockMovement,
+    Ticket,
+    TicketType,
+    Transaction,
+    User,
+)
 
 router = APIRouter(prefix="/admin-portal", tags=["Admin Portal"])
 
@@ -320,3 +337,61 @@ def delete_company_product(
     product.is_active = False
     db.commit()
     return {"message": "Product deactivated successfully"}
+
+
+class ResetDataIn(BaseModel):
+    password: str = Field(min_length=1, description="Admin portal login password to confirm reset")
+
+
+@router.post("/reset-data", summary="Reset portal registration and order data (requires admin password)")
+def reset_portal_data(
+    payload: ResetDataIn,
+    current_admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    # Verify the provided password against current_admin's password_hash
+    if not verify_password(payload.password, current_admin.password_hash):
+        raise AppError(403, "INVALID_ADMIN_PASSWORD", "Incorrect admin password. Data reset aborted.")
+
+    # 1. Clear cross-table foreign key references that prevent cascade
+    db.query(Expense).filter(Expense.ledger_transaction_id != None).update({Expense.ledger_transaction_id: None})
+    db.query(Membership).filter(Membership.order_id != None).update({Membership.order_id: None})
+    db.query(Transaction).filter(Transaction.reverses_id != None).update({Transaction.reverses_id: None})
+    db.flush()
+
+    # 2. Delete tickets, merch orders, order items, payments, stock movements, reminders
+    db.query(Ticket).delete()
+    db.query(MerchOrder).delete()
+    db.query(OrderItem).delete()
+    db.query(Payment).delete()
+    db.query(StockMovement).delete()
+    db.query(Reminder).delete()
+    db.flush()
+
+    # 3. Delete orders and ledger transactions
+    db.query(Order).delete()
+    db.query(Transaction).delete()
+    db.flush()
+
+    # 4. Reset ticket sold counts back to 0
+    db.query(TicketType).update({TicketType.sold_count: 0})
+
+    # 5. Reset product variants back to default stock (50)
+    db.query(ProductVariant).update({ProductVariant.stock: 50})
+    db.flush()
+
+    # 6. Delete student/guest accounts created during test registrations, preserving core accounts
+    # Keep admin, organizers, and core default test accounts ('admin@ssa.org', 'staff@ssa.org', 'student@ssa.org')
+    db.query(User).filter(
+        User.id != current_admin.id,
+        User.role.notin_(["admin", "organizer", "treasurer"]),
+        User.email.notin_(["admin@ssa.org", "staff@ssa.org", "student@ssa.org"]),
+    ).delete(synchronize_session=False)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "All registrations, orders, tickets, and attendee records have been reset successfully.",
+    }
+
