@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { MembershipPlan } from '../types/api';
+import type { MembershipPlan, PaginatedResponse } from '../types/api';
 
 export interface CreatePlanPayload {
   name: string;
@@ -21,9 +21,12 @@ export interface UpdatePlanPayload {
 
 export const plansApi = {
   getPlans: async (includeInactive = false): Promise<MembershipPlan[]> => {
-    return apiClient<MembershipPlan[]>('/plans', {
-      params: includeInactive ? { include_inactive: true } : undefined,
+    // /plans answers with a page envelope, not a bare array. 100 is the API's max page_size.
+    // shortcut: plans past the first 100 need real pagination, which no screen asks for yet.
+    const page = await apiClient<PaginatedResponse<MembershipPlan>>('/plans', {
+      params: { page_size: 100, include_inactive: includeInactive || undefined },
     });
+    return page.items;
   },
 
   createPlan: async (payload: CreatePlanPayload): Promise<MembershipPlan> => {

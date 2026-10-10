@@ -53,8 +53,11 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     headers: requestHeaders,
   });
 
-  if (response.status === 401) {
-    // Notify application of expired or invalid session
+  // A 401 from the endpoints that establish a session is just a failed login attempt; tearing the
+  // session down there would log a user out of a perfectly good session for one typo. Any other
+  // 401 means the session we sent is dead.
+  const isSignIn = endpoint.startsWith('/auth/login') || endpoint.startsWith('/auth/register');
+  if (response.status === 401 && !isSignIn) {
     setStoredToken(null);
     window.dispatchEvent(new CustomEvent('ssa_auth_unauthorized'));
   }

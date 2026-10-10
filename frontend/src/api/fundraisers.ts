@@ -29,7 +29,9 @@ export const fundraisersApi = {
   },
 
   getFundraiserTasks: async (fundraiserId: string): Promise<Task[]> => {
-    return apiClient<Task[]>(`/fundraisers/${fundraiserId}/tasks`);
+    // The board answers with TaskBoardOut ({columns, counts, items}), not a bare array.
+    const board = await apiClient<{ items: Task[] }>(`/fundraisers/${fundraiserId}/tasks`);
+    return board.items;
   },
 
   createTask: async (fundraiserId: string, data: CreateTaskInput): Promise<Task> => {
@@ -55,6 +57,11 @@ export const fundraisersApi = {
 
   // ASSUMED ENDPOINT per Gap (a) for volunteers to view their tasks across fundraisers
   getMyTasks: async (): Promise<Task[]> => {
-    return apiClient<Task[]>('/tasks/me');
+    // /tasks/me answers with a page envelope, not a bare array. 200 is the API's max page_size.
+    // shortcut: tasks past the first 200 need real pagination, which no screen asks for yet.
+    const page = await apiClient<PaginatedResponse<Task>>('/tasks/me', {
+      params: { page_size: 200 },
+    });
+    return page.items;
   },
 };

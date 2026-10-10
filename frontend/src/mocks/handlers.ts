@@ -6,6 +6,14 @@ import type { Announcement, AnnouncementDelivery, AnnouncementCategory, Announce
 import type { Product, ProductVariant, MerchOrder, MerchOrderItem, FulfillmentStatus } from '../features/shop/types';
 
 let activeUserEmail = 'member@ssa.org';
+// The real API wraps every list in a page envelope. The app unwraps it, so the mocks have to
+// answer with one too - returning a bare array here is what let contract drift go unnoticed.
+const asPage = <T>(items: T[], pageSize = 100) => ({
+  items,
+  total: items.length,
+  page: 1,
+  page_size: pageSize,
+});
 const plansState: MembershipPlan[] = [...mockPlans];
 export const eventsState: EventDetail[] = JSON.parse(JSON.stringify(mockEvents));
 export const ticketsState: TicketItem[] = JSON.parse(JSON.stringify(mockTickets));
@@ -123,7 +131,7 @@ export const handlers = [
 
   // 4. Get Plans
   http.get('*/api/v1/plans', () => {
-    return HttpResponse.json(plansState);
+    return HttpResponse.json(asPage(plansState));
   }),
 
   // 5. Create Plan (Admin)
@@ -756,7 +764,7 @@ export const handlers = [
       (t) => t.user_email === currentUser.email || currentUser.email === 'member@ssa.org'
     );
 
-    return HttpResponse.json(userTickets);
+    return HttpResponse.json(asPage(userTickets));
   }),
 
   // 21. Check-in Endpoint (Door Scanner)
@@ -1169,7 +1177,7 @@ export const handlers = [
       ? productsState
       : productsState.filter((p) => p.is_active);
 
-    return HttpResponse.json(products);
+    return HttpResponse.json(asPage(products));
   }),
 
   // 31. Get Single Product
@@ -1627,7 +1635,7 @@ export const handlers = [
       (o) => o.user_id === currentUser.id || o.user_email === currentUser.email
     );
 
-    return HttpResponse.json(myOrders);
+    return HttpResponse.json(asPage(myOrders));
   }),
 
   // 38. Admin Merch Orders Board
@@ -1968,7 +1976,8 @@ export const handlers = [
     }
 
     const tasks = tasksState.filter((t) => t.fundraiser_id === id);
-    return HttpResponse.json(tasks);
+    // The real board answers TaskBoardOut ({columns, counts, items}); the app only reads items.
+    return HttpResponse.json({ items: tasks });
   }),
 
   // 44. Create Task for Fundraiser (organizer+)
@@ -2181,7 +2190,7 @@ export const handlers = [
     }
 
     const myTasks = tasksState.filter((t) => t.assignee_id === currentUser.id);
-    return HttpResponse.json(myTasks);
+    return HttpResponse.json(asPage(myTasks, 200));
   }),
 ];
 

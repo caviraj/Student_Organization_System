@@ -12,12 +12,16 @@ import type { PaginatedResponse } from '../types/api';
 
 export const shopApi = {
   // Public product catalog
-  getProducts: (params?: { include_inactive?: boolean }) => {
-    return apiClient<Product[]>('/products', {
+  getProducts: async (params?: { include_inactive?: boolean }) => {
+    // /products answers with a page envelope, not a bare array. 100 is the API's max page_size.
+    // shortcut: a catalog past 100 items needs real pagination, which the grid has no UI for yet.
+    const page = await apiClient<PaginatedResponse<Product>>('/products', {
       params: {
         include_inactive: params?.include_inactive,
+        page_size: 100,
       },
     });
+    return page.items;
   },
 
   getProduct: (id: string) => {
@@ -110,12 +114,16 @@ export const shopApi = {
   },
 
   // User orders
-  getMyOrders: (params?: { kind?: string }) => {
-    return apiClient<MerchOrder[]>('/orders/me', {
+  getMyOrders: async (params?: { kind?: string }) => {
+    // /orders/me answers with a page envelope, not a bare array. 100 is the API's max page_size.
+    // shortcut: orders past the first 100 need real pagination, which no screen asks for yet.
+    const page = await apiClient<PaginatedResponse<MerchOrder>>('/orders/me', {
       params: {
         kind: params?.kind,
+        page_size: 100,
       },
     });
+    return page.items;
   },
 
   // Admin merch order board
