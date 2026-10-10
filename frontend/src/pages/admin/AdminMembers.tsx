@@ -35,7 +35,7 @@ export function AdminMembers() {
     {
       header: 'Member Code',
       accessor: (m: Membership) => (
-        <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-950/40 px-2 py-1 rounded border border-emerald-500/20">
+        <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
           {m.member_code}
         </span>
       ),
@@ -44,8 +44,8 @@ export function AdminMembers() {
       header: 'Member Name',
       accessor: (m: Membership) => (
         <div>
-          <div className="font-semibold text-white">{m.user?.full_name || 'Student'}</div>
-          <div className="text-xs text-slate-400">{m.user?.email}</div>
+          <div className="font-semibold text-slate-900">{m.user?.full_name || 'Student'}</div>
+          <div className="text-xs text-slate-500">{m.user?.email}</div>
         </div>
       ),
     },
@@ -56,7 +56,7 @@ export function AdminMembers() {
     {
       header: 'Plan',
       accessor: (m: Membership) => (
-        <span className="text-xs text-slate-300 font-medium">{m.plan_name}</span>
+        <span className="text-xs text-slate-600 font-medium">{m.plan_name}</span>
       ),
     },
     {
@@ -66,7 +66,7 @@ export function AdminMembers() {
     {
       header: 'Valid Until',
       accessor: (m: Membership) => (
-        <span className="text-xs text-slate-400 font-mono">
+        <span className="text-xs text-slate-500 font-mono">
           {formatDate(m.valid_until)}
         </span>
       ),
@@ -78,14 +78,14 @@ export function AdminMembers() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
             <Users className="w-3.5 h-3.5" />
             Admin Operations
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Member Roster
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             View, filter, and audit all club members and active subscriptions.
           </p>
         </div>
@@ -98,7 +98,7 @@ export function AdminMembers() {
       </div>
 
       {/* Filter and Search Bar */}
-      <Card className="border-slate-800 bg-slate-900/60">
+      <Card className="border-slate-200 bg-white">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             <div className="sm:col-span-6">
@@ -106,7 +106,7 @@ export function AdminMembers() {
                 placeholder="Search by name, email, or member code..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                leftIcon={<Search className="w-4 h-4 text-slate-500" />}
               />
             </div>
 
@@ -115,7 +115,7 @@ export function AdminMembers() {
                 <Filter className="w-4 h-4 text-slate-500 shrink-0" />
                 <select
                   aria-label="Filter by Role"
-                  className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full h-10 px-3 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600"
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
                 >
@@ -133,7 +133,7 @@ export function AdminMembers() {
             <div className="sm:col-span-3">
               <select
                 aria-label="Filter by Status"
-                className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full h-10 px-3 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
@@ -162,13 +162,13 @@ export function AdminMembers() {
           onRetry={() => refetch()}
         />
       ) : (
-        <Card className="border-slate-800 bg-slate-900/60 overflow-hidden">
-          <CardHeader className="py-4 border-b border-slate-800/80 flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+        <Card className="border-slate-200 bg-white overflow-hidden">
+          <CardHeader className="py-4 border-b border-slate-200 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
               Registered Members ({data?.total || 0})
             </CardTitle>
-            <CardDescription className="text-xs text-slate-400">
+            <CardDescription className="text-xs text-slate-500">
               Page {currentPage} of {data ? Math.ceil(data.total / pageSize) || 1 : 1}
             </CardDescription>
           </CardHeader>

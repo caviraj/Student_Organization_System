@@ -128,7 +128,7 @@ export function Checkout() {
   if (intentQuery.isError) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <Button variant="ghost" size="sm" onClick={() => navigate(backTo)} className="mb-6 text-slate-400 hover:text-white">
+        <Button variant="ghost" size="sm" onClick={() => navigate(backTo)} className="mb-6 text-slate-500 hover:text-slate-900">
           <ArrowLeft className="w-4 h-4 mr-1.5" /> {backLabel}
         </Button>
         <ErrorState
@@ -155,22 +155,22 @@ export function Checkout() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
-      <Button variant="ghost" size="sm" onClick={() => navigate(backTo)} className="mb-6 text-slate-400 hover:text-white">
+      <Button variant="ghost" size="sm" onClick={() => navigate(backTo)} className="mb-6 text-slate-500 hover:text-slate-900">
         <ArrowLeft className="w-4 h-4 mr-1.5" /> {backLabel}
       </Button>
 
-      <Card className="border-slate-800 bg-slate-900/90 shadow-2xl relative overflow-hidden">
+      <Card className="border-slate-200 bg-white shadow-2xl relative overflow-hidden">
         {/* Glow accent */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
 
         <CardHeader className="text-center pb-6">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
             <CreditCard className="w-7 h-7" />
           </div>
-          <CardTitle className="text-2xl font-bold text-white">
+          <CardTitle className="text-2xl font-bold text-slate-900">
             {isMerch ? 'Merchandise Checkout' : isTicket ? 'Ticket Checkout' : 'Payment Checkout'}
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription className="text-slate-500">
             {isMerch
               ? 'Complete your official club merchandise payment'
               : isTicket
@@ -181,10 +181,10 @@ export function Checkout() {
 
         <CardContent className="space-y-6">
           {/* Order Details Box */}
-          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-400">Order Reference</span>
-              <span className="font-mono text-xs text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+              <span className="text-slate-500">Order Reference</span>
+              <span className="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
                 {intent.order_id}
               </span>
             </div>
@@ -192,21 +192,21 @@ export function Checkout() {
             {isMerch && (
               <>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Category</span>
-                  <span className="font-medium text-white">Official Club Merch</span>
+                  <span className="text-slate-500">Category</span>
+                  <span className="font-medium text-slate-900">Official Club Merch</span>
                 </div>
                 {summary?.items_count ? (
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-400">Items Ordered</span>
-                    <span className="font-medium text-white">
+                    <span className="text-slate-500">Items Ordered</span>
+                    <span className="font-medium text-slate-900">
                       {summary.items_count} item{summary.items_count > 1 ? 's' : ''}
                     </span>
                   </div>
                 ) : null}
                 {summary?.delivery_note ? (
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-400">Fulfillment Note</span>
-                    <span className="font-medium text-slate-300 truncate max-w-[240px] text-right">
+                    <span className="text-slate-500">Fulfillment Note</span>
+                    <span className="font-medium text-slate-600 truncate max-w-[240px] text-right">
                       {summary.delivery_note}
                     </span>
                   </div>
@@ -216,22 +216,22 @@ export function Checkout() {
 
             {isTicket && summary?.event_title && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Event</span>
-                <span className="font-medium text-white truncate max-w-[260px] text-right">{summary.event_title}</span>
+                <span className="text-slate-500">Event</span>
+                <span className="font-medium text-slate-900 truncate max-w-[260px] text-right">{summary.event_title}</span>
               </div>
             )}
 
             {isTicket && summary?.ticket_type_name && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Ticket Tier</span>
-                <span className="font-medium text-white">{summary.ticket_type_name}</span>
+                <span className="text-slate-500">Ticket Tier</span>
+                <span className="font-medium text-slate-900">{summary.ticket_type_name}</span>
               </div>
             )}
 
             {isTicket && typeof summary?.quantity === 'number' && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Quantity</span>
-                <span className="font-medium text-white">
+                <span className="text-slate-500">Quantity</span>
+                <span className="font-medium text-slate-900">
                   {summary.quantity} ticket{summary.quantity > 1 ? 's' : ''}
                 </span>
               </div>
@@ -239,44 +239,44 @@ export function Checkout() {
 
             {isTicket && typeof summary?.unit_price === 'number' && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Price per ticket</span>
-                <span className="font-medium text-slate-300">{formatINR(summary.unit_price)}</span>
+                <span className="text-slate-500">Price per ticket</span>
+                <span className="font-medium text-slate-600">{formatINR(summary.unit_price)}</span>
               </div>
             )}
 
             {!isTicket && !isMerch && (summary as CheckoutResponse | undefined)?.plan_name && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400">Membership Tier</span>
-                <span className="font-medium text-white">{(summary as CheckoutResponse).plan_name}</span>
+                <span className="text-slate-500">Membership Tier</span>
+                <span className="font-medium text-slate-900">{(summary as CheckoutResponse).plan_name}</span>
               </div>
             )}
 
             <div className="flex justify-between items-center text-sm">
-              <span className="text-slate-400">Payment Gateway</span>
-              <span className="text-slate-300 font-medium flex items-center gap-1.5">
+              <span className="text-slate-500">Payment Gateway</span>
+              <span className="text-slate-600 font-medium flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 {isMock ? 'Mock gateway (development)' : 'Razorpay'}
               </span>
             </div>
-            <div className="pt-3 border-t border-slate-800 flex justify-between items-baseline">
-              <span className="text-base font-semibold text-white">Total Amount</span>
-              <span className="text-3xl font-black text-emerald-400">{formatINR(intent.amount)}</span>
+            <div className="pt-3 border-t border-slate-200 flex justify-between items-baseline">
+              <span className="text-base font-semibold text-slate-900">Total Amount</span>
+              <span className="text-3xl font-black text-emerald-600">{formatINR(intent.amount)}</span>
             </div>
           </div>
 
           {/* Status Display if completed or failed */}
           {succeeded && (
-            <div className="p-4 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-center animate-fade-in">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-              <h4 className="font-bold text-white text-lg">Payment Successful!</h4>
-              <p className="text-xs text-emerald-300 mt-1">
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center animate-fade-in">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-900 text-lg">Payment Successful!</h4>
+              <p className="text-xs text-emerald-700 mt-1">
                 {isTicket
                   ? 'Your event tickets have been issued and QR access passes generated.'
                   : isMerch
                   ? 'Your merchandise order has been placed and the reserved stock is yours.'
                   : 'Your role has been upgraded to Member and your membership card has been issued.'}
               </p>
-              <p className="text-xs text-slate-400 mt-3">
+              <p className="text-xs text-slate-500 mt-3">
                 {isMerch
                   ? 'Redirecting to My Orders...'
                   : isTicket
@@ -287,26 +287,26 @@ export function Checkout() {
           )}
 
           {!succeeded && paymentStatus === 'failed' && (
-            <div className="p-4 rounded-xl bg-rose-950/50 border border-rose-500/40 text-center animate-fade-in">
-              <XCircle className="w-10 h-10 text-rose-400 mx-auto mb-2" />
-              <h4 className="font-bold text-white text-lg">Payment Failed</h4>
-              <p className="text-xs text-rose-300 mt-1">
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-center animate-fade-in">
+              <XCircle className="w-10 h-10 text-rose-600 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-900 text-lg">Payment Failed</h4>
+              <p className="text-xs text-rose-700 mt-1">
                 {errorMessage || 'The transaction was rejected or cancelled.'}
               </p>
             </div>
           )}
 
           {isMock ? (
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <strong>Mock gateway:</strong> this deployment has no payment provider configured, so no money
                 moves. The buttons below settle the order directly.
               </div>
             </div>
           ) : (
-            <div className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700 text-xs text-slate-300 flex items-start gap-2.5">
-              <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-start gap-2.5">
+              <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 Payment is processed by Razorpay. Your card and UPI details go to them and never touch this
                 site.
@@ -334,7 +334,7 @@ export function Checkout() {
                 <Button
                   variant="outline"
                   size="lg"
-                  className="w-full sm:w-auto text-rose-400 border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50"
+                  className="w-full sm:w-auto text-rose-600 border-rose-300 hover:bg-rose-50 hover:border-rose-400"
                   disabled={paying}
                   onClick={() => simulate('fail')}
                 >

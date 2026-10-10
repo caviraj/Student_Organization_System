@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pin, Calendar, Clock, AlertTriangle, Bell, Edit3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pin, Calendar, Clock, AlertTriangle, Bell, Edit3 } from 'lucide-react';
 import type { Announcement, AnnouncementCategory } from '../../../types/announcements';
 import { formatRelativeTime } from '../../../lib/formatRelativeTime';
 import { formatDate } from '../../../lib/formatDate';
@@ -8,7 +8,6 @@ import { cn } from '../../../lib/utils';
 export interface AnnouncementCardProps {
   announcement: Announcement;
   className?: string;
-  defaultExpanded?: boolean;
 }
 
 const CATEGORY_CONFIG: Record<
@@ -40,18 +39,11 @@ const CATEGORY_CONFIG: Record<
 export function AnnouncementCard({
   announcement,
   className,
-  defaultExpanded = false,
 }: AnnouncementCardProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [showRevisionTooltip, setShowRevisionTooltip] = useState(false);
 
   const categoryMeta = CATEGORY_CONFIG[announcement.category] || CATEGORY_CONFIG.general;
   const CategoryIcon = categoryMeta.icon;
-
-  const isLong = announcement.body.length > 280;
-  const displayBody = isLong && !isExpanded
-    ? `${announcement.body.slice(0, 280)}...`
-    : announcement.body;
 
   return (
     <article
@@ -88,7 +80,7 @@ export function AnnouncementCard({
             <span>{categoryMeta.label}</span>
           </span>
 
-          {announcement.revision_note && (
+          {announcement.edited_at && (
             <div className="relative inline-block">
               <button
                 type="button"
@@ -108,8 +100,8 @@ export function AnnouncementCard({
                   role="tooltip"
                   className="absolute left-0 bottom-full mb-1.5 z-20 w-64 p-2.5 text-xs bg-slate-900 text-white rounded-lg shadow-lg"
                 >
-                  <p className="font-semibold text-slate-200 mb-0.5">Revision note:</p>
-                  <p className="text-slate-300">{announcement.revision_note}</p>
+                  <p className="font-semibold text-slate-200 mb-0.5">Last edited:</p>
+                  <p className="text-slate-300">{formatDate(announcement.edited_at)}</p>
                 </div>
               )}
             </div>
@@ -140,35 +132,13 @@ export function AnnouncementCard({
             className="text-slate-700 text-sm leading-relaxed whitespace-pre-line"
             data-testid="announcement-body"
           >
-            {displayBody}
+            {announcement.body_preview}
           </p>
         </div>
 
-        {isLong && (
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors focus:outline-hidden focus:underline"
-            >
-              {isExpanded ? (
-                <>
-                  <span>Show less</span>
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </>
-              ) : (
-                <>
-                  <span>Read more</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
-          </div>
-        )}
-
         {/* Footer author stamp */}
         <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-400">
-          <span>By {announcement.author_name}</span>
+          <span>By {announcement.author_name ?? 'the club'}</span>
           {announcement.audience !== 'all' && (
             <span className="capitalize text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 font-medium">
               Audience: {announcement.audience}

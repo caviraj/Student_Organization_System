@@ -8,17 +8,28 @@ export type AnnouncementAudience = 'all' | 'members' | 'event';
 export type DeliveryChannel = 'email' | 'inapp';
 export type DeliveryStatus = 'queued' | 'sent' | 'failed';
 
-export interface Announcement {
+/** The fields every announcement carries, in the list and on its own page alike (DESIGN.md §5). */
+export interface AnnouncementBase {
   id: string;
   title: string;
-  body: string;
   category: AnnouncementCategory;
   audience: AnnouncementAudience;
   event_id: string | null;
   is_pinned: boolean;
-  author_id: string;
-  author_name: string;
+  author_name: string | null;
   published_at: string;
+  /** Null until the post is edited. The list carries this, not the revision note. */
+  edited_at: string | null;
+}
+
+/** GET /announcements - the feed. The body arrives truncated to its first 200 characters. */
+export interface Announcement extends AnnouncementBase {
+  body_preview: string;
+}
+
+/** GET /announcements/{id}, and what POST/PATCH answer with. The only shape with the whole body. */
+export interface AnnouncementDetail extends AnnouncementBase {
+  body: string;
   revision_note: string | null;
 }
 

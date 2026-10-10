@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+@theme {
+  /* `primary` is the merch shop's accent - the same indigo the buttons and the nav logo already
+     use. It has to be declared here: an undeclared family compiles to no rule at all, so
+     `bg-primary-600` left the Add to Cart button with no background and no visible text. */
+  --color-primary-50: var(--color-indigo-50);
+  --color-primary-100: var(--color-indigo-100);
+  --color-primary-200: var(--color-indigo-200);
+  --color-primary-500: var(--color-indigo-500);
+  --color-primary-600: var(--color-indigo-600);
+  --color-primary-700: var(--color-indigo-700);
+  --color-primary-800: var(--color-indigo-800);
+  --color-primary-900: var(--color-indigo-900);
+  --color-primary-950: var(--color-indigo-950);
+}
+
 @layer base {
   * {
     border-color: var(--color-slate-200);

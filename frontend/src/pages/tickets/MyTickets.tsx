@@ -80,12 +80,12 @@ export function MyTickets() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
             <Ticket className="w-3.5 h-3.5" />
             Verified Event Access
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">My Event Tickets</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">My Event Tickets</h1>
+          <p className="text-sm text-slate-500 mt-1">
             Display your admission pass QR code at the event entrance for fast check-in.
           </p>
         </div>
@@ -94,7 +94,7 @@ export function MyTickets() {
           variant="outline"
           size="sm"
           onClick={() => navigate('/events')}
-          className="self-start sm:self-auto text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+          className="self-start sm:self-auto text-emerald-700 border-emerald-200 hover:bg-emerald-50"
         >
           <Sparkles className="w-4 h-4 mr-1.5" />
           Browse All Events
@@ -102,17 +102,17 @@ export function MyTickets() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 mb-8 gap-6">
+      <div className="flex border-b border-slate-200 mb-8 gap-6">
         <button
           onClick={() => setActiveTab('upcoming')}
           className={`pb-3 text-sm font-semibold flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             activeTab === 'upcoming'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           Upcoming Events
-          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-slate-300">
+          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
             {upcomingTickets.length}
           </span>
         </button>
@@ -121,12 +121,12 @@ export function MyTickets() {
           onClick={() => setActiveTab('past')}
           className={`pb-3 text-sm font-semibold flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             activeTab === 'past'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           Past / Expired
-          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-slate-300">
+          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
             {pastTickets.length}
           </span>
         </button>
@@ -156,43 +156,43 @@ export function MyTickets() {
             return (
               <Card
                 key={t.id}
-                className={`border-slate-800 bg-slate-900/80 hover:border-slate-700 transition-all flex flex-col justify-between overflow-hidden group ${
-                  isValid ? 'hover:shadow-lg hover:shadow-emerald-950/20' : 'opacity-85'
+                className={`border-slate-200 bg-white hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden group ${
+                  isValid ? 'hover:shadow-lg' : 'opacity-85'
                 }`}
               >
                 <div>
                   {/* Status Banner */}
-                  <div className="px-4 py-2 border-b border-slate-800/80 bg-slate-950/50 flex items-center justify-between text-xs">
-                    <span className="font-mono text-slate-400 font-semibold tracking-wider">
+                  <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+                    <span className="font-mono text-slate-500 font-semibold tracking-wider">
                       {t.code}
                     </span>
                     {isValid && (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
+                      <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Valid Pass
                       </span>
                     )}
                     {isUsed && (
-                      <span className="inline-flex items-center gap-1 text-amber-400 font-medium">
+                      <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
                         <Clock className="w-3.5 h-3.5" /> Checked In
                       </span>
                     )}
                     {isVoid && (
-                      <span className="inline-flex items-center gap-1 text-rose-400 font-medium">
+                      <span className="inline-flex items-center gap-1 text-rose-600 font-medium">
                         <AlertCircle className="w-3.5 h-3.5" /> Cancelled
                       </span>
                     )}
                   </div>
 
                   <CardHeader className="pb-3">
-                    <div className="text-xs text-emerald-400 font-semibold mb-1">
+                    <div className="text-xs text-emerald-600 font-semibold mb-1">
                       {t.ticket_type_name}
                     </div>
-                    <CardTitle className="text-lg font-bold text-white leading-snug group-hover:text-emerald-300 transition-colors">
+                    <CardTitle className="text-lg font-bold text-slate-900 leading-snug group-hover:text-emerald-700 transition-colors">
                       {t.event_title}
                     </CardTitle>
                   </CardHeader>
 
-                  <CardContent className="space-y-2.5 text-xs text-slate-300">
+                  <CardContent className="space-y-2.5 text-xs text-slate-600">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
                       <span>{formatDate(t.starts_at)}</span>
@@ -204,15 +204,15 @@ export function MyTickets() {
                     </div>
 
                     {isUsed && t.checked_in_at && (
-                      <div className="pt-2 text-[11px] text-amber-400/90 font-medium">
+                      <div className="pt-2 text-[11px] text-amber-600 font-medium">
                         Scanned at door: {formatDate(t.checked_in_at)}
                       </div>
                     )}
                   </CardContent>
                 </div>
 
-                <CardFooter className="pt-3 border-t border-slate-800/60 bg-slate-950/30 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-300">
+                <CardFooter className="pt-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600">
                     {t.price_paid === 0 ? 'Free Pass' : formatINR(t.price_paid)}
                   </span>
 
@@ -235,14 +235,14 @@ export function MyTickets() {
       {/* High-Contrast QR Fullscreen Modal */}
       {selectedTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
-          <div className="relative w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl text-center overflow-hidden">
+          <div className="relative w-full max-w-sm rounded-3xl bg-white border border-slate-200 p-6 shadow-2xl text-center overflow-hidden">
             {/* Top gradient glow */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500" />
 
             {/* Close Button */}
             <button
               onClick={() => setSelectedTicket(null)}
-              className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="absolute top-4 right-4 p-2 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               aria-label="Close pass"
             >
               <X className="w-5 h-5" />
@@ -250,10 +250,10 @@ export function MyTickets() {
 
             {/* Header info */}
             <div className="pt-2 mb-4">
-              <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
                 {selectedTicket.ticket_type_name}
               </span>
-              <h3 className="text-lg font-black text-white leading-snug px-4">
+              <h3 className="text-lg font-black text-slate-900 leading-snug px-4">
                 {selectedTicket.event_title}
               </h3>
             </div>
@@ -273,18 +273,18 @@ export function MyTickets() {
             </div>
 
             {/* Attendee & Schedule Meta */}
-            <div className="mt-4 pt-3 border-t border-slate-800 text-xs space-y-1.5 text-slate-300">
-              <p className="font-semibold text-white">
+            <div className="mt-4 pt-3 border-t border-slate-200 text-xs space-y-1.5 text-slate-600">
+              <p className="font-semibold text-slate-900">
                 Attendee: {user?.full_name || 'SSA Member / Guest'}
               </p>
-              <p className="text-slate-400">
+              <p className="text-slate-500">
                 {formatDate(selectedTicket.starts_at)} • {selectedTicket.venue}
               </p>
             </div>
 
             {/* Door Scanning Brightness Hint */}
-            <div className="mt-4 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center gap-2 text-xs text-amber-300">
-              <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="mt-4 p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center gap-2 text-xs text-amber-700">
+              <Sun className="w-4 h-4 text-amber-600 shrink-0" />
               <span>Turn phone brightness to max for instant scanning</span>
             </div>
 
@@ -292,7 +292,7 @@ export function MyTickets() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full text-slate-300"
+                className="w-full"
                 onClick={() => setSelectedTicket(null)}
               >
                 Close Pass

@@ -280,7 +280,7 @@ export function EventForm() {
       {/* Top back navigation */}
       <button
         onClick={() => navigate('/manage/events')}
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6"
+        className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 transition-colors mb-6"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to Event Management
@@ -289,22 +289,22 @@ export function EventForm() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
             {isEdit ? 'Edit Event Details' : 'Create New Event'}
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Configure schedule, venue, promotional details, and admission ticket tiers.
           </p>
         </div>
 
         {/* Quick status indicator */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Current Status:</span>
+          <span className="text-xs text-slate-500">Current Status:</span>
           <span
             className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
               status === 'published'
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
             }`}
           >
             {status}
@@ -314,13 +314,13 @@ export function EventForm() {
 
       <div className="space-y-8">
         {/* Section 1: Basic Event Information */}
-        <Card className="border-slate-800 bg-slate-900/70">
+        <Card className="border-slate-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-emerald-400" />
+            <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-emerald-600" />
               1. Event Overview & Schedule
             </CardTitle>
-            <CardDescription className="text-xs text-slate-400">
+            <CardDescription className="text-xs text-slate-500">
               Provide the primary details where and when the event will take place.
             </CardDescription>
           </CardHeader>
@@ -346,55 +346,55 @@ export function EventForm() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Starts At (Date & Time) <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Starts At (Date & Time) <span className="text-rose-600">*</span>
                 </label>
                 <input
                   type="datetime-local"
                   value={startsAt}
                   onChange={(e) => setStartsAt(e.target.value)}
-                  className={`w-full px-3 py-2 text-sm rounded-xl bg-slate-950/70 border ${
-                    formErrors.startsAt ? 'border-rose-500' : 'border-slate-800'
-                  } text-white focus:outline-none focus:border-emerald-500 transition-colors`}
+                  className={`w-full px-3 py-2 text-sm rounded-xl bg-white border ${
+                    formErrors.startsAt ? 'border-rose-500' : 'border-slate-300'
+                  } text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors`}
                 />
                 {formErrors.startsAt && (
-                  <p className="mt-1 text-xs text-rose-400">{formErrors.startsAt}</p>
+                  <p className="mt-1 text-xs text-rose-600">{formErrors.startsAt}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Ends At (Date & Time) <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Ends At (Date & Time) <span className="text-rose-600">*</span>
                 </label>
                 <input
                   type="datetime-local"
                   value={endsAt}
                   onChange={(e) => setEndsAt(e.target.value)}
-                  className={`w-full px-3 py-2 text-sm rounded-xl bg-slate-950/70 border ${
-                    formErrors.endsAt ? 'border-rose-500' : 'border-slate-800'
-                  } text-white focus:outline-none focus:border-emerald-500 transition-colors`}
+                  className={`w-full px-3 py-2 text-sm rounded-xl bg-white border ${
+                    formErrors.endsAt ? 'border-rose-500' : 'border-slate-300'
+                  } text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors`}
                 />
                 {formErrors.endsAt && (
-                  <p className="mt-1 text-xs text-rose-400">{formErrors.endsAt}</p>
+                  <p className="mt-1 text-xs text-rose-600">{formErrors.endsAt}</p>
                 )}
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Detailed Description <span className="text-rose-400">*</span>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                Detailed Description <span className="text-rose-600">*</span>
               </label>
               <textarea
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe agenda, guest speakers, refreshments, and guidelines for attendees..."
-                className={`w-full px-3 py-2 text-sm rounded-xl bg-slate-950/70 border ${
-                  formErrors.description ? 'border-rose-500' : 'border-slate-800'
-                } text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors`}
+                className={`w-full px-3 py-2 text-sm rounded-xl bg-white border ${
+                  formErrors.description ? 'border-rose-500' : 'border-slate-300'
+                } text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 transition-colors`}
               />
               {formErrors.description && (
-                <p className="mt-1 text-xs text-rose-400">{formErrors.description}</p>
+                <p className="mt-1 text-xs text-rose-600">{formErrors.description}</p>
               )}
             </div>
 
@@ -410,7 +410,7 @@ export function EventForm() {
               />
 
               {bannerUrl.trim() && /^https?:\/\/.+/i.test(bannerUrl.trim()) && (
-                <div className="mt-2 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 max-h-48 relative">
+                <div className="mt-2 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 max-h-48 relative">
                   <img
                     src={bannerUrl.trim()}
                     alt="Event banner preview"
@@ -419,7 +419,7 @@ export function EventForm() {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
-                  <span className="absolute bottom-2 left-2 px-2 py-1 rounded bg-slate-950/80 text-[10px] text-slate-300 font-mono">
+                  <span className="absolute bottom-2 left-2 px-2 py-1 rounded bg-white text-[10px] text-slate-600 font-mono">
                     Banner Preview
                   </span>
                 </div>
@@ -429,14 +429,14 @@ export function EventForm() {
         </Card>
 
         {/* Section 2: Ticket Tiers Manager */}
-        <Card className="border-slate-800 bg-slate-900/70">
+        <Card className="border-slate-200 bg-white">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-emerald-400" />
+              <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-emerald-600" />
                 2. Admission Ticket Tiers
               </CardTitle>
-              <CardDescription className="text-xs text-slate-400">
+              <CardDescription className="text-xs text-slate-500">
                 Set up pricing and seat limits. All prices are in ₹ INR. SSA Members can receive special discounted rates.
               </CardDescription>
             </div>
@@ -445,7 +445,7 @@ export function EventForm() {
               variant="outline"
               size="sm"
               onClick={handleAddTier}
-              className="text-xs text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              className="text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Add Another Tier
@@ -454,7 +454,7 @@ export function EventForm() {
 
           <CardContent className="space-y-4">
             {formErrors.tiers && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400 flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 {formErrors.tiers}
               </div>
@@ -463,10 +463,10 @@ export function EventForm() {
             {tiers.map((tier, index) => (
               <div
                 key={tier.id || index}
-                className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4 relative group"
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 relative group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">
+                  <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider font-mono">
                     Tier #{index + 1} {tier.id && '(Saved)'}
                   </span>
 
@@ -474,7 +474,7 @@ export function EventForm() {
                     <button
                       type="button"
                       onClick={() => handleRemoveTier(index)}
-                      className="text-slate-500 hover:text-rose-400 p-1 transition-colors"
+                      className="text-slate-500 hover:text-rose-600 p-1 transition-colors"
                       title="Remove Tier"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -484,7 +484,7 @@ export function EventForm() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="sm:col-span-1">
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                       Tier Name
                     </label>
                     <input
@@ -493,17 +493,17 @@ export function EventForm() {
                       disabled={Boolean(tier.id)}
                       onChange={(e) => handleTierChange(index, 'name', e.target.value)}
                       placeholder="e.g. VIP / Early Bird"
-                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-60"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600 disabled:opacity-60"
                     />
                     {formErrors[`tier_${index}_name`] && (
-                      <p className="mt-1 text-[10px] text-rose-400">
+                      <p className="mt-1 text-[10px] text-rose-600">
                         {formErrors[`tier_${index}_name`]}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                       Member Price (₹)
                     </label>
                     <input
@@ -515,7 +515,7 @@ export function EventForm() {
                       onChange={(e) =>
                         handleTierChange(index, 'member_price_inr', Number(e.target.value))
                       }
-                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-60"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600 disabled:opacity-60"
                     />
                     <span className="text-[10px] text-slate-500">
                       {tier.member_price_inr === 0 ? 'Free Entry' : formatINR(tier.member_price_inr * 100)}
@@ -523,7 +523,7 @@ export function EventForm() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                       Standard Price (₹)
                     </label>
                     <input
@@ -535,7 +535,7 @@ export function EventForm() {
                       onChange={(e) =>
                         handleTierChange(index, 'non_member_price_inr', Number(e.target.value))
                       }
-                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-60"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600 disabled:opacity-60"
                     />
                     <span className="text-[10px] text-slate-500">
                       {tier.non_member_price_inr === 0
@@ -545,7 +545,7 @@ export function EventForm() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                       Seat Capacity
                     </label>
                     <input
@@ -557,10 +557,10 @@ export function EventForm() {
                       onChange={(e) =>
                         handleTierChange(index, 'capacity', Number(e.target.value))
                       }
-                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-60"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600 disabled:opacity-60"
                     />
                     {tier.sold_count !== undefined && (
-                      <span className="text-[10px] text-emerald-400 font-mono">
+                      <span className="text-[10px] text-emerald-600 font-mono">
                         {tier.sold_count} sold
                       </span>
                     )}
@@ -572,22 +572,22 @@ export function EventForm() {
         </Card>
 
         {/* Section 3: Publishing Controls & Actions */}
-        <Card className="border-slate-800 bg-slate-900/70">
+        <Card className="border-slate-200 bg-white">
           <CardHeader>
-            <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
               3. Event Visibility & Publish Status
             </CardTitle>
-            <CardDescription className="text-xs text-slate-400">
+            <CardDescription className="text-xs text-slate-500">
               Draft events are only visible to club organizers. Published events appear immediately on the public events directory.
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div>
-                <p className="text-sm font-semibold text-white">Event Publication Status</p>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-sm font-semibold text-slate-900">Event Publication Status</p>
+                <p className="text-xs text-slate-500 mt-0.5">
                   {status === 'published'
                     ? 'Published: Visible to all students for ticket purchases.'
                     : 'Draft: Work in progress. Invisible to students.'}
@@ -601,7 +601,7 @@ export function EventForm() {
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     status === 'draft'
                       ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                      : 'bg-slate-900 text-slate-400 hover:text-white'
+                      : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Draft
@@ -616,7 +616,7 @@ export function EventForm() {
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     status === 'published'
                       ? 'bg-emerald-500 text-slate-950 font-bold shadow'
-                      : 'bg-slate-900 text-slate-400 hover:text-white'
+                      : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Published
@@ -625,7 +625,7 @@ export function EventForm() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/80 pt-5">
+          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 pt-5">
             <Button
               variant="outline"
               onClick={() => navigate('/manage/events')}
@@ -667,9 +667,9 @@ export function EventForm() {
         description="Verify event configuration before making it live."
       >
         <div className="space-y-4 pt-2">
-          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-1.5">
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700 space-y-1.5">
             <p className="font-semibold flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               Public Visibility Notice
             </p>
             <p>
@@ -677,11 +677,11 @@ export function EventForm() {
             </p>
           </div>
 
-          <div className="text-xs text-slate-300 space-y-1 bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <p><span className="text-slate-400">Title:</span> {title || 'Untitled Event'}</p>
-            <p><span className="text-slate-400">Venue:</span> {venue || 'Not specified'}</p>
-            <p><span className="text-slate-400">Starts:</span> {startsAt ? new Date(startsAt).toLocaleString() : 'Not set'}</p>
-            <p><span className="text-slate-400">Tiers:</span> {tiers.map(t => `${t.name} (${t.capacity} seats)`).join(', ')}</p>
+          <div className="text-xs text-slate-600 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <p><span className="text-slate-500">Title:</span> {title || 'Untitled Event'}</p>
+            <p><span className="text-slate-500">Venue:</span> {venue || 'Not specified'}</p>
+            <p><span className="text-slate-500">Starts:</span> {startsAt ? new Date(startsAt).toLocaleString() : 'Not set'}</p>
+            <p><span className="text-slate-500">Tiers:</span> {tiers.map(t => `${t.name} (${t.capacity} seats)`).join(', ')}</p>
           </div>
 
           <div className="flex justify-end gap-3 pt-3">

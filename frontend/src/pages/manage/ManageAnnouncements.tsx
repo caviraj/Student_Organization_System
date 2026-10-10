@@ -38,10 +38,10 @@ import type {
 import type { PaginatedResponse } from '../../types/api';
 
 const CATEGORY_BADGES: Record<AnnouncementCategory, { label: string; className: string }> = {
-  meeting: { label: 'Meeting', className: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
-  deadline: { label: 'Deadline', className: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
-  change: { label: 'Update', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  general: { label: 'General', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  meeting: { label: 'Meeting', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  deadline: { label: 'Deadline', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+  change: { label: 'Update', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  general: { label: 'General', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
 const AUDIENCE_LABELS: Record<AnnouncementAudience, string> = {
@@ -126,8 +126,8 @@ export function ManageAnnouncements() {
       const matchesSearch =
         searchQuery.trim() === '' ||
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.body.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.author_name.toLowerCase().includes(searchQuery.toLowerCase());
+        item.body_preview.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.author_name ?? '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesSearch;
     });
   }, [allItems, searchQuery]);
@@ -139,7 +139,9 @@ export function ManageAnnouncements() {
 
   const handleOpenRevision = (announcement: Announcement) => {
     setSelectedAnnouncementForRevision(announcement);
-    setRevisionNote(announcement.revision_note || '');
+    // The list carries edited_at, not the note behind the last edit, so this starts empty: the
+    // note is about the change being made now, not about the one before it.
+    setRevisionNote('');
     setRevisionError('');
   };
 
@@ -170,7 +172,7 @@ export function ManageAnnouncements() {
           <div className="flex items-center gap-2">
             {item.is_pinned && (
               <span
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200"
                 title="Pinned announcement"
               >
                 <Pin className="w-2.5 h-2.5" />
@@ -181,8 +183,8 @@ export function ManageAnnouncements() {
               {item.title}
             </span>
           </div>
-          <p className="text-xs text-slate-500 truncate mt-0.5" title={item.body}>
-            {item.body}
+          <p className="text-xs text-slate-500 truncate mt-0.5" title={item.body_preview}>
+            {item.body_preview}
           </p>
         </div>
       ),
@@ -223,10 +225,10 @@ export function ManageAnnouncements() {
     {
       header: 'Revision',
       cell: (item) =>
-        item.revision_note ? (
+        item.edited_at ? (
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 cursor-help"
-            title={`Revision: ${item.revision_note}`}
+            title={`Last edited ${formatDate(item.edited_at)}`}
           >
             <Edit3 className="w-3 h-3" />
             Edited
@@ -323,12 +325,12 @@ export function ManageAnnouncements() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 mb-2">
             <Megaphone className="w-3.5 h-3.5" />
             Announcement Operations
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Manage Announcements</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Manage Announcements</h1>
+          <p className="text-sm text-slate-500 mt-1">
             Review immutable announcement logs, append revision notes, and monitor notification delivery.
           </p>
         </div>
@@ -336,7 +338,7 @@ export function ManageAnnouncements() {
         <Button
           variant="primary"
           onClick={() => navigate('/manage/announcements/new')}
-          className="self-start sm:self-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/40"
+          className="self-start sm:self-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg"
         >
           <Plus className="w-4 h-4" />
           Draft Announcement
@@ -345,41 +347,41 @@ export function ManageAnnouncements() {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-        <Card className="border-slate-800 bg-slate-900/80 text-white">
+        <Card className="border-slate-200 bg-white text-slate-900">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Total Announcements</p>
-              <p className="text-2xl font-black text-white mt-1">{allItems.length}</p>
+              <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Announcements</p>
+              <p className="text-2xl font-black text-slate-900 mt-1">{allItems.length}</p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700">
               <Megaphone className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-900/80 text-white">
+        <Card className="border-slate-200 bg-white text-slate-900">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Pinned Posts</p>
-              <p className="text-2xl font-black text-amber-400 mt-1">
+              <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Pinned Posts</p>
+              <p className="text-2xl font-black text-amber-600 mt-1">
                 {allItems.filter((i) => i.is_pinned).length}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
               <Pin className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-900/80 text-white">
+        <Card className="border-slate-200 bg-white text-slate-900">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Revisions Appended</p>
-              <p className="text-2xl font-black text-emerald-400 mt-1">
-                {allItems.filter((i) => !!i.revision_note).length}
+              <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Revisions Appended</p>
+              <p className="text-2xl font-black text-emerald-600 mt-1">
+                {allItems.filter((i) => !!i.edited_at).length}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
               <Edit3 className="w-5 h-5" />
             </div>
           </CardContent>
@@ -395,7 +397,7 @@ export function ManageAnnouncements() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search announcements by title, content, or author..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/50"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600"
           />
         </div>
 
@@ -411,7 +413,7 @@ export function ManageAnnouncements() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 categoryFilter === cat
                   ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
               }`}
             >
               {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -422,7 +424,7 @@ export function ManageAnnouncements() {
 
       {/* Main Table */}
       {filteredItems.length === 0 ? (
-        <Card className="border-slate-800 bg-slate-900/60 p-8 text-center">
+        <Card className="border-slate-200 bg-white p-8 text-center">
           <EmptyState
             title="No announcements found"
             description={
@@ -443,7 +445,7 @@ export function ManageAnnouncements() {
           pageSize={pageSize}
           total={filteredItems.length}
           onPageChange={(page) => setCurrentPage(page)}
-          className="border-slate-800 shadow-xl"
+          className="border-slate-200 shadow-xl"
         />
       )}
 
@@ -487,7 +489,7 @@ export function ManageAnnouncements() {
                 value={revisionNote}
                 onChange={(e) => setRevisionNote(e.target.value)}
                 placeholder="e.g., Note: Start time shifted from 5:00 PM to 5:30 PM due to hall setup."
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 text-slate-900"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 text-slate-900"
                 required
               />
               {revisionError && (

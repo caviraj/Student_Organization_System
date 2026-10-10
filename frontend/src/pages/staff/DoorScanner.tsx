@@ -261,41 +261,41 @@ export function DoorScanner() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-4rem)] bg-slate-950 text-slate-100 flex flex-col justify-between">
+    <div className="relative min-h-[calc(100vh-4rem)] bg-slate-50 text-slate-900 flex flex-col justify-between">
       {/* Top Header Bar */}
-      <div className="border-b border-slate-800 bg-slate-900/90 backdrop-blur px-4 py-3 sm:px-6">
+      <div className="border-b border-slate-200 bg-white backdrop-blur px-4 py-3 sm:px-6">
         <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 Door Scanner
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                   {user?.role}
                 </span>
               </h1>
-              <p className="text-xs text-slate-400">Rapid event entry validation</p>
+              <p className="text-xs text-slate-500">Rapid event entry validation</p>
             </div>
           </div>
 
           {/* Real-time Counter Stats */}
           <div className="flex items-center gap-2">
             {isOrganizer && eventReport ? (
-              <div className="px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-700/50 flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold text-emerald-200">
+              <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-emerald-700">
                   {eventReport.checked_in} / {eventReport.sold} checked in
                 </span>
-                <span className="text-[11px] font-medium text-emerald-400/80">
+                <span className="text-[11px] font-medium text-emerald-600">
                   ({eventReport.attendance_rate}%)
                 </span>
               </div>
             ) : (
-              <div className="px-3 py-1.5 rounded-xl bg-indigo-950/60 border border-indigo-700/50 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-bold text-indigo-200">
+              <div className="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-bold text-indigo-700">
                   Session Scans: {sessionScans}
                 </span>
               </div>
@@ -303,11 +303,11 @@ export function DoorScanner() {
 
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
               title={soundEnabled ? 'Mute audio feedback' : 'Enable audio feedback'}
               aria-label="Toggle sound"
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
             </button>
           </div>
         </div>
@@ -317,7 +317,7 @@ export function DoorScanner() {
       <div className="max-w-2xl w-full mx-auto px-4 py-6 flex-1 flex flex-col justify-center">
         {/* Event Selection dropdown */}
         <div className="mb-6">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
             Active Event for Door Check-in
           </label>
           <div className="relative">
@@ -325,7 +325,7 @@ export function DoorScanner() {
               value={selectedEventId}
               onChange={(e) => handleEventChange(e.target.value)}
               disabled={eventsLoading || events.length === 0}
-              className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none"
+              className="w-full bg-white border border-slate-300 text-slate-900 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 focus:outline-none appearance-none"
             >
               {eventsLoading ? (
                 <option>Loading events...</option>
@@ -339,20 +339,20 @@ export function DoorScanner() {
                 ))
               )}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
               <Calendar className="w-4 h-4" />
             </div>
           </div>
           {selectedEvent && (
-            <p className="mt-1.5 text-xs text-slate-400 flex items-center justify-between">
-              <span>Venue: <strong className="text-slate-300">{selectedEvent.venue}</strong></span>
-              <span>Status: <strong className="capitalize text-emerald-400">{selectedEvent.status}</strong></span>
+            <p className="mt-1.5 text-xs text-slate-500 flex items-center justify-between">
+              <span>Venue: <strong className="text-slate-600">{selectedEvent.venue}</strong></span>
+              <span>Status: <strong className="capitalize text-emerald-600">{selectedEvent.status}</strong></span>
             </p>
           )}
         </div>
 
         {/* Camera Viewfinder View */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 mb-6 shadow-2xl relative overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 mb-6 shadow-2xl relative overflow-hidden">
           {cameraActive ? (
             <div className="relative">
               {/* html5-qrcode element */}
@@ -365,13 +365,12 @@ export function DoorScanner() {
                   variant="outline"
                   size="sm"
                   onClick={stopCamera}
-                  leftIcon={<CameraOff className="w-4 h-4 text-rose-400" />}
-                  className="bg-slate-800 border-slate-700 text-slate-300"
+                  leftIcon={<CameraOff className="w-4 h-4 text-rose-600" />}
                 >
                   Turn Camera Off
                 </Button>
 
-                <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 animate-pulse">
+                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   Align ticket QR code in box
                 </p>
@@ -379,11 +378,11 @@ export function DoorScanner() {
             </div>
           ) : (
             <div className="py-10 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-slate-800 text-emerald-400 flex items-center justify-center mx-auto mb-4 border border-slate-700 shadow-inner">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-inner">
                 <Camera className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-1">Camera Scanner Ready</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mb-5">
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Camera Scanner Ready</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mb-5">
                 Enable your device camera for hands-free, instant verification of student attendee QR codes.
               </p>
               <Button
@@ -398,15 +397,15 @@ export function DoorScanner() {
           )}
 
           {cameraError && (
-            <div className="mt-4 p-3 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-300 text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+            <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{cameraError}</span>
             </div>
           )}
         </div>
 
         {/* Manual Ticket Code Entry Form */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <form onSubmit={handleManualSubmit} className="flex gap-2">
             <div className="relative flex-1">
               <Input
@@ -414,7 +413,7 @@ export function DoorScanner() {
                 placeholder="Or enter ticket code (e.g. ANNU-1042)"
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-                className="w-full bg-slate-950 border-slate-700 text-white placeholder-slate-500 font-mono text-sm tracking-wide"
+                className="w-full bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 font-mono text-sm tracking-wide"
               />
             </div>
             <Button
@@ -422,7 +421,7 @@ export function DoorScanner() {
               variant="outline"
               disabled={checkInMutation.isPending || !manualCode.trim()}
               leftIcon={<Search className="w-4 h-4" />}
-              className="bg-slate-800 border-slate-700 text-white font-semibold hover:bg-slate-700"
+              className="font-semibold"
             >
               Verify Pass
             </Button>
@@ -434,14 +433,14 @@ export function DoorScanner() {
       {scanResult && (
         <div
           onClick={dismissOverlay}
-          className={`fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-white cursor-pointer select-none transition-all duration-200 animate-in fade-in zoom-in-95 ${
+          className={`fixed inset-0 z-50 flex flex-col items-center justify-center p-6 cursor-pointer select-none transition-all duration-200 animate-in fade-in zoom-in-95 ${
             scanResult.result === 'VALID'
-              ? 'bg-emerald-600'
+              ? 'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'
               : scanResult.result === 'ALREADY_USED'
-              ? 'bg-amber-600'
+              ? 'bg-amber-50 border-2 border-amber-300 text-amber-800'
               : scanResult.result === 'WRONG_EVENT'
-              ? 'bg-blue-600'
-              : 'bg-rose-600'
+              ? 'bg-blue-50 border-2 border-blue-300 text-blue-800'
+              : 'bg-rose-50 border-2 border-rose-300 text-rose-800'
           }`}
           role="dialog"
           aria-live="assertive"
@@ -453,11 +452,11 @@ export function DoorScanner() {
 
           <div className="text-center max-w-lg mx-auto flex flex-col items-center">
             {/* Big Status Icon */}
-            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mb-6 shadow-2xl border-4 border-white/30 animate-bounce">
-              {scanResult.result === 'VALID' && <CheckCircle2 className="w-16 h-16 sm:w-20 sm:h-20 text-white" />}
-              {scanResult.result === 'ALREADY_USED' && <AlertTriangle className="w-16 h-16 sm:w-20 sm:h-20 text-white" />}
-              {scanResult.result === 'WRONG_EVENT' && <AlertTriangle className="w-16 h-16 sm:w-20 sm:h-20 text-white" />}
-              {scanResult.result === 'INVALID' && <XCircle className="w-16 h-16 sm:w-20 sm:h-20 text-white" />}
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-white backdrop-blur flex items-center justify-center mb-6 shadow-2xl border-4 border-current animate-bounce">
+              {scanResult.result === 'VALID' && <CheckCircle2 className="w-16 h-16 sm:w-20 sm:h-20 text-current" />}
+              {scanResult.result === 'ALREADY_USED' && <AlertTriangle className="w-16 h-16 sm:w-20 sm:h-20 text-current" />}
+              {scanResult.result === 'WRONG_EVENT' && <AlertTriangle className="w-16 h-16 sm:w-20 sm:h-20 text-current" />}
+              {scanResult.result === 'INVALID' && <XCircle className="w-16 h-16 sm:w-20 sm:h-20 text-current" />}
             </div>
 
             {/* Giant Big Header Readable at arm's length */}
@@ -471,10 +470,10 @@ export function DoorScanner() {
             {/* Subtitle / Details */}
             {scanResult.result === 'VALID' && scanResult.ticket && (
               <div className="mt-4 space-y-2">
-                <p className="text-2xl sm:text-3xl font-extrabold text-white/95">
+                <p className="text-2xl sm:text-3xl font-extrabold text-current">
                   {scanResult.ticket.user_name || 'Attendee'}
                 </p>
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 font-bold text-sm tracking-wide">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 font-bold text-sm tracking-wide">
                   <span>{scanResult.ticket.ticket_type_name}</span>
                   {scanResult.ticket.is_member_price && (
                     <span className="bg-amber-300 text-slate-900 text-[10px] uppercase font-black px-2 py-0.5 rounded-full">

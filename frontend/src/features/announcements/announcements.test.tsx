@@ -9,15 +9,15 @@ import { hasMinimumRole } from '../../types/api';
 const mockBaseAnnouncement: Announcement = {
   id: 'ann_test_01',
   title: 'Spring Orientation Meeting',
-  body: 'Welcome all new students to the SSA annual spring orientation.',
+  // The feed gets a preview, not the body: GET /announcements returns body_preview (DESIGN.md 5).
+  body_preview: 'Welcome all new students to the SSA annual spring orientation.',
   category: 'meeting',
   audience: 'all',
   event_id: null,
   is_pinned: false,
-  author_id: 'usr_org_01',
   author_name: 'Campus Director',
   published_at: '2026-10-10T10:00:00Z',
-  revision_note: null,
+  edited_at: null,
 };
 
 describe('Phase 3 Announcements Feature Tests', () => {
@@ -86,12 +86,12 @@ describe('Phase 3 Announcements Feature Tests', () => {
   });
 
   describe('AnnouncementCard Component', () => {
-    it('renders "Edited" badge only when revision_note exists', () => {
+    it('renders "Edited" badge only when the post has been edited', () => {
       const { rerender } = render(
         <AnnouncementCard
           announcement={{
             ...mockBaseAnnouncement,
-            revision_note: 'Updated auditorium location to Hall B',
+            edited_at: '2026-10-10T12:00:00Z',
           }}
         />
       );
@@ -99,12 +99,12 @@ describe('Phase 3 Announcements Feature Tests', () => {
       expect(screen.getByTestId('edited-badge')).toBeDefined();
       expect(screen.getByText('Edited')).toBeDefined();
 
-      // Rerender without revision_note
+      // Rerender as never edited
       rerender(
         <AnnouncementCard
           announcement={{
             ...mockBaseAnnouncement,
-            revision_note: null,
+            edited_at: null,
           }}
         />
       );
@@ -132,7 +132,7 @@ describe('Phase 3 Announcements Feature Tests', () => {
           announcement={{
             ...mockBaseAnnouncement,
             title: maliciousPayload,
-            body: maliciousPayload,
+            body_preview: maliciousPayload,
           }}
         />
       );
@@ -149,19 +149,20 @@ describe('Phase 3 Announcements Feature Tests', () => {
       expect(bodyEl.textContent).toContain('<b>Bold Tag</b>');
     });
 
-    it('truncates body exceeding 280 characters and provides read more toggle', () => {
-      const longText = 'A'.repeat(350);
+    it('renders the preview the list endpoint sent, untruncated by the card', () => {
+      // The backend cuts the preview at 200 characters; the card shows what it was given rather
+      // than re-cutting it, so what people read here is what the API decided to send.
+      const preview = `${'A'.repeat(200)}`;
       render(
         <AnnouncementCard
           announcement={{
             ...mockBaseAnnouncement,
-            body: longText,
+            body_preview: preview,
           }}
         />
       );
 
-      expect(screen.getByText('Read more')).toBeDefined();
-      expect(screen.getByTestId('announcement-body').textContent).toBe(`${'A'.repeat(280)}...`);
+      expect(screen.getByTestId('announcement-body').textContent).toBe(preview);
     });
   });
 

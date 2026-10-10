@@ -83,21 +83,20 @@ export function AnnouncementComposer() {
 
   const [previewPublishedAt] = useState(() => new Date().toISOString());
 
-  // Live Preview Announcement
+  // Live Preview Announcement - the same shape the feed gets, so the preview cannot drift from it.
   const previewAnnouncement: Announcement = {
     id: 'preview-draft',
     title: title.trim() || 'Your Announcement Title',
-    body:
+    body_preview:
       body.trim() ||
       'This is a real-time preview of how your announcement will render on the public feed and in email notifications.',
     category,
     audience,
     event_id: audience === 'event' && eventId ? eventId : null,
     is_pinned: isPinned,
-    author_id: user?.id || 'preview-author',
     author_name: user?.full_name || 'Organizer',
     published_at: previewPublishedAt,
-    revision_note: null,
+    edited_at: null,
   };
 
   const handleValidate = () => {
@@ -161,7 +160,7 @@ export function AnnouncementComposer() {
       <div className="mb-6">
         <Link
           to="/manage/announcements"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Announcements Management
@@ -171,12 +170,12 @@ export function AnnouncementComposer() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 mb-2">
             <Megaphone className="w-3.5 h-3.5" />
             Announcement Composer
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Draft New Announcement</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Draft New Announcement</h1>
+          <p className="text-sm text-slate-500 mt-1">
             Broadcast updates to members, event attendees, or the broader campus community.
           </p>
         </div>
@@ -186,10 +185,10 @@ export function AnnouncementComposer() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Form */}
         <div className="lg:col-span-7">
-          <Card className="border-slate-800 bg-slate-900/90 text-slate-100 shadow-xl">
-            <CardHeader className="border-b border-slate-800 pb-4">
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <Megaphone className="w-5 h-5 text-indigo-400" />
+          <Card className="border-slate-200 bg-white text-slate-900 shadow-xl">
+            <CardHeader className="border-b border-slate-200 pb-4">
+              <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-indigo-600" />
                 Announcement Details
               </CardTitle>
             </CardHeader>
@@ -198,10 +197,10 @@ export function AnnouncementComposer() {
                 {/* Title */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label htmlFor="announcement-title" className="text-sm font-semibold text-slate-200">
-                      Title <span className="text-rose-400">*</span>
+                    <label htmlFor="announcement-title" className="text-sm font-semibold text-slate-800">
+                      Title <span className="text-rose-600">*</span>
                     </label>
-                    <span className={`text-xs ${title.length > 120 ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
+                    <span className={`text-xs ${title.length > 120 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
                       {title.length}/120
                     </span>
                   </div>
@@ -217,11 +216,11 @@ export function AnnouncementComposer() {
                     }}
                     placeholder="e.g., General Body Meeting Rescheduled to Room 304"
                     maxLength={140}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-sm transition-all"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 text-sm transition-all"
                     required
                   />
                   {fieldErrors.title && (
-                    <p className="text-xs text-rose-400 mt-1.5 flex items-center gap-1">
+                    <p className="text-xs text-rose-600 mt-1.5 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       {fieldErrors.title}
                     </p>
@@ -232,14 +231,14 @@ export function AnnouncementComposer() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Category */}
                   <div>
-                    <label htmlFor="announcement-category" className="block text-sm font-semibold text-slate-200 mb-1.5">
-                      Category <span className="text-rose-400">*</span>
+                    <label htmlFor="announcement-category" className="block text-sm font-semibold text-slate-800 mb-1.5">
+                      Category <span className="text-rose-600">*</span>
                     </label>
                     <select
                       id="announcement-category"
                       value={category}
                       onChange={(e) => setCategory(e.target.value as AnnouncementCategory)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all"
                     >
                       {CATEGORIES.map((cat) => (
                         <option key={cat.value} value={cat.value}>
@@ -251,8 +250,8 @@ export function AnnouncementComposer() {
 
                   {/* Audience */}
                   <div>
-                    <label htmlFor="announcement-audience" className="block text-sm font-semibold text-slate-200 mb-1.5">
-                      Target Audience <span className="text-rose-400">*</span>
+                    <label htmlFor="announcement-audience" className="block text-sm font-semibold text-slate-800 mb-1.5">
+                      Target Audience <span className="text-rose-600">*</span>
                     </label>
                     <select
                       id="announcement-audience"
@@ -267,7 +266,7 @@ export function AnnouncementComposer() {
                           setFieldErrors((prev) => ({ ...prev, event_id: '' }));
                         }
                       }}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all"
                     >
                       <option value="all">All Campus & Community</option>
                       <option value="members">Active Paid Members Only</option>
@@ -278,12 +277,12 @@ export function AnnouncementComposer() {
 
                 {/* Event Selector (Conditional on audience === 'event') */}
                 {audience === 'event' && (
-                  <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-800/40 space-y-2">
-                    <label htmlFor="announcement-event-id" className="block text-sm font-semibold text-indigo-200">
-                      Select Target Event <span className="text-rose-400">*</span>
+                  <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2">
+                    <label htmlFor="announcement-event-id" className="block text-sm font-semibold text-indigo-700">
+                      Select Target Event <span className="text-rose-600">*</span>
                     </label>
                     {isLoadingEvents ? (
-                      <div className="h-10 bg-slate-800 animate-pulse rounded-lg" />
+                      <div className="h-10 bg-slate-100 animate-pulse rounded-lg" />
                     ) : (
                       <select
                         id="announcement-event-id"
@@ -294,7 +293,7 @@ export function AnnouncementComposer() {
                             setFieldErrors((prev) => ({ ...prev, event_id: '' }));
                           }
                         }}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/90 border border-indigo-700/50 text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-indigo-200 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all"
                         required
                       >
                         <option value="">-- Choose an Event --</option>
@@ -306,26 +305,26 @@ export function AnnouncementComposer() {
                       </select>
                     )}
                     {fieldErrors.event_id && (
-                      <p className="text-xs text-rose-400 mt-1 flex items-center gap-1">
+                      <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" />
                         {fieldErrors.event_id}
                       </p>
                     )}
-                    <p className="text-xs text-indigo-300/80">
+                    <p className="text-xs text-indigo-600">
                       Only students who hold tickets for this event will receive this notification.
                     </p>
                   </div>
                 )}
 
                 {/* Audience Reach Indicator */}
-                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
-                  <Users className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                  <Users className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div className="text-xs space-y-0.5">
-                    <span className="font-semibold text-slate-200">
+                    <span className="font-semibold text-slate-800">
                       {AUDIENCE_DETAILS[audience].label}:
                     </span>{' '}
-                    <span className="text-slate-400">{AUDIENCE_DETAILS[audience].description}</span>
-                    <div className="text-emerald-400 font-medium pt-0.5">
+                    <span className="text-slate-500">{AUDIENCE_DETAILS[audience].description}</span>
+                    <div className="text-emerald-600 font-medium pt-0.5">
                       Estimated reach: {AUDIENCE_DETAILS[audience].estimate}
                     </div>
                   </div>
@@ -334,10 +333,10 @@ export function AnnouncementComposer() {
                 {/* Body */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label htmlFor="announcement-body" className="text-sm font-semibold text-slate-200">
-                      Message Content <span className="text-rose-400">*</span>
+                    <label htmlFor="announcement-body" className="text-sm font-semibold text-slate-800">
+                      Message Content <span className="text-rose-600">*</span>
                     </label>
-                    <span className={`text-xs ${body.length > 2000 ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
+                    <span className={`text-xs ${body.length > 2000 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
                       {body.length}/2000
                     </span>
                   </div>
@@ -352,11 +351,11 @@ export function AnnouncementComposer() {
                       }
                     }}
                     placeholder="Provide full details, agenda, room changes, or action items. Markdown or special characters will be safely escaped and displayed as plain text."
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-sm transition-all"
+                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 text-sm transition-all"
                     required
                   />
                   {fieldErrors.body && (
-                    <p className="text-xs text-rose-400 mt-1.5 flex items-center gap-1">
+                    <p className="text-xs text-rose-600 mt-1.5 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       {fieldErrors.body}
                     </p>
@@ -367,27 +366,26 @@ export function AnnouncementComposer() {
                 </div>
 
                 {/* Pinned Checkbox */}
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-950/50 border border-slate-800">
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <input
                     type="checkbox"
                     id="is-pinned"
                     checked={isPinned}
                     onChange={(e) => setIsPinned(e.target.checked)}
-                    className="w-4 h-4 rounded-sm border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/50 cursor-pointer"
+                    className="w-4 h-4 rounded-sm border-slate-300 bg-white text-indigo-600 focus:ring-indigo-100 cursor-pointer"
                   />
-                  <label htmlFor="is-pinned" className="text-sm font-medium text-slate-200 cursor-pointer flex items-center gap-2">
-                    <Pin className="w-4 h-4 text-amber-400" />
+                  <label htmlFor="is-pinned" className="text-sm font-medium text-slate-800 cursor-pointer flex items-center gap-2">
+                    <Pin className="w-4 h-4 text-amber-600" />
                     Pin this announcement to top of feed
                   </label>
                 </div>
 
                 {/* Pre-submit actions */}
-                <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-800">
+                <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-200">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => navigate('/manage/announcements')}
-                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
                   >
                     Cancel
                   </Button>
@@ -395,7 +393,7 @@ export function AnnouncementComposer() {
                     type="submit"
                     variant="primary"
                     disabled={isSubmitting || !title.trim() || !body.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 shadow-lg shadow-indigo-950/40"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 shadow-lg"
                   >
                     <Send className="w-4 h-4" />
                     Review & Publish
@@ -409,25 +407,26 @@ export function AnnouncementComposer() {
         {/* Right Column: Live Feed Preview */}
         <div className="lg:col-span-5 sticky top-24 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5 text-indigo-400" />
+            <h2 className="text-xs uppercase font-bold text-slate-500 tracking-wider flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5 text-indigo-600" />
               Live Feed Preview
             </h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               Interactive
             </span>
           </div>
 
-          <div className="p-2 rounded-2xl bg-slate-900/40 border border-slate-800/80">
-            <AnnouncementCard announcement={previewAnnouncement} defaultExpanded />
+          <div className="p-2 rounded-2xl bg-slate-50 border border-slate-200">
+            {/* The card shows whatever preview it is handed, and the draft's preview is the whole body. */}
+            <AnnouncementCard announcement={previewAnnouncement} />
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-2">
-            <div className="font-semibold text-slate-200 flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="p-4 rounded-xl bg-white border border-slate-200 text-xs text-slate-500 space-y-2">
+            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               Publication Guarantees
             </div>
-            <ul className="list-disc list-inside space-y-1 text-slate-400">
+            <ul className="list-disc list-inside space-y-1 text-slate-500">
               <li>Instant inclusion in the Public Announcements feed.</li>
               <li>Emails queued for opted-in students matching the audience filter.</li>
               <li>Immutable log created: cannot be deleted, revisions tracked publicly.</li>

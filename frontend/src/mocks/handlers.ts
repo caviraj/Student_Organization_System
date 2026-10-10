@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets, mockAnnouncements, mockDeliveries, mockProducts, mockMerchOrders, mockFundraisers, mockTasks, type MockFundraiserRecord, type MockTaskRecord } from './data';
 import type { UserMe, MembershipPlan } from '../types/api';
 import type { EventDetail, TicketItem, TicketCheckoutResponse } from '../types/events';
-import type { Announcement, AnnouncementDelivery, AnnouncementCategory, AnnouncementAudience } from '../types/announcements';
+import type { Announcement, AnnouncementDetail, AnnouncementDelivery, AnnouncementCategory, AnnouncementAudience } from '../types/announcements';
 import type { Product, ProductVariant, MerchOrder, MerchOrderItem, FulfillmentStatus } from '../features/shop/types';
 
 let activeUserEmail = 'member@ssa.org';
@@ -17,7 +17,13 @@ const asPage = <T>(items: T[], pageSize = 100) => ({
 const plansState: MembershipPlan[] = [...mockPlans];
 export const eventsState: EventDetail[] = JSON.parse(JSON.stringify(mockEvents));
 export const ticketsState: TicketItem[] = JSON.parse(JSON.stringify(mockTickets));
-export const announcementsState: Announcement[] = JSON.parse(JSON.stringify(mockAnnouncements));
+export const announcementsState: AnnouncementDetail[] = JSON.parse(JSON.stringify(mockAnnouncements));
+
+/** GET /announcements sends the first 200 characters, not the body (DESIGN.md 5). */
+const summarise = ({ body, revision_note: _revision_note, ...rest }: AnnouncementDetail): Announcement => ({
+  ...rest,
+  body_preview: body.slice(0, 200),
+});
 export const deliveriesState: AnnouncementDelivery[] = JSON.parse(JSON.stringify(mockDeliveries));
 export const productsState: Product[] = JSON.parse(JSON.stringify(mockProducts));
 export const merchOrdersState: MerchOrder[] = JSON.parse(JSON.stringify(mockMerchOrders));
@@ -277,8 +283,9 @@ export const handlers = [
       name: string;
       description?: string;
       price: number;
-      duration_days: number;
-      perks: string[];
+      duration_months: number;
+      ticket_discount_pct?: number;
+      merch_discount_pct?: number;
       is_active?: boolean;
     };
 
@@ -299,10 +306,10 @@ export const handlers = [
       name: body.name,
       description: body.description || null,
       price: body.price,
-      duration_days: body.duration_days,
-      perks: body.perks || [],
+      duration_months: body.duration_months,
+      ticket_discount_pct: body.ticket_discount_pct ?? 0,
+      merch_discount_pct: body.merch_discount_pct ?? 0,
       is_active: body.is_active ?? true,
-      created_at: new Date().toISOString(),
     };
 
     plansState.push(newPlan);
@@ -1007,7 +1014,7 @@ export const handlers = [
 
     const total = filtered.length;
     const startIndex = (page - 1) * pageSize;
-    const items = filtered.slice(startIndex, startIndex + pageSize);
+    const items = filtered.slice(startIndex, startIndex + pageSize).map(summarise);
 
     return HttpResponse.json({
       items,
@@ -1075,7 +1082,7 @@ export const handlers = [
       );
     }
 
-    const newAnnouncement: Announcement = {
+    const newAnnouncement: AnnouncementDetail = {
       id: `ann_${Date.now()}`,
       title: body.title,
       body: body.body,
@@ -1083,10 +1090,10 @@ export const handlers = [
       audience: body.audience,
       event_id: body.audience === 'event' ? body.event_id || null : null,
       is_pinned: Boolean(body.is_pinned),
-      author_id: currentUser.id,
       author_name: currentUser.full_name,
       published_at: new Date().toISOString(),
       revision_note: null,
+      edited_at: null,
     };
 
     announcementsState.unshift(newAnnouncement);
@@ -1116,7 +1123,17 @@ export const handlers = [
     ];
     deliveriesState.unshift(...newDeliveries);
 
-    return HttpResponse.json(newAnnouncement, { status: 201 });
+    return HttpResponse.json(
+      {
+        ...newAnnouncement,
+        delivery_summary: {
+          inapp_queued: newDeliveries.length,
+          email_queued: newDeliveries.length,
+          skipped_opted_out: 0,
+        },
+      },
+      { status: 201 }
+    );
   }),
 
   // 27. Update Announcement Revision Note (Organizer+)
@@ -1153,6 +1170,7 @@ export const handlers = [
     }
 
     announcement.revision_note = body.revision_note;
+    announcement.edited_at = new Date().toISOString();
 
     return HttpResponse.json(announcement);
   }),

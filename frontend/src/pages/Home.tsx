@@ -314,7 +314,7 @@ export function Home() {
 
                     {/* Plain text body preview - React escaping ensures XSS safety */}
                     <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed whitespace-pre-line">
-                      {latestAnnouncement.body}
+                      {latestAnnouncement.body_preview}
                     </p>
                   </div>
                 )}

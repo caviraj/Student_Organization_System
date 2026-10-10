@@ -121,15 +121,15 @@ export function MemberDashboard() {
         />
 
         {/* Email Notification Preferences Card for Non-Members */}
-        <Card className="border-slate-800/80 bg-slate-900/60 shadow-xl overflow-hidden">
-          <CardHeader className="pb-3 border-b border-slate-800/60 flex flex-row items-center justify-between">
+        <Card className="border-slate-200 bg-white shadow-xl overflow-hidden">
+          <CardHeader className="pb-3 border-b border-slate-200 flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700">
                 <Mail className="w-4 h-4" />
               </div>
               <div>
-                <CardTitle className="text-base text-white">Email Notification Preferences</CardTitle>
-                <CardDescription className="text-xs text-slate-400">
+                <CardTitle className="text-base text-slate-900">Email Notification Preferences</CardTitle>
+                <CardDescription className="text-xs text-slate-500">
                   Manage club broadcasts
                 </CardDescription>
               </div>
@@ -137,8 +137,8 @@ export function MemberDashboard() {
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
                 emailOptIn
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
               }`}
             >
               {emailOptIn ? 'Subscribed' : 'Muted'}
@@ -149,11 +149,11 @@ export function MemberDashboard() {
               <div className="space-y-0.5">
                 <label
                   htmlFor="email-notifications-guest-switch"
-                  className="text-xs font-semibold text-slate-200 cursor-pointer"
+                  className="text-xs font-semibold text-slate-800 cursor-pointer"
                 >
                   Announcement Broadcasts
                 </label>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Receive email deliveries for campus updates, deadlines, and schedule changes.
                 </p>
               </div>
@@ -165,8 +165,8 @@ export function MemberDashboard() {
                 disabled={isUpdatingPreferences}
                 onClick={handleToggleEmailOptIn}
                 data-testid="email-opt-in-toggle"
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 ${
-                  emailOptIn ? 'bg-emerald-500' : 'bg-slate-700'
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-white disabled:opacity-50 ${
+                  emailOptIn ? 'bg-emerald-500' : 'bg-slate-200'
                 }`}
               >
                 <span className="sr-only">Toggle announcement email notifications</span>
@@ -179,7 +179,7 @@ export function MemberDashboard() {
               </button>
             </div>
             <p className="text-[10px] text-slate-500 italic pt-1">
-              Deliveries are sent to <span className="font-mono text-slate-400">{user?.email}</span>.
+              Deliveries are sent to <span className="font-mono text-slate-500">{user?.email}</span>.
             </p>
           </CardContent>
         </Card>
@@ -191,33 +191,33 @@ export function MemberDashboard() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Top Banner & Header */}
       <div className="text-center max-w-xl mx-auto mb-10">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-3">
           <Sparkles className="w-3.5 h-3.5" />
           Verified Student Credential
         </div>
-        <h1 className="text-3xl font-black text-white tracking-tight">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">
           Digital Member ID Card
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-slate-500">
           Present this official QR code at SSA events and workshops for instant verification.
         </p>
 
         {isExpiringSoon && (
-          <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-300">
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-700">
             <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400" />
+              <Clock className="w-4 h-4 text-amber-600" />
               Membership renewal due in <strong>{card.days_remaining} days</strong>.
             </span>
-            <Button size="sm" variant="outline" className="text-amber-300 border-amber-400/40 hover:bg-amber-400/10" onClick={() => navigate('/join')}>
+            <Button size="sm" variant="outline" className="text-amber-700 border-amber-200 hover:bg-amber-100" onClick={() => navigate('/join')}>
               Renew Now
             </Button>
           </div>
         )}
 
         {isExpired && (
-          <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-xs text-rose-300">
+          <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-700">
             <span className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400" />
+              <AlertCircle className="w-4 h-4 text-rose-600" />
               Your membership expired on {formatDate(card.valid_until)}.
             </span>
             <Button size="sm" variant="danger" onClick={() => navigate('/join')}>
@@ -336,39 +336,39 @@ export function MemberDashboard() {
 
         {/* Member Privileges and Info (Right) */}
         <div className="lg:col-span-5 space-y-6">
-          <Card className="border-slate-800 bg-slate-900/70">
+          <Card className="border-slate-200 bg-white">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 Active Membership Privileges
               </CardTitle>
-              <CardDescription className="text-xs text-slate-400">
+              <CardDescription className="text-xs text-slate-500">
                 Included with your {card.plan_name}
               </CardDescription>
             </CardHeader>
 
             <CardContent>
-              <ul className="space-y-3 text-xs sm:text-sm text-slate-300">
+              <ul className="space-y-3 text-xs sm:text-sm text-slate-600">
                 <li className="flex items-start gap-2.5">
-                  <div className="rounded-full p-0.5 bg-emerald-500/20 text-emerald-400 mt-0.5">
+                  <div className="rounded-full p-0.5 bg-emerald-50 text-emerald-700 mt-0.5">
                     <UserCheck className="w-3.5 h-3.5" />
                   </div>
                   <span>Free or discounted access to all tech workshops and speaker sessions.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <div className="rounded-full p-0.5 bg-emerald-500/20 text-emerald-400 mt-0.5">
+                  <div className="rounded-full p-0.5 bg-emerald-50 text-emerald-700 mt-0.5">
                     <QrCode className="w-3.5 h-3.5" />
                   </div>
                   <span>Instant event entry without queueing via dynamic verification pass.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <div className="rounded-full p-0.5 bg-emerald-500/20 text-emerald-400 mt-0.5">
+                  <div className="rounded-full p-0.5 bg-emerald-50 text-emerald-700 mt-0.5">
                     <Sparkles className="w-3.5 h-3.5" />
                   </div>
                   <span>Voting eligibility in annual executive committee club elections.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <div className="rounded-full p-0.5 bg-emerald-500/20 text-emerald-400 mt-0.5">
+                  <div className="rounded-full p-0.5 bg-emerald-50 text-emerald-700 mt-0.5">
                     <Calendar className="w-3.5 h-3.5" />
                   </div>
                   <span>Priority registration slots for competitive hackathons.</span>
@@ -378,14 +378,14 @@ export function MemberDashboard() {
           </Card>
 
           {/* Quick Tickets Preview Card */}
-          <Card className="border-slate-800 bg-slate-900/70">
+          <Card className="border-slate-200 bg-white">
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-emerald-400" />
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Ticket className="w-4 h-4 text-emerald-600" />
                   My Event Tickets
                 </CardTitle>
-                <CardDescription className="text-xs text-slate-400">
+                <CardDescription className="text-xs text-slate-500">
                   {myTickets && myTickets.filter(t => t.status === 'valid').length > 0
                     ? `${myTickets.filter(t => t.status === 'valid').length} valid entry pass(es) ready`
                     : 'Manage your event reservations & QR entry passes'}
@@ -395,7 +395,7 @@ export function MemberDashboard() {
                 size="sm"
                 variant="outline"
                 onClick={() => navigate('/me/tickets')}
-                className="text-xs text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
               >
                 View Tickets <ArrowRight className="w-3.5 h-3.5 ml-1" />
               </Button>
@@ -408,25 +408,25 @@ export function MemberDashboard() {
                     <div
                       key={t.id}
                       onClick={() => navigate('/me/tickets')}
-                      className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between text-xs hover:border-slate-700 cursor-pointer transition-colors"
+                      className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs hover:border-slate-300 cursor-pointer transition-colors"
                     >
                       <div className="min-w-0 pr-2">
-                        <p className="font-semibold text-white truncate">{t.event_title}</p>
-                        <p className="text-[11px] text-slate-400">{t.ticket_type_name} • {t.venue}</p>
+                        <p className="font-semibold text-slate-900 truncate">{t.event_title}</p>
+                        <p className="text-[11px] text-slate-500">{t.ticket_type_name} • {t.venue}</p>
                       </div>
-                      <span className="font-mono text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">
+                      <span className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded shrink-0">
                         {t.code}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500">
                   No upcoming event tickets booked yet.
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-emerald-400 p-0 ml-1.5 h-auto text-xs"
+                    className="text-emerald-700 p-0 ml-1.5 h-auto text-xs"
                     onClick={() => navigate('/events')}
                   >
                     Explore events
@@ -437,15 +437,15 @@ export function MemberDashboard() {
           </Card>
 
           {/* Email Notification Preferences Card */}
-          <Card className="border-slate-800/80 bg-slate-900/60 shadow-xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-slate-800/60 flex flex-row items-center justify-between">
+          <Card className="border-slate-200 bg-white shadow-xl overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-200 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700">
                   <Mail className="w-4 h-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base text-white">Email Notification Preferences</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
+                  <CardTitle className="text-base text-slate-900">Email Notification Preferences</CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
                     Manage club communications
                   </CardDescription>
                 </div>
@@ -453,8 +453,8 @@ export function MemberDashboard() {
               <span
                 className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
                   emailOptIn
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-slate-100 text-slate-500 border-slate-200'
                 }`}
               >
                 {emailOptIn ? 'Subscribed' : 'Muted'}
@@ -465,11 +465,11 @@ export function MemberDashboard() {
                 <div className="space-y-0.5">
                   <label
                     htmlFor="email-notifications-member-switch"
-                    className="text-xs font-semibold text-slate-200 cursor-pointer"
+                    className="text-xs font-semibold text-slate-800 cursor-pointer"
                   >
                     Announcement Broadcasts
                   </label>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-slate-500">
                     Receive email deliveries for campus updates, deadlines, and schedule changes.
                   </p>
                 </div>
@@ -481,8 +481,8 @@ export function MemberDashboard() {
                   disabled={isUpdatingPreferences}
                   onClick={handleToggleEmailOptIn}
                   data-testid="email-opt-in-toggle"
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 ${
-                    emailOptIn ? 'bg-emerald-500' : 'bg-slate-700'
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-white disabled:opacity-50 ${
+                    emailOptIn ? 'bg-emerald-500' : 'bg-slate-200'
                   }`}
                 >
                   <span className="sr-only">Toggle announcement email notifications</span>
@@ -495,20 +495,20 @@ export function MemberDashboard() {
                 </button>
               </div>
               <p className="text-[10px] text-slate-500 italic pt-1">
-                Deliveries are sent to <span className="font-mono text-slate-400">{user?.email}</span>. Essential receipts cannot be muted.
+                Deliveries are sent to <span className="font-mono text-slate-500">{user?.email}</span>. Essential receipts cannot be muted.
               </p>
             </CardContent>
           </Card>
 
           {/* Quick Help Card */}
-          <Card className="border-slate-800/80 bg-slate-900/40">
-            <CardContent className="pt-6 text-xs text-slate-400 space-y-2">
-              <h4 className="font-semibold text-slate-200">How to use your digital card:</h4>
+          <Card className="border-slate-200 bg-white">
+            <CardContent className="pt-6 text-xs text-slate-500 space-y-2">
+              <h4 className="font-semibold text-slate-800">How to use your digital card:</h4>
               <p>
                 Save this page to your mobile home screen or screenshot your QR code. Event volunteers will scan this code to check you in seamlessly.
               </p>
               <div className="pt-2">
-                <Button variant="ghost" size="sm" className="text-emerald-400 p-0 h-auto" onClick={() => navigate('/join')}>
+                <Button variant="ghost" size="sm" className="text-emerald-700 p-0 h-auto" onClick={() => navigate('/join')}>
                   View all club plans <ArrowRight className="w-3 h-3 ml-1" />
                 </Button>
               </div>

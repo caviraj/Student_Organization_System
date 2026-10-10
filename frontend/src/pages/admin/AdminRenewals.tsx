@@ -27,7 +27,7 @@ export function AdminRenewals() {
     {
       header: 'Member Code',
       accessor: (r: RenewalDueItem) => (
-        <span className="font-mono text-xs font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+        <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
           {r.member_code || r.user_id.slice(0, 8)}
         </span>
       ),
@@ -36,21 +36,21 @@ export function AdminRenewals() {
       header: 'Member Name',
       accessor: (r: RenewalDueItem) => (
         <div>
-          <div className="font-semibold text-white">{r.full_name || r.user_name}</div>
-          <div className="text-xs text-slate-400">{r.email || r.user_email}</div>
+          <div className="font-semibold text-slate-900">{r.full_name || r.user_name}</div>
+          <div className="text-xs text-slate-500">{r.email || r.user_email}</div>
         </div>
       ),
     },
     {
       header: 'Plan',
       accessor: (r: RenewalDueItem) => (
-        <span className="text-xs text-slate-300">{r.plan_name}</span>
+        <span className="text-xs text-slate-600">{r.plan_name}</span>
       ),
     },
     {
       header: 'Expiration Date',
       accessor: (r: RenewalDueItem) => (
-        <span className="font-mono text-xs text-slate-400">{formatDate(r.valid_until || r.end_date)}</span>
+        <span className="font-mono text-xs text-slate-500">{formatDate(r.valid_until || r.end_date)}</span>
       ),
     },
     {
@@ -59,23 +59,23 @@ export function AdminRenewals() {
         const days = r.days_remaining ?? r.days_left ?? 0;
         if (days <= 0) {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-              <AlertCircle className="w-3 h-3 text-rose-400" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+              <AlertCircle className="w-3 h-3 text-rose-600" />
               Expired
             </span>
           );
         }
         if (days <= 7) {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
-              <AlertTriangle className="w-3 h-3 text-amber-400" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+              <AlertTriangle className="w-3 h-3 text-amber-600" />
               {days}d Left (Critical)
             </span>
           );
         }
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-500/10 text-teal-300 border border-teal-500/20">
-            <Clock className="w-3 h-3 text-teal-400" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+            <Clock className="w-3 h-3 text-teal-600" />
             {days}d Left
           </span>
         );
@@ -88,14 +88,14 @@ export function AdminRenewals() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 mb-2">
             <BellRing className="w-3.5 h-3.5" />
             Retention Monitoring
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Renewals Due
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             Track members expiring within 30 days or recently lapsed to coordinate reminders.
           </p>
         </div>
@@ -110,43 +110,43 @@ export function AdminRenewals() {
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-rose-500/20 bg-slate-900/80">
+        <Card className="border-rose-200 bg-white">
           <CardContent className="pt-6 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-rose-400 font-semibold">
+              <p className="text-xs uppercase tracking-wider text-rose-600 font-semibold">
                 Already Expired
               </p>
-              <h3 className="text-3xl font-black text-white mt-1">{expiredCount}</h3>
+              <h3 className="text-3xl font-black text-slate-900 mt-1">{expiredCount}</h3>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
               <AlertCircle className="w-6 h-6" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-amber-500/20 bg-slate-900/80">
+        <Card className="border-amber-200 bg-white">
           <CardContent className="pt-6 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-amber-400 font-semibold">
+              <p className="text-xs uppercase tracking-wider text-amber-600 font-semibold">
                 Critical (≤ 7 Days)
               </p>
-              <h3 className="text-3xl font-black text-white mt-1">{criticalCount}</h3>
+              <h3 className="text-3xl font-black text-slate-900 mt-1">{criticalCount}</h3>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
               <AlertTriangle className="w-6 h-6" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-teal-500/20 bg-slate-900/80">
+        <Card className="border-teal-200 bg-white">
           <CardContent className="pt-6 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-teal-400 font-semibold">
+              <p className="text-xs uppercase tracking-wider text-teal-600 font-semibold">
                 Upcoming (8-30 Days)
               </p>
-              <h3 className="text-3xl font-black text-white mt-1">{upcomingCount}</h3>
+              <h3 className="text-3xl font-black text-slate-900 mt-1">{upcomingCount}</h3>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
               <Clock className="w-6 h-6" />
             </div>
           </CardContent>
@@ -167,13 +167,13 @@ export function AdminRenewals() {
           onRetry={() => refetch()}
         />
       ) : (
-        <Card className="border-slate-800 bg-slate-900/60 overflow-hidden">
-          <CardHeader className="py-4 border-b border-slate-800/80">
-            <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
+        <Card className="border-slate-200 bg-white overflow-hidden">
+          <CardHeader className="py-4 border-b border-slate-200">
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
               Members Requiring Renewal ({items.length})
             </CardTitle>
-            <CardDescription className="text-xs text-slate-400">
+            <CardDescription className="text-xs text-slate-500">
               Members expiring within the 30-day window
             </CardDescription>
           </CardHeader>

@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   Announcement,
+  AnnouncementDetail,
   AnnouncementDelivery,
   CreateAnnouncementPayload,
   UpdateAnnouncementPayload,
@@ -8,9 +9,13 @@ import type {
 } from '../types/announcements';
 import type { PaginatedResponse } from '../types/api';
 
-export interface CreateAnnouncementResponse {
-  announcement: Announcement;
-  deliveries_created: number;
+/** POST answers with the announcement itself plus what the post queued (DESIGN.md §5). */
+export interface CreateAnnouncementResponse extends AnnouncementDetail {
+  delivery_summary: {
+    inapp_queued: number;
+    email_queued: number;
+    skipped_opted_out: number;
+  };
 }
 
 export const announcementsApi = {
@@ -26,7 +31,7 @@ export const announcementsApi = {
   },
 
   getAnnouncement: async (id: string) => {
-    return apiClient<Announcement>(`/announcements/${id}`, {
+    return apiClient<AnnouncementDetail>(`/announcements/${id}`, {
       method: 'GET',
     });
   },
@@ -39,7 +44,7 @@ export const announcementsApi = {
   },
 
   updateRevision: async (id: string, data: UpdateAnnouncementPayload) => {
-    return apiClient<Announcement>(`/announcements/${id}`, {
+    return apiClient<AnnouncementDetail>(`/announcements/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
