@@ -1,8 +1,9 @@
 import { http, HttpResponse } from 'msw';
-import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets, mockAnnouncements, mockDeliveries } from './data';
+import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets, mockAnnouncements, mockDeliveries, mockProducts, mockMerchOrders } from './data';
 import type { UserMe, MembershipPlan } from '../types/api';
 import type { EventDetail, TicketItem, TicketCheckoutResponse } from '../types/events';
 import type { Announcement, AnnouncementDelivery, AnnouncementCategory, AnnouncementAudience } from '../types/announcements';
+import type { Product, ProductVariant, MerchOrder, MerchOrderItem, FulfillmentStatus } from '../features/shop/types';
 
 let activeUserEmail = 'member@ssa.org';
 const plansState: MembershipPlan[] = [...mockPlans];
@@ -10,6 +11,8 @@ export const eventsState: EventDetail[] = JSON.parse(JSON.stringify(mockEvents))
 export const ticketsState: TicketItem[] = JSON.parse(JSON.stringify(mockTickets));
 export const announcementsState: Announcement[] = JSON.parse(JSON.stringify(mockAnnouncements));
 export const deliveriesState: AnnouncementDelivery[] = JSON.parse(JSON.stringify(mockDeliveries));
+export const productsState: Product[] = JSON.parse(JSON.stringify(mockProducts));
+export const merchOrdersState: MerchOrder[] = JSON.parse(JSON.stringify(mockMerchOrders));
 export const ticketOrdersState: Record<string, {
   order_id: string;
   payment_id: string;
@@ -289,6 +292,30 @@ export const handlers = [
       return HttpResponse.json({
         order_id: String(orderId),
         payment_id: ticketOrder.payment_id,
+        order_status: 'completed',
+        payment_status: 'succeeded',
+        provider_ref: `txn_mock_${Date.now()}`,
+      });
+    }
+
+    const merchOrder = merchOrdersState.find((o) => o.id === String(orderId));
+    if (merchOrder) {
+      if (body.outcome === 'fail') {
+        merchOrder.status = 'failed';
+        merchOrder.updated_at = new Date().toISOString();
+        return HttpResponse.json({
+          order_id: String(orderId),
+          payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
+          order_status: 'failed',
+          payment_status: 'failed',
+          provider_ref: `txn_fail_${Date.now()}`,
+        });
+      }
+      merchOrder.status = 'paid';
+      merchOrder.updated_at = new Date().toISOString();
+      return HttpResponse.json({
+        order_id: String(orderId),
+        payment_id: `pay_${Math.random().toString(36).substring(2, 10)}`,
         order_status: 'completed',
         payment_status: 'succeeded',
         provider_ref: `txn_mock_${Date.now()}`,
@@ -1129,6 +1156,620 @@ export const handlers = [
     currentUser.email_opt_in = body.email_opt_in;
 
     return HttpResponse.json(currentUser);
+  }),
+
+  // 30. Get Products (Public / Admin)
+  http.get('*/api/v1/products', ({ request }) => {
+    const url = new URL(request.url);
+    const includeInactive = url.searchParams.get('include_inactive') === 'true';
+
+    const products = includeInactive
+      ? productsState
+      : productsState.filter((p) => p.is_active);
+
+    return HttpResponse.json(products);
+  }),
+
+  // 31. Get Single Product
+  http.get('*/api/v1/products/:id', ({ params }) => {
+    const { id } = params;
+    const product = productsState.find((p) => p.id === id);
+
+    if (!product) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'PRODUCT_NOT_FOUND',
+            message: 'Product not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    return HttpResponse.json(product);
+  }),
+
+  // 32. Create Product (Admin)
+  http.post('*/api/v1/products', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required to create products.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      name: string;
+      description?: string | null;
+      image_url?: string | null;
+      base_price: number;
+      member_discount_pct: number;
+      is_active?: boolean;
+    };
+
+    const newProduct: Product = {
+      id: `prod_${Math.random().toString(36).substring(2, 9)}`,
+      name: body.name,
+      description: body.description ?? null,
+      image_url: body.image_url ?? null,
+      base_price: body.base_price,
+      member_discount_pct: body.member_discount_pct ?? 0,
+      is_active: body.is_active ?? true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      variants: [],
+    };
+
+    productsState.unshift(newProduct);
+    return HttpResponse.json(newProduct, { status: 201 });
+  }),
+
+  // 33. Update Product (Admin)
+  http.patch('*/api/v1/products/:id', async ({ params, request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required to update products.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params;
+    const product = productsState.find((p) => p.id === id);
+    if (!product) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'PRODUCT_NOT_FOUND',
+            message: 'Product not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as Partial<Product>;
+    if (body.name !== undefined) product.name = body.name;
+    if (body.description !== undefined) product.description = body.description;
+    if (body.image_url !== undefined) product.image_url = body.image_url;
+    if (body.base_price !== undefined) product.base_price = body.base_price;
+    if (body.member_discount_pct !== undefined) product.member_discount_pct = body.member_discount_pct;
+    if (body.is_active !== undefined) product.is_active = body.is_active;
+    product.updated_at = new Date().toISOString();
+
+    return HttpResponse.json(product);
+  }),
+
+  // 34. Create Variant (Admin)
+  http.post('*/api/v1/products/:id/variants', async ({ params, request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required to create variants.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params;
+    const product = productsState.find((p) => p.id === id);
+    if (!product) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'PRODUCT_NOT_FOUND',
+            message: 'Product not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      size: string;
+      color?: string | null;
+      sku: string;
+      stock: number;
+      low_stock_threshold: number;
+    };
+
+    if (body.stock < 0) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'INVALID_STOCK',
+            message: 'Stock cannot be negative.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const newVariant: ProductVariant = {
+      id: `var_${Math.random().toString(36).substring(2, 9)}`,
+      product_id: String(id),
+      size: body.size,
+      color: body.color ?? null,
+      sku: body.sku,
+      stock: body.stock,
+      low_stock_threshold: body.low_stock_threshold ?? 5,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    product.variants.push(newVariant);
+    product.updated_at = new Date().toISOString();
+
+    return HttpResponse.json(newVariant, { status: 201 });
+  }),
+
+  // 35. Update Variant (Admin)
+  http.patch('*/api/v1/products/:id/variants/:variantId', async ({ params, request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required to update variants.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const { id, variantId } = params;
+    const product = productsState.find((p) => p.id === id);
+    if (!product) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'PRODUCT_NOT_FOUND',
+            message: 'Product not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const variant = product.variants.find((v) => v.id === variantId);
+    if (!variant) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'VARIANT_NOT_FOUND',
+            message: 'Product variant not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as Partial<ProductVariant>;
+    if (body.stock !== undefined) {
+      if (body.stock < 0) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'INVALID_STOCK',
+              message: 'Stock cannot be negative.',
+            },
+          },
+          { status: 400 }
+        );
+      }
+      variant.stock = body.stock;
+    }
+    if (body.size !== undefined) variant.size = body.size;
+    if (body.color !== undefined) variant.color = body.color;
+    if (body.sku !== undefined) variant.sku = body.sku;
+    if (body.low_stock_threshold !== undefined) variant.low_stock_threshold = body.low_stock_threshold;
+    variant.updated_at = new Date().toISOString();
+    product.updated_at = new Date().toISOString();
+
+    return HttpResponse.json(variant);
+  }),
+
+  // 36. Member Merch Checkout
+  http.post('*/api/v1/orders/merch/checkout', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required to checkout.',
+          },
+        },
+        { status: 401 }
+      );
+    }
+
+    // Role check: Only active members (or staff/organizer/admin) can order
+    const isMember = currentUser.membership?.status === 'active' || currentUser.role === 'admin' || currentUser.role === 'organizer';
+    if (!isMember) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'MEMBERSHIP_REQUIRED',
+            message: 'Merchandise ordering is an exclusive benefit for active club members. Join a plan to unlock store access.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      items: Array<{ variant_id: string; quantity: number }>;
+      delivery_note?: string;
+    };
+
+    if (!body.items || body.items.length === 0) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'EMPTY_CART',
+            message: 'Your cart is empty.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Concurrency-safe atomic stock check across all requested items
+    type ResolvedLine = {
+      product: Product;
+      variant: ProductVariant;
+      quantity: number;
+      unitPrice: number;
+    };
+    const resolvedLines: ResolvedLine[] = [];
+
+    for (const item of body.items) {
+      const reqQty = (item as any).qty ?? (item as any).quantity ?? 1;
+      let foundProduct: Product | undefined;
+      let foundVariant: ProductVariant | undefined;
+
+      for (const p of productsState) {
+        const v = p.variants.find((vr) => vr.id === item.variant_id);
+        if (v) {
+          foundProduct = p;
+          foundVariant = v;
+          break;
+        }
+      }
+
+      if (!foundProduct || !foundVariant) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'VARIANT_NOT_FOUND',
+              message: `Variant ${item.variant_id} does not exist.`,
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      if (foundVariant.stock < reqQty) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'SOLD_OUT',
+              message: `Insufficient stock for ${foundProduct.name} (${foundVariant.size}). Available: ${foundVariant.stock}, requested: ${reqQty}.`,
+              details: {
+                variant_id: foundVariant.id,
+                available: foundVariant.stock,
+                requested: reqQty,
+              },
+            },
+          },
+          { status: 409 }
+        );
+      }
+
+      // Member discount calculation
+      const discountPct = foundProduct.member_discount_pct || 0;
+      const unitPrice = discountPct > 0
+        ? Math.round(foundProduct.base_price * (1 - discountPct / 100))
+        : foundProduct.base_price;
+
+      resolvedLines.push({
+        product: foundProduct,
+        variant: foundVariant,
+        quantity: reqQty,
+        unitPrice,
+      });
+    }
+
+    // Atomically decrement stock
+    for (const line of resolvedLines) {
+      line.variant.stock -= line.quantity;
+      line.variant.updated_at = new Date().toISOString();
+      line.product.updated_at = new Date().toISOString();
+    }
+
+    const orderId = `ord_merch_${Date.now()}`;
+    const paymentId = `pay_${Date.now()}`;
+    const totalAmount = resolvedLines.reduce((acc, l) => acc + l.unitPrice * l.quantity, 0);
+
+    const orderItems: MerchOrderItem[] = resolvedLines.map((l, idx) => ({
+      id: `item_${orderId}_${idx + 1}`,
+      variant_id: l.variant.id,
+      product_name: l.product.name,
+      size: l.variant.size,
+      color: l.variant.color,
+      qty: l.quantity,
+      unit_price: l.unitPrice,
+    }));
+
+    const newOrder: MerchOrder = {
+      id: orderId,
+      user_id: currentUser.id,
+      user_name: currentUser.full_name,
+      user_email: currentUser.email,
+      kind: 'merch',
+      amount: totalAmount,
+      status: 'pending',
+      delivery_note: body.delivery_note || '',
+      fulfilment_status: 'paid',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      items: orderItems,
+    };
+
+    merchOrdersState.unshift(newOrder);
+
+    return HttpResponse.json({
+      order_id: orderId,
+      payment_id: paymentId,
+      amount: totalAmount,
+      status: 'pending',
+      provider: 'mock_cashfree',
+      delivery_note: body.delivery_note || '',
+      items: orderItems,
+    });
+  }),
+
+  // 37. Get My Orders
+  http.get('*/api/v1/orders/me', ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required to view orders.',
+          },
+        },
+        { status: 401 }
+      );
+    }
+
+    const myOrders = merchOrdersState.filter(
+      (o) => o.user_id === currentUser.id || o.user_email === currentUser.email
+    );
+
+    return HttpResponse.json(myOrders);
+  }),
+
+  // 38. Admin Merch Orders Board
+  http.get('*/api/v1/admin/merch/orders', ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const url = new URL(request.url);
+    const fulfilmentStatus = url.searchParams.get('fulfilment_status') as FulfillmentStatus | null;
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(url.searchParams.get('page_size') || '50', 10);
+
+    let filtered = [...merchOrdersState];
+    if (fulfilmentStatus) {
+      filtered = filtered.filter((o) => o.fulfilment_status === fulfilmentStatus);
+    }
+
+    const total = filtered.length;
+    const startIdx = (page - 1) * pageSize;
+    const paginated = filtered.slice(startIdx, startIdx + pageSize);
+
+    return HttpResponse.json({
+      items: paginated,
+      total,
+      page,
+      page_size: pageSize,
+    });
+  }),
+
+  // 39. Update Merch Order Fulfillment Status (Admin)
+  http.patch('*/api/v1/admin/merch/orders/:id', async ({ params, request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params;
+    const order = merchOrdersState.find((o) => o.id === id);
+    if (!order) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'ORDER_NOT_FOUND',
+            message: 'Merchandise order not found.',
+          },
+        },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as { fulfilment_status: FulfillmentStatus };
+    const validStatuses: FulfillmentStatus[] = ['paid', 'packed', 'handed_over'];
+    if (!validStatuses.includes(body.fulfilment_status)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'INVALID_STATUS',
+            message: 'Invalid fulfilment status provided.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    order.fulfilment_status = body.fulfilment_status;
+    order.updated_at = new Date().toISOString();
+
+    return HttpResponse.json(order);
+  }),
+
+  // 40. Admin Stock Summary
+  http.get('*/api/v1/admin/merch/stock-summary', ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser || currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Admin authorization required.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const items: Array<{
+      product_id: string;
+      product_name: string;
+      variant_id: string;
+      size: string;
+      sku: string;
+      stock: number;
+      low_stock_threshold: number;
+      demand: number;
+      units_packed: number;
+      units_handed_over: number;
+      pending_fulfillment: number;
+    }> = [];
+
+    let lowStockCount = 0;
+
+    for (const p of productsState) {
+      for (const v of p.variants) {
+        if (v.stock <= v.low_stock_threshold) {
+          lowStockCount++;
+        }
+
+        let demand = 0;
+        let unitsPacked = 0;
+        let unitsHandedOver = 0;
+
+        for (const order of merchOrdersState) {
+          if (order.status === 'failed') continue;
+          for (const item of order.items) {
+            if (item.variant_id === v.id) {
+              const itemQty = item.qty ?? (item as any).quantity ?? 0;
+              demand += itemQty;
+              if (order.fulfilment_status === 'packed') {
+                unitsPacked += itemQty;
+              } else if (order.fulfilment_status === 'handed_over') {
+                unitsHandedOver += itemQty;
+              }
+            }
+          }
+        }
+
+        items.push({
+          product_id: p.id,
+          product_name: p.name,
+          variant_id: v.id,
+          size: v.size,
+          sku: v.sku,
+          stock: v.stock,
+          low_stock_threshold: v.low_stock_threshold,
+          demand,
+          units_packed: unitsPacked,
+          units_handed_over: unitsHandedOver,
+          pending_fulfillment: demand - unitsHandedOver,
+        });
+      }
+    }
+
+    return HttpResponse.json({
+      items,
+      total_variants: items.length,
+      low_stock_count: lowStockCount,
+    });
   }),
 ];
 

@@ -4,10 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { hasMinimumRole } from '../../types/api';
 import { RoleBadge } from '../ui/StatusChip';
 import { Button } from '../ui/Button';
-import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar, Megaphone } from 'lucide-react';
+import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar, Megaphone, ShoppingBag } from 'lucide-react';
+import { useCart } from '../../features/shop/context/CartContext';
+import { CartDrawer } from '../../features/shop/components/CartDrawer';
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { itemCount, setIsCartOpen } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -57,6 +60,9 @@ export function Navbar() {
             <NavLink to="/announcements" className={linkClass}>
               Announcements
             </NavLink>
+            <NavLink to="/shop" className={linkClass}>
+              Shop
+            </NavLink>
             <NavLink to="/join" className={linkClass}>
               Plans & Perks
             </NavLink>
@@ -68,6 +74,9 @@ export function Navbar() {
                 </NavLink>
                 <NavLink to="/me/tickets" className={linkClass}>
                   My Tickets
+                </NavLink>
+                <NavLink to="/me/orders" className={linkClass}>
+                  My Orders
                 </NavLink>
               </>
             )}
@@ -117,12 +126,33 @@ export function Navbar() {
                 <NavLink to="/admin/renewals" className={linkClass}>
                   Renewals
                 </NavLink>
+                <NavLink to="/admin/products" className={linkClass}>
+                  Merch
+                </NavLink>
+                <NavLink to="/admin/merch-orders" className={linkClass}>
+                  Orders Board
+                </NavLink>
               </div>
             )}
           </nav>
 
-          {/* Desktop User Menu / Auth CTAs */}
+          {/* Desktop User Menu / Auth CTAs / Cart */}
           <div className="hidden md:flex items-center gap-3">
+            {/* Cart Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              aria-label={`Open shopping cart with ${itemCount} items`}
+            >
+              <ShoppingBag className="w-5 h-5" />
+              {itemCount > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-sm ring-2 ring-white">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 pl-2">
@@ -159,8 +189,21 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile menu toggle */}
-          <div className="flex md:hidden">
+          {/* Mobile Cart & Menu toggle */}
+          <div className="flex items-center gap-1 md:hidden">
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"
+              aria-label={`Open cart with ${itemCount} items`}
+            >
+              <ShoppingBag className="w-5 h-5" />
+              {itemCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-[10px] font-bold text-white ring-2 ring-white">
+                  {itemCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 focus:outline-none"
@@ -209,6 +252,13 @@ export function Navbar() {
               Announcements
             </NavLink>
             <NavLink
+              to="/shop"
+              className={linkClass}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Shop
+            </NavLink>
+            <NavLink
               to="/join"
               className={linkClass}
               onClick={() => setMobileMenuOpen(false)}
@@ -231,6 +281,13 @@ export function Navbar() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   My Event Tickets
+                </NavLink>
+                <NavLink
+                  to="/me/orders"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Merch Orders
                 </NavLink>
               </>
             )}
@@ -305,6 +362,20 @@ export function Navbar() {
                 >
                   Renewals Due
                 </NavLink>
+                <NavLink
+                  to="/admin/products"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Merchandise & Stock
+                </NavLink>
+                <NavLink
+                  to="/admin/merch-orders"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Merch Orders Board
+                </NavLink>
               </div>
             )}
           </div>
@@ -336,6 +407,9 @@ export function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Cart Drawer rendered in navigation tree */}
+      <CartDrawer />
     </header>
   );
 }

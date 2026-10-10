@@ -15,3 +15,21 @@ export function formatINR(paise: number): string {
     maximumFractionDigits: hasDecimals ? 2 : 0,
   }).format(rupees);
 }
+
+/**
+ * Converts whole or decimal rupees entered by admin users into integer paise.
+ * E.g., 500 -> 50000, 1500.50 -> 150050.
+ */
+export function rupeesToPaise(rupees: number | string): number {
+  const num = typeof rupees === 'string' ? parseFloat(rupees) : rupees;
+  if (isNaN(num) || num < 0) return 0;
+  return Math.round(num * 100);
+}
+
+/**
+ * Converts integer paise into rupees for display or form pre-filling.
+ */
+export function paiseToRupees(paise: number): number {
+  if (isNaN(paise) || paise < 0) return 0;
+  return paise / 100;
+}

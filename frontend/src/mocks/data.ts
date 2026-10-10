@@ -1,5 +1,6 @@
 import type { MembershipPlan, UserMe, Membership, RenewalDueItem } from '../types/api';
 import type { Announcement, AnnouncementDelivery } from '../types/announcements';
+import type { Product, MerchOrder } from '../features/shop/types';
 
 export const mockPlans: MembershipPlan[] = [
   {
@@ -545,6 +546,219 @@ export const mockDeliveries: AnnouncementDelivery[] = [
     channel: 'email',
     status: 'sent',
     sent_at: '2026-10-07T09:00:12Z',
+  },
+];
+
+export const mockProducts: Product[] = [
+  {
+    id: 'prod_hoodie_01',
+    name: 'SSA Premium Club Hoodie',
+    description:
+      'Heavyweight 380 GSM organic cotton fleece pullover hoodie with embroidered SSA chest crest and custom club pull-cords. Brushed interior for maximum comfort.',
+    image_url:
+      'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
+    base_price: 180000, // ₹1,800 in paise
+    member_discount_pct: 15, // 15% discount for active members
+    is_active: true,
+    created_at: '2026-02-01T10:00:00Z',
+    updated_at: '2026-02-01T10:00:00Z',
+    variants: [
+      {
+        id: 'var_hoodie_s',
+        product_id: 'prod_hoodie_01',
+        size: 'S',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-S',
+        stock: 8,
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_m',
+        product_id: 'prod_hoodie_01',
+        size: 'M',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-M',
+        stock: 2, // low stock!
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_l',
+        product_id: 'prod_hoodie_01',
+        size: 'L',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-L',
+        stock: 0, // sold out!
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_xl',
+        product_id: 'prod_hoodie_01',
+        size: 'XL',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-XL',
+        stock: 12,
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_hoodie_xxl',
+        product_id: 'prod_hoodie_01',
+        size: 'XXL',
+        color: 'Midnight Navy',
+        sku: 'SSA-HD-NVY-XXL',
+        stock: 5,
+        low_stock_threshold: 3,
+      },
+    ],
+  },
+  {
+    id: 'prod_tshirt_02',
+    name: 'SSA Annual Fest Tee',
+    description:
+      '100% pre-shrunk combed cotton jersey t-shirt celebrating our annual innovation fest. High-density screen printed graphics on chest and back.',
+    image_url:
+      'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
+    base_price: 65000, // ₹650 in paise
+    member_discount_pct: 10, // 10% discount for active members
+    is_active: true,
+    created_at: '2026-02-05T12:00:00Z',
+    updated_at: '2026-02-05T12:00:00Z',
+    variants: [
+      {
+        id: 'var_tee_xs',
+        product_id: 'prod_tshirt_02',
+        size: 'XS',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-XS',
+        stock: 4,
+        low_stock_threshold: 3,
+      },
+      {
+        id: 'var_tee_s',
+        product_id: 'prod_tshirt_02',
+        size: 'S',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-S',
+        stock: 15,
+        low_stock_threshold: 5,
+      },
+      {
+        id: 'var_tee_m',
+        product_id: 'prod_tshirt_02',
+        size: 'M',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-M',
+        stock: 20,
+        low_stock_threshold: 5,
+      },
+      {
+        id: 'var_tee_l',
+        product_id: 'prod_tshirt_02',
+        size: 'L',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-L',
+        stock: 14,
+        low_stock_threshold: 5,
+      },
+      {
+        id: 'var_tee_xl',
+        product_id: 'prod_tshirt_02',
+        size: 'XL',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-XL',
+        stock: 3, // low stock!
+        low_stock_threshold: 4,
+      },
+      {
+        id: 'var_tee_xxl',
+        product_id: 'prod_tshirt_02',
+        size: 'XXL',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-XXL',
+        stock: 1, // low stock!
+        low_stock_threshold: 2,
+      },
+      {
+        id: 'var_tee_xxxl',
+        product_id: 'prod_tshirt_02',
+        size: 'XXXL',
+        color: 'Charcoal Grey',
+        sku: 'SSA-TEE-CHR-3XL',
+        stock: 0, // sold out!
+        low_stock_threshold: 2,
+      },
+    ],
+  },
+];
+
+export const mockMerchOrders: MerchOrder[] = [
+  {
+    id: 'ord_merch_001',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    kind: 'merch',
+    amount: 153000, // ₹1,530 after 15% discount
+    status: 'paid',
+    fulfilment_status: 'paid',
+    delivery_note: 'Pickup: Student Activity Center, Desk #2',
+    items: [
+      {
+        id: 'item_m_01',
+        variant_id: 'var_hoodie_m',
+        product_name: 'SSA Premium Club Hoodie',
+        size: 'M',
+        color: 'Midnight Navy',
+        qty: 1,
+        unit_price: 153000,
+      },
+    ],
+    created_at: '2026-10-08T14:20:00Z',
+  },
+  {
+    id: 'ord_merch_002',
+    user_id: 'usr_member_02',
+    user_name: 'Aarav Patel',
+    user_email: 'member@ssa.org',
+    kind: 'merch',
+    amount: 117000, // ₹1,170 (2x fest tees at ₹585)
+    status: 'paid',
+    fulfilment_status: 'packed',
+    delivery_note: 'Deliver to: Room 304, Boys Hostel B, Campus North',
+    items: [
+      {
+        id: 'item_m_02',
+        variant_id: 'var_tee_l',
+        product_name: 'SSA Annual Fest Tee',
+        size: 'L',
+        color: 'Charcoal Grey',
+        qty: 2,
+        unit_price: 58500,
+      },
+    ],
+    created_at: '2026-10-07T11:15:00Z',
+  },
+  {
+    id: 'ord_merch_003',
+    user_id: 'usr_expiring_03',
+    user_name: 'Diya Sharma',
+    user_email: 'expiring@ssa.org',
+    kind: 'merch',
+    amount: 153000,
+    status: 'paid',
+    fulfilment_status: 'handed_over',
+    delivery_note: 'Pickup: SAC Club Room after 4 PM',
+    items: [
+      {
+        id: 'item_m_03',
+        variant_id: 'var_hoodie_s',
+        product_name: 'SSA Premium Club Hoodie',
+        size: 'S',
+        color: 'Midnight Navy',
+        qty: 1,
+        unit_price: 153000,
+      },
+    ],
+    created_at: '2026-10-06T09:45:00Z',
   },
 ];
 

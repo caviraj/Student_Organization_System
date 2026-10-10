@@ -28,6 +28,13 @@ export function Checkout() {
   );
   const ticketData = checkoutData as TicketCheckoutResponse | undefined;
 
+  const isMerchCheckout = Boolean(
+    (checkoutData as any)?.is_merch ||
+    (checkoutData as any)?.items ||
+    (checkoutData as any)?.order_type === 'merch'
+  );
+  const merchData = checkoutData as any;
+
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -49,7 +56,12 @@ export function Checkout() {
       if (isPaid) {
         setPaymentStatus('success');
         await refreshUser();
-        if (isTicketCheckout) {
+        if (isMerchCheckout) {
+          toast.show('Payment confirmed! Merchandise order placed.', 'success');
+          setTimeout(() => {
+            navigate('/me/orders');
+          }, 1800);
+        } else if (isTicketCheckout) {
           toast.show('Payment confirmed! Tickets issued successfully.', 'success');
           setTimeout(() => {
             navigate('/me/tickets');
@@ -86,10 +98,17 @@ export function Checkout() {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => (isTicketCheckout ? navigate('/events') : navigate('/join'))}
+        onClick={() =>
+          isMerchCheckout
+            ? navigate('/shop')
+            : isTicketCheckout
+            ? navigate('/events')
+            : navigate('/join')
+        }
         className="mb-6 text-slate-400 hover:text-white"
       >
-        <ArrowLeft className="w-4 h-4 mr-1.5" /> {isTicketCheckout ? 'Back to Events' : 'Back to Plans'}
+        <ArrowLeft className="w-4 h-4 mr-1.5" />{' '}
+        {isMerchCheckout ? 'Back to Shop' : isTicketCheckout ? 'Back to Events' : 'Back to Plans'}
       </Button>
 
       <Card className="border-slate-800 bg-slate-900/90 shadow-2xl relative overflow-hidden">
@@ -101,10 +120,16 @@ export function Checkout() {
             <CreditCard className="w-7 h-7" />
           </div>
           <CardTitle className="text-2xl font-bold text-white">
-            {isTicketCheckout ? 'Ticket Checkout' : 'Payment Checkout'}
+            {isMerchCheckout
+              ? 'Merchandise Checkout'
+              : isTicketCheckout
+              ? 'Ticket Checkout'
+              : 'Payment Checkout'}
           </CardTitle>
           <CardDescription className="text-slate-400">
-            {isTicketCheckout
+            {isMerchCheckout
+              ? 'Complete your official club merchandise payment'
+              : isTicketCheckout
               ? 'Complete your event admission ticket order'
               : 'Complete your student club membership purchase'}
           </CardDescription>
@@ -119,6 +144,27 @@ export function Checkout() {
                 {currentOrderId}
               </span>
             </div>
+
+            {isMerchCheckout && (
+              <>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-400">Category</span>
+                  <span className="font-medium text-white">Official Club Merch</span>
+                </div>
+                {merchData?.items_count && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-400">Items Ordered</span>
+                    <span className="font-medium text-white">{merchData.items_count} item{merchData.items_count > 1 ? 's' : ''}</span>
+                  </div>
+                )}
+                {merchData?.delivery_note && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-400">Fulfillment Note</span>
+                    <span className="font-medium text-slate-300 truncate max-w-[240px] text-right">{merchData.delivery_note}</span>
+                  </div>
+                )}
+              </>
+            )}
 
             {isTicketCheckout && ticketData?.event_title && (
               <div className="flex justify-between items-center text-sm">
@@ -150,7 +196,7 @@ export function Checkout() {
               </div>
             )}
 
-            {!isTicketCheckout && (checkoutData as CheckoutResponse)?.plan_name && (
+            {!isTicketCheckout && !isMerchCheckout && (checkoutData as CheckoutResponse)?.plan_name && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Membership Tier</span>
                 <span className="font-medium text-white">{(checkoutData as CheckoutResponse).plan_name}</span>

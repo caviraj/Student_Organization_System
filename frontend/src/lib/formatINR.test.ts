@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatINR } from './formatINR';
+import { formatINR, rupeesToPaise, paiseToRupees } from './formatINR';
 
 describe('formatINR', () => {
   it('formats zero paise correctly', () => {
@@ -26,5 +26,20 @@ describe('formatINR', () => {
     expect(formatINR(NaN).replace(/\u00a0/g, ' ')).toBe('₹0');
     // @ts-expect-error testing invalid type
     expect(formatINR(null).replace(/\u00a0/g, ' ')).toBe('₹0');
+  });
+
+  it('converts rupees to paise accurately', () => {
+    expect(rupeesToPaise(500)).toBe(50000);
+    expect(rupeesToPaise('500')).toBe(50000);
+    expect(rupeesToPaise(1500.5)).toBe(150050);
+    expect(rupeesToPaise('1500.50')).toBe(150050);
+    expect(rupeesToPaise(0)).toBe(0);
+    expect(rupeesToPaise(-10)).toBe(0);
+  });
+
+  it('converts paise to rupees accurately', () => {
+    expect(paiseToRupees(50000)).toBe(500);
+    expect(paiseToRupees(150050)).toBe(1500.5);
+    expect(paiseToRupees(0)).toBe(0);
   });
 });

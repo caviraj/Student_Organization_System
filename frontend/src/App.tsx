@@ -30,6 +30,15 @@ import { AdminPlans } from './pages/admin/AdminPlans';
 import { AdminRenewals } from './pages/admin/AdminRenewals';
 import { Button } from './components/ui/Button';
 
+// Shop feature
+import { CartProvider } from './features/shop/context/CartContext';
+import { ShopCatalog } from './features/shop/pages/ShopCatalog';
+import { ProductDetail } from './features/shop/pages/ProductDetail';
+import { ShopCheckout } from './features/shop/pages/ShopCheckout';
+import { MyOrders } from './features/shop/pages/MyOrders';
+import { AdminProducts } from './features/shop/pages/AdminProducts';
+import { AdminMerchOrders } from './features/shop/pages/AdminMerchOrders';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -62,43 +71,62 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                {/* Public Routes */}
-                <Route index element={<Home />} />
-                <Route path="events" element={<EventsList />} />
-                <Route path="events/:id" element={<EventDetail />} />
-                <Route path="announcements" element={<AnnouncementsFeed />} />
-                <Route path="login" element={<Login />} />
-                <Route path="register" element={<Register />} />
-                <Route path="join" element={<Join />} />
+          <CartProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  {/* Public Routes */}
+                  <Route index element={<Home />} />
+                  <Route path="events" element={<EventsList />} />
+                  <Route path="events/:id" element={<EventDetail />} />
+                  <Route path="announcements" element={<AnnouncementsFeed />} />
+                  <Route path="shop" element={<ShopCatalog />} />
+                  <Route path="shop/:productId" element={<ProductDetail />} />
+                  <Route path="login" element={<Login />} />
+                  <Route path="register" element={<Register />} />
+                  <Route path="join" element={<Join />} />
 
-                {/* Member / Authenticated Routes */}
-                <Route
-                  path="checkout/:orderId"
-                  element={
-                    <RequireAuth>
-                      <Checkout />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="me"
-                  element={
-                    <RequireAuth>
-                      <MemberDashboard />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="me/tickets"
-                  element={
-                    <RequireAuth>
-                      <MyTickets />
-                    </RequireAuth>
-                  }
-                />
+                  {/* Member / Authenticated Routes */}
+                  <Route
+                    path="checkout/:orderId"
+                    element={
+                      <RequireAuth>
+                        <Checkout />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="shop/checkout"
+                    element={
+                      <RequireAuth>
+                        <ShopCheckout />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="me"
+                    element={
+                      <RequireAuth>
+                        <MemberDashboard />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="me/tickets"
+                    element={
+                      <RequireAuth>
+                        <MyTickets />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="me/orders"
+                    element={
+                      <RequireAuth>
+                        <MyOrders />
+                      </RequireAuth>
+                    }
+                  />
 
                 {/* Staff Routes (Volunteer & above) */}
                 <Route
@@ -217,6 +245,26 @@ export function App() {
                     </RequireAuth>
                   }
                 />
+                <Route
+                  path="admin/products"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="admin">
+                        <AdminProducts />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="admin/merch-orders"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="admin">
+                        <AdminMerchOrders />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
 
                 {/* Redirects and 404 */}
                 <Route path="members" element={<Navigate to="/admin/members" replace />} />
@@ -224,10 +272,11 @@ export function App() {
               </Route>
             </Routes>
           </BrowserRouter>
-        </AuthProvider>
-      </ToastProvider>
-    </QueryClientProvider>
-  );
+        </CartProvider>
+      </AuthProvider>
+    </ToastProvider>
+  </QueryClientProvider>
+);
 }
 
 export default App;
