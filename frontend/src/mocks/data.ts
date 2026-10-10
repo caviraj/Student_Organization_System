@@ -762,3 +762,189 @@ export const mockMerchOrders: MerchOrder[] = [
   },
 ];
 
+export interface MockFundraiserRecord {
+  id: string;
+  title: string;
+  description: string;
+  goal_amount: number; // paise
+  raised_amount: number; // paise
+  event_date: string;
+  status: 'planning' | 'active' | 'done';
+  owner_id: string;
+  created_at: string;
+}
+
+export interface MockTaskRecord {
+  id: string;
+  fundraiser_id?: string | null;
+  event_id?: string | null;
+  title: string;
+  description: string;
+  category: string;
+  assignee_id?: string | null;
+  assignee_name?: string;
+  due_date: string; // YYYY-MM-DD
+  status: 'todo' | 'doing' | 'done';
+  created_at: string;
+}
+
+export const mockFundraisers: MockFundraiserRecord[] = [
+  {
+    id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Autumn Charity Bake Sale',
+    description: 'Annual campus bake sale raising funds for local school libraries and science lab equipment.',
+    goal_amount: 1500000, // ₹15,000
+    raised_amount: 1850000, // ₹18,500 (123% of goal)
+    event_date: '2026-10-25',
+    status: 'active',
+    owner_id: 'usr_org_07',
+    created_at: '2026-09-20T10:00:00Z',
+  },
+  {
+    id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Tech Fest Hardware Kit Drive',
+    description: 'Sponsoring IoT sensor kits, Arduino kits, and breadboards for first-year hackathon participants.',
+    goal_amount: 5000000, // ₹50,000
+    raised_amount: 1250000, // ₹12,500 (25% of goal)
+    event_date: '2026-11-15',
+    status: 'planning',
+    owner_id: 'usr_org_07',
+    created_at: '2026-10-01T09:00:00Z',
+  },
+];
+
+export const mockTasks: MockTaskRecord[] = [
+  {
+    id: 'task-bake-01',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Reserve Main Quad Canopies & Tables',
+    description: 'Book 4 canopy tents and 6 foldout tables with Student Affairs administration.',
+    category: 'Logistics',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-02', // past date, but status is done -> NOT overdue
+    status: 'done',
+    created_at: '2026-09-21T10:00:00Z',
+  },
+  {
+    id: 'task-bake-02',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Source Ingredients & Eco Packaging Boxes',
+    description: 'Procure bulk cocoa powder, parchment, sugar, and 200 biodegradable bakery boxes.',
+    category: 'Supplies',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-05', // past date, status doing -> OVERDUE
+    status: 'doing',
+    created_at: '2026-09-22T11:00:00Z',
+  },
+  {
+    id: 'task-bake-03',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Design & Print Stall Banners',
+    description: 'Finalize A2 vinyl posters and price menu cards with QR payment badges.',
+    category: 'Marketing',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-08', // past date, status todo -> OVERDUE
+    status: 'todo',
+    created_at: '2026-09-23T12:00:00Z',
+  },
+  {
+    id: 'task-bake-04',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Organize Baker Volunteer Roster',
+    description: 'Coordinate baking slots across 12 volunteer student bakers with dietary labeling.',
+    category: 'Volunteers',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-18',
+    status: 'doing',
+    created_at: '2026-09-24T14:00:00Z',
+  },
+  {
+    id: 'task-bake-05',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Confirm Food Hygiene Compliance',
+    description: 'Obtain clearance certificate and food handling gloves from campus cafeteria board.',
+    category: 'Admin',
+    assignee_id: 'usr_admin_01',
+    assignee_name: 'Dr. Sarah Connor',
+    due_date: '2026-10-20',
+    status: 'todo',
+    created_at: '2026-09-25T15:00:00Z',
+  },
+  {
+    id: 'task-bake-06',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Bake Batch A: Dark Chocolate Brownies',
+    description: 'Prepare 80 portions of eggless Belgian dark chocolate brownies.',
+    category: 'Baking',
+    assignee_id: 'usr_member_02',
+    assignee_name: 'Aarav Patel',
+    due_date: '2026-10-24',
+    status: 'todo',
+    created_at: '2026-09-26T09:00:00Z',
+  },
+  {
+    id: 'task-bake-07',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Setup Cashless UPI QR Codes & Cash Box',
+    description: 'Print official treasurer UPI QR standees and prepare ₹1,000 in small change.',
+    category: 'Finance',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-24',
+    status: 'done',
+    created_at: '2026-09-27T10:00:00Z',
+  },
+  {
+    id: 'task-bake-08',
+    fundraiser_id: 'b8a531b7-4b72-466d-8a21-9d562bb63451',
+    title: 'Stall Cleanup & Equipment Return',
+    description: 'Sweep Quad area, pack leftover boxes, and return canopy hardware to inventory.',
+    category: 'Table Duty',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-26',
+    status: 'todo',
+    created_at: '2026-09-28T16:00:00Z',
+  },
+  {
+    id: 'task-tech-01',
+    fundraiser_id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Negotiate Bulk Component Discount',
+    description: 'Reach out to local electronics distributor for 30 Raspberry Pi Pico starter kits.',
+    category: 'Procurement',
+    assignee_id: 'usr_org_07',
+    assignee_name: 'Ananya Roy',
+    due_date: '2026-10-15',
+    status: 'done',
+    created_at: '2026-10-02T10:00:00Z',
+  },
+  {
+    id: 'task-tech-02',
+    fundraiser_id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Launch Crowdfunding Promo on Socials',
+    description: 'Publish video appeal featuring previous year hackathon alumni project winners.',
+    category: 'Outreach',
+    assignee_id: 'usr_vol_06',
+    assignee_name: 'Vikram Seth',
+    due_date: '2026-10-22',
+    status: 'doing',
+    created_at: '2026-10-03T11:00:00Z',
+  },
+  {
+    id: 'task-tech-03',
+    fundraiser_id: 'c9b642c8-5c83-577e-9b32-ae673cc74562',
+    title: 'Package Individual Hackathon Kits',
+    description: 'Assemble kits with jumper wires, sensors, breadboards, and documentation guide.',
+    category: 'Assembly',
+    assignee_id: null,
+    due_date: '2026-11-10',
+    status: 'todo',
+    created_at: '2026-10-04T12:00:00Z',
+  },
+];
+
+

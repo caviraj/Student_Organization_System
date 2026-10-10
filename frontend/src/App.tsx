@@ -39,6 +39,11 @@ import { MyOrders } from './features/shop/pages/MyOrders';
 import { AdminProducts } from './features/shop/pages/AdminProducts';
 import { AdminMerchOrders } from './features/shop/pages/AdminMerchOrders';
 
+// Fundraisers & Tasks feature (Phase 5)
+import { FundraiserList } from './features/fundraisers/pages/FundraiserList';
+import { FundraiserDetail } from './features/fundraisers/pages/FundraiserDetail';
+import { MyTasks } from './features/fundraisers/pages/MyTasks';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -213,6 +218,76 @@ export function App() {
                     </RequireAuth>
                   }
                 />
+
+                {/* Organizer & Volunteer Fundraiser & Task Routes (Phase 5) */}
+                <Route
+                  path="manage/fundraisers"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <FundraiserList />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="manage/fundraisers/:id"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="volunteer">
+                        <FundraiserDetail />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="tasks"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="volunteer">
+                        {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' ? (
+                          <MyTasks />
+                        ) : (
+                          <Navigate to="/manage/fundraisers" replace />
+                        )}
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+
+                {/* Fundraiser & Tasks Management Routes (Phase 5) */}
+                <Route
+                  path="manage/fundraisers"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="organizer">
+                        <FundraiserList />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="manage/fundraisers/:id"
+                  element={
+                    <RequireAuth>
+                      <RequireRole minRole="volunteer">
+                        <FundraiserDetail />
+                      </RequireRole>
+                    </RequireAuth>
+                  }
+                />
+                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
+                  <Route
+                    path="tasks"
+                    element={
+                      <RequireAuth>
+                        <RequireRole minRole="volunteer">
+                          <MyTasks />
+                        </RequireRole>
+                      </RequireAuth>
+                    }
+                  />
+                )}
 
                 {/* Admin Routes */}
                 <Route

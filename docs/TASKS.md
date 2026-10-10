@@ -102,6 +102,6 @@ Rule: **a phase is DONE only when its Demo Gate passes and code is pushed + tagg
 | 2 | ☐ | ☑ | `docs/demos/phase2/DEMO_PHASE2.md` | `phase-2-done` |
 | 3 | ☐ | ☑ | `docs/demos/phase3/DEMO_PHASE3.md` | `phase-3-done` |
 | 4 | ☐ | ☐ | | |
-| 5 | ☐ | ☐ | | |
+| 5 | ☐ | ☑ | `docs/demos/phase5/DEMO_PHASE5.md` | `phase-5-done` |
 | 6 | ☐ | ☐ | | |
 | 7 | ☐ | ☐ | | |

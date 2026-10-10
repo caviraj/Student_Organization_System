@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { hasMinimumRole } from '../../types/api';
 import { RoleBadge } from '../ui/StatusChip';
 import { Button } from '../ui/Button';
-import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar, Megaphone, ShoppingBag } from 'lucide-react';
+import { Menu, X, LogOut, ShieldCheck, Sparkles, QrCode, Calendar, Megaphone, ShoppingBag, HeartHandshake, CheckSquare } from 'lucide-react';
 import { useCart } from '../../features/shop/context/CartContext';
 import { CartDrawer } from '../../features/shop/components/CartDrawer';
 
@@ -83,6 +83,14 @@ export function Navbar() {
 
             {isStaff && (
               <div className="flex items-center gap-1 pl-1 border-l border-slate-200/80">
+                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
+                  <NavLink to="/tasks" className={linkClass}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckSquare className="w-4 h-4 text-indigo-600" />
+                      My Tasks
+                    </span>
+                  </NavLink>
+                )}
                 <NavLink to="/staff/verify-member" className={linkClass}>
                   <span className="inline-flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-indigo-600" />
@@ -95,6 +103,14 @@ export function Navbar() {
                     Door Scanner
                   </span>
                 </NavLink>
+                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
+                  <NavLink to="/tasks" className={linkClass}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckSquare className="w-4 h-4 text-indigo-600" />
+                      My Tasks
+                    </span>
+                  </NavLink>
+                )}
               </div>
             )}
 
@@ -110,6 +126,12 @@ export function Navbar() {
                   <span className="inline-flex items-center gap-1.5">
                     <Megaphone className="w-4 h-4 text-indigo-600" />
                     Announcements
+                  </span>
+                </NavLink>
+                <NavLink to="/manage/fundraisers" className={linkClass}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <HeartHandshake className="w-4 h-4 text-indigo-600" />
+                    Fundraisers
                   </span>
                 </NavLink>
               </div>
@@ -297,6 +319,15 @@ export function Navbar() {
                 <span className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   Staff Scanners
                 </span>
+                {import.meta.env.VITE_FEATURE_MY_TASKS === 'true' && (
+                  <NavLink
+                    to="/tasks"
+                    className={linkClass}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    My Assigned Tasks
+                  </NavLink>
+                )}
                 <NavLink
                   to="/staff/verify-member"
                   className={linkClass}
@@ -332,6 +363,13 @@ export function Navbar() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Manage Announcements
+                </NavLink>
+                <NavLink
+                  to="/manage/fundraisers"
+                  className={linkClass}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Manage Fundraisers
                 </NavLink>
               </div>
             )}

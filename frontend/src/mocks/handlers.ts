@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets, mockAnnouncements, mockDeliveries, mockProducts, mockMerchOrders } from './data';
+import { mockPlans, mockUsers, mockMemberships, mockRenewalsDue, mockEvents, mockTickets, mockAnnouncements, mockDeliveries, mockProducts, mockMerchOrders, mockFundraisers, mockTasks, type MockFundraiserRecord, type MockTaskRecord } from './data';
 import type { UserMe, MembershipPlan } from '../types/api';
 import type { EventDetail, TicketItem, TicketCheckoutResponse } from '../types/events';
 import type { Announcement, AnnouncementDelivery, AnnouncementCategory, AnnouncementAudience } from '../types/announcements';
@@ -13,6 +13,8 @@ export const announcementsState: Announcement[] = JSON.parse(JSON.stringify(mock
 export const deliveriesState: AnnouncementDelivery[] = JSON.parse(JSON.stringify(mockDeliveries));
 export const productsState: Product[] = JSON.parse(JSON.stringify(mockProducts));
 export const merchOrdersState: MerchOrder[] = JSON.parse(JSON.stringify(mockMerchOrders));
+export const fundraisersState: MockFundraiserRecord[] = JSON.parse(JSON.stringify(mockFundraisers));
+export const tasksState: MockTaskRecord[] = JSON.parse(JSON.stringify(mockTasks));
 export const ticketOrdersState: Record<string, {
   order_id: string;
   payment_id: string;
@@ -1770,6 +1772,389 @@ export const handlers = [
       total_variants: items.length,
       low_stock_count: lowStockCount,
     });
+  }),
+
+  // ==========================================
+  // PHASE 5: FUNDRAISERS & TASKS HANDLERS
+  // ==========================================
+
+  // 40. List Fundraisers (organizer+)
+  http.get('*/api/v1/fundraisers', ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const withProgress = fundraisersState.map((f) => {
+      const fTasks = tasksState.filter((t) => t.fundraiser_id === f.id);
+      const tasks_total = fTasks.length;
+      const done = fTasks.filter((t) => t.status === 'done').length;
+      const overdue = fTasks.filter((t) => t.status !== 'done' && t.due_date < today).length;
+      return {
+        ...f,
+        progress: {
+          fundraiser_id: f.id,
+          tasks_total,
+          done,
+          overdue,
+          raised: f.raised_amount,
+          goal: f.goal_amount,
+        },
+      };
+    });
+
+    return HttpResponse.json(withProgress);
+  }),
+
+  // 41. Create Fundraiser (organizer+)
+  http.post('*/api/v1/fundraisers', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      title: string;
+      description?: string;
+      goal_amount: number;
+      event_date?: string;
+      status?: 'planning' | 'active' | 'done';
+    };
+
+    const newFundraiser: MockFundraiserRecord = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fnd_${Math.random().toString(36).substring(2, 9)}`,
+      title: body.title,
+      description: body.description || '',
+      goal_amount: body.goal_amount,
+      raised_amount: 0,
+      event_date: body.event_date || new Date().toISOString().split('T')[0],
+      status: body.status || 'planning',
+      owner_id: currentUser.id,
+      created_at: new Date().toISOString(),
+    };
+
+    fundraisersState.unshift(newFundraiser);
+
+    return HttpResponse.json(newFundraiser, { status: 201 });
+  }),
+
+  // 42. Get Fundraiser Detail (volunteer+)
+  http.get('*/api/v1/fundraisers/:id', ({ request, params }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'volunteer' && currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Volunteer or organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params as { id: string };
+    const fundraiser = fundraisersState.find((f) => f.id === id);
+
+    if (!fundraiser) {
+      return HttpResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Fundraiser not found.' } },
+        { status: 404 }
+      );
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const fTasks = tasksState.filter((t) => t.fundraiser_id === id);
+    const tasks_total = fTasks.length;
+    const done = fTasks.filter((t) => t.status === 'done').length;
+    const overdue = fTasks.filter((t) => t.status !== 'done' && t.due_date < today).length;
+
+    return HttpResponse.json({
+      ...fundraiser,
+      progress: {
+        fundraiser_id: fundraiser.id,
+        tasks_total,
+        done,
+        overdue,
+        raised: fundraiser.raised_amount,
+        goal: fundraiser.goal_amount,
+      },
+    });
+  }),
+
+  // 43. Get Tasks for Fundraiser (volunteer+)
+  http.get('*/api/v1/fundraisers/:id/tasks', ({ request, params }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'volunteer' && currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Volunteer or organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params as { id: string };
+    const fundraiser = fundraisersState.find((f) => f.id === id);
+
+    if (!fundraiser) {
+      return HttpResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Fundraiser not found.' } },
+        { status: 404 }
+      );
+    }
+
+    const tasks = tasksState.filter((t) => t.fundraiser_id === id);
+    return HttpResponse.json(tasks);
+  }),
+
+  // 44. Create Task for Fundraiser (organizer+)
+  http.post('*/api/v1/fundraisers/:id/tasks', async ({ request, params }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params as { id: string };
+    const fundraiser = fundraisersState.find((f) => f.id === id);
+
+    if (!fundraiser) {
+      return HttpResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Fundraiser not found.' } },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      title: string;
+      description?: string;
+      category?: string;
+      assignee_id?: string | null;
+      due_date: string;
+    };
+
+    let assigneeName: string | undefined;
+    if (body.assignee_id) {
+      const foundUser = Object.values(mockUsers).find((u) => u.id === body.assignee_id);
+      assigneeName = foundUser ? foundUser.full_name : undefined;
+    }
+
+    const newTask: MockTaskRecord = {
+      id: `task_${Math.random().toString(36).substring(2, 9)}`,
+      fundraiser_id: id,
+      title: body.title,
+      description: body.description || '',
+      category: body.category || 'General',
+      assignee_id: body.assignee_id || null,
+      assignee_name: assigneeName,
+      due_date: body.due_date,
+      status: 'todo',
+      created_at: new Date().toISOString(),
+    };
+
+    tasksState.push(newTask);
+    return HttpResponse.json(newTask, { status: 201 });
+  }),
+
+  // 45. Update Task (assignee or organizer+)
+  http.patch('*/api/v1/tasks/:id', async ({ request, params }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    const { id } = params as { id: string };
+    const task = tasksState.find((t) => t.id === id);
+
+    if (!task) {
+      return HttpResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Task not found.' } },
+        { status: 404 }
+      );
+    }
+
+    // Permission check: organizer/admin or assigned volunteer
+    const isOrganizerOrAdmin = currentUser.role === 'organizer' || currentUser.role === 'admin';
+    const isAssignee = task.assignee_id === currentUser.id;
+
+    if (!isOrganizerOrAdmin && !isAssignee) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only the assigned volunteer or an organizer can update this task.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      status?: 'todo' | 'doing' | 'done';
+      assignee_id?: string | null;
+    };
+
+    if (body.status !== undefined) {
+      task.status = body.status;
+    }
+
+    if (body.assignee_id !== undefined) {
+      // Only organizer+ can reassign tasks
+      if (!isOrganizerOrAdmin && body.assignee_id !== task.assignee_id) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Only an organizer or admin can reassign tasks.',
+            },
+          },
+          { status: 403 }
+        );
+      }
+
+      task.assignee_id = body.assignee_id;
+      if (body.assignee_id) {
+        const foundUser = Object.values(mockUsers).find((u) => u.id === body.assignee_id);
+        task.assignee_name = foundUser ? foundUser.full_name : undefined;
+      } else {
+        task.assignee_name = undefined;
+      }
+    }
+
+    return HttpResponse.json(task);
+  }),
+
+  // 46. Log Fundraiser Income (organizer+)
+  http.post('*/api/v1/fundraisers/:id/income', async ({ request, params }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params as { id: string };
+    const fundraiser = fundraisersState.find((f) => f.id === id);
+
+    if (!fundraiser) {
+      return HttpResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Fundraiser not found.' } },
+        { status: 404 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      amount: number;
+      source: string;
+      note?: string;
+    };
+
+    if (typeof body.amount !== 'number' || body.amount <= 0 || !Number.isInteger(body.amount)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'INVALID_AMOUNT',
+            message: 'Amount must be a positive integer in paise.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    fundraiser.raised_amount += body.amount;
+
+    return HttpResponse.json({
+      message: 'Income logged successfully.',
+      fundraiser_id: fundraiser.id,
+      amount: body.amount,
+      new_raised_amount: fundraiser.raised_amount,
+    });
+  }),
+
+  // 47. Get My Tasks (volunteer+) [Gap (a) assumed endpoint]
+  http.get('*/api/v1/tasks/me', ({ request }) => {
+    const authHeader = request.headers.get('Authorization');
+    const currentUser = authHeader ? (mockUsers[activeUserEmail] || null) : null;
+
+    if (!currentUser) {
+      return HttpResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.role !== 'volunteer' && currentUser.role !== 'organizer' && currentUser.role !== 'admin') {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Volunteer or organizer authorization required.' } },
+        { status: 403 }
+      );
+    }
+
+    const myTasks = tasksState.filter((t) => t.assignee_id === currentUser.id);
+    return HttpResponse.json(myTasks);
   }),
 ];
 
